@@ -7,6 +7,7 @@ import {
 } from 'react'
 import type { IDEPanelServices } from 'web-ide'
 import {
+  DEFAULT_KAREL_PLAYBACK_LIMITS,
   KarelPlaybackController,
   type KarelPlaybackLimits,
 } from './playback-controller'
@@ -39,12 +40,9 @@ type KarelControlIconName =
   | 'prepare'
   | 'play'
   | 'pause'
-  | 'stop'
   | 'reset'
-  | 'restart'
   | 'step-back'
   | 'step-forward'
-  | 'live'
 
 function KarelControlIcon({ name }: { name: KarelControlIconName }) {
   const content = {
@@ -63,18 +61,10 @@ function KarelControlIcon({ name }: { name: KarelControlIconName }) {
         <path d="M16 5v14" />
       </>
     ),
-    stop: <rect x="6" y="6" width="12" height="12" rx="1.5" />,
     reset: (
       <>
         <path d="M5.5 8.5A8 8 0 1 1 4 14" />
         <path d="M5.5 3.5v5h5" />
-      </>
-    ),
-    restart: (
-      <>
-        <path d="M5.5 8.5A8 8 0 1 1 4 14" />
-        <path d="M5.5 3.5v5h5" />
-        <path d="m10 9 6 3-6 3Z" />
       </>
     ),
     'step-back': (
@@ -87,13 +77,6 @@ function KarelControlIcon({ name }: { name: KarelControlIconName }) {
       <>
         <path d="M18 5v14" />
         <path d="m6 6 9 6-9 6Z" />
-      </>
-    ),
-    live: (
-      <>
-        <path d="M5 12a7 7 0 0 1 12-4.9L19.5 9" />
-        <path d="M19.5 4v5h-5" />
-        <circle cx="12" cy="12" r="2" />
       </>
     ),
   }[name]
@@ -129,6 +112,7 @@ function statusLabel(
   if (terminalOutcome === 'runtime-error') return 'Error'
   if (terminalOutcome === 'completed') return 'Complete'
   if (terminalOutcome === 'aborted') return 'Stopped'
+  if (session.status === 'error') return 'Error'
   if (operation === 'starting') return 'Starting'
   if (operation === 'stopping') return 'Stopping'
   if (timeline.activeRunId !== undefined && !hasReachedStudentPause) {
@@ -170,22 +154,57 @@ function frameLabel(timeline: Readonly<KarelTimelineSnapshot>): string {
   return `Live frame ${timeline.frames.length} of ${timeline.frames.length}`
 }
 
-function runtimeFeedback(visibleStatus: string): string {
-  return {
-    Ready: 'Ready to prepare or play.',
-    Starting: 'Preparing the Karel runtime.',
-    Running: 'Receiving live Karel state.',
-    Playing: 'Playing live Karel state.',
-    Pausing: 'Waiting for the runtime to pause.',
-    Paused: 'Playback is paused at the live frame.',
-    Stepping: 'Advancing one live step.',
-    History: 'Recorded history is shown; the live process is unchanged.',
-    Stopping: 'Stopping the current Karel run.',
-    Stopped: 'Run stopped; prepare or restart to continue.',
-    Complete: 'Run completed; reset or restart to run again.',
-    Error: 'Run ended with an error; review the runtime message.',
-    'Limit reached': 'Run reached a configured safety limit.',
-  }[visibleStatus] ?? `Karel status: ${visibleStatus}.`
+const SPEED_CONTROL_MIN = 0
+const MAX_SPEED_CONTROL_STEPS = 100
+
+function speedSteps(minDelayMs: number, maxDelayMs: number): number {
+  return Math.min(MAX_SPEED_CONTROL_STEPS, maxDelayMs - minDelayMs)
+}
+
+function speedDelay(
+  position: number,
+  minDelayMs: number,
+  maxDelayMs: number,
+  steps: number,
+) {
+  if (steps === 0) return minDelayMs
+  const boundedPosition = Math.min(steps, Math.max(0, position))
+  const stepsFromFast = steps - boundedPosition
+  const cubicDelay = Math.round(
+    minDelayMs
+      + (maxDelayMs - minDelayMs) * ((stepsFromFast / steps) ** 3),
+  )
+  return Math.min(
+    maxDelayMs,
+    Math.max(minDelayMs + stepsFromFast, cubicDelay),
+  )
+}
+
+function speedPosition(
+  delayMs: number,
+  minDelayMs: number,
+  maxDelayMs: number,
+  steps: number,
+) {
+  let nearestPosition = SPEED_CONTROL_MIN
+  let nearestDistance = Number.POSITIVE_INFINITY
+  for (let position = SPEED_CONTROL_MIN; position <= steps; position += 1) {
+    const distance = Math.abs(
+      speedDelay(position, minDelayMs, maxDelayMs, steps) - delayMs,
+    )
+    if (distance < nearestDistance) {
+      nearestPosition = position
+      nearestDistance = distance
+    }
+  }
+  return nearestPosition
+}
+
+function speedName(position: number, steps: number): string {
+  const normalizedPosition = steps === 0 ? 1 : position / steps
+  if (normalizedPosition < 0.34) return 'Slow'
+  if (normalizedPosition < 0.67) return 'Normal'
+  return 'Fast'
 }
 
 export function KarelPanel({
@@ -251,7 +270,9 @@ export function KarelPanel({
   const busy = playback.operation !== 'idle'
   const awaitingStudentPause = active && !playback.hasReachedStudentPause
   const transitionLocked = busy || awaitingStudentPause
-  const canStepBack = timeline.frames.length >= 2
+  const canStepBack = timeline.cursor.mode === 'live'
+    ? timeline.frames.length >= 2
+    : timeline.cursor.retainedIndex > 0
   const canStepForward = timeline.cursor.mode === 'history'
     || (paused && playback.runtimePaused)
   const visibleStatus = statusLabel(
@@ -261,6 +282,25 @@ export function KarelPanel({
     playback.runtimePaused,
     playback.hasReachedStudentPause,
   )
+  const speedLimits = playbackLimits ?? DEFAULT_KAREL_PLAYBACK_LIMITS
+  const speedControlSteps = speedSteps(
+    speedLimits.minSpeedMs,
+    speedLimits.maxSpeedMs,
+  )
+  const currentSpeedPosition = speedPosition(
+    playback.speedMs,
+    speedLimits.minSpeedMs,
+    speedLimits.maxSpeedMs,
+    speedControlSteps,
+  )
+  const currentSpeedName = speedName(currentSpeedPosition, speedControlSteps)
+  const terminalOutcome = timeline.terminal?.detail.outcome
+  const runtimeMessage = session.error
+    ?? (terminalOutcome === 'runtime-error' || terminalOutcome === 'limit-exceeded'
+      ? playback.message
+      : playback.message?.includes('failed')
+        ? playback.message
+        : undefined)
 
   const chooseWorld = (id: string) => {
     if (transitionLocked) return
@@ -273,27 +313,6 @@ export function KarelPanel({
 
   return (
     <section className="karel-panel" aria-label="Karel world and playback">
-      <header className="karel-panel-header">
-        <div className="karel-panel-title">
-          <span className="karel-panel-eyebrow">Karel world</span>
-          <h2>{world.name}</h2>
-          <p>
-            Avenue {world.karel.avenue}, street {world.karel.street}
-            {' · '}
-            facing {world.karel.direction}
-          </p>
-        </div>
-        <span
-          className={`karel-status karel-status-${statusTone(visibleStatus)}`}
-          data-status={visibleStatus.toLowerCase().replaceAll(' ', '-')}
-          role="status"
-          aria-live="polite"
-        >
-          <span className="karel-status-indicator" aria-hidden="true" />
-          {visibleStatus}
-        </span>
-      </header>
-
       <div className="karel-playback-controls" aria-label="Karel playback controls">
         <div className="karel-control-group karel-control-group-run" role="group" aria-label="Run controls">
           <button
@@ -301,65 +320,41 @@ export function KarelPanel({
             type="button"
             onClick={() => void controller.prepare()}
             disabled={!supportsDebug || active || busy}
-            aria-label="Prepare & pause"
+            aria-label="Prepare"
             title="Prepare and pause at the first student line"
           >
             <KarelControlIcon name="prepare" />
             <span>Prepare</span>
           </button>
           <button
-            className="karel-control-button karel-control-play"
+            className={`karel-control-button ${playing ? 'karel-control-pause' : 'karel-control-play'}`}
             type="button"
-            onClick={() => void controller.play()}
-            disabled={!supportsDebug || playing || busy || !live}
-            title="Play continuously"
-          >
-            <KarelControlIcon name="play" />
-            <span>Play</span>
-          </button>
-          <button
-            className="karel-control-button karel-control-pause"
-            type="button"
-            onClick={() => controller.pause()}
-            disabled={!playing}
-            title="Pause playback"
-          >
-            <KarelControlIcon name="pause" />
-            <span>Pause</span>
-          </button>
-          <button
-            className="karel-control-button karel-control-stop"
-            type="button"
-            onClick={() => void controller.stop()}
+            onClick={() => {
+              if (playing) controller.pause()
+              else void controller.play()
+            }}
             disabled={
-              !active
-              || transitionLocked
-              || !playback.hasReachedStudentPause
+              playing
+                ? playback.operation === 'stopping'
+                : !supportsDebug
+                  || busy
+                  || !live
+                  || timeline.phase === 'advancing'
             }
-            title="Stop the current run"
+            title={playing ? 'Pause playback' : 'Play continuously'}
           >
-            <KarelControlIcon name="stop" />
-            <span>Stop</span>
+            <KarelControlIcon name={playing ? 'pause' : 'play'} />
+            <span>{playing ? 'Pause' : 'Play'}</span>
           </button>
           <button
             className="karel-control-button karel-control-reset"
             type="button"
             onClick={() => void controller.reset()}
             disabled={transitionLocked}
-            title="Reset to the selected world"
+            title="Stop the current run and reset the selected world"
           >
             <KarelControlIcon name="reset" />
             <span>Reset</span>
-          </button>
-          <button
-            className="karel-control-button"
-            type="button"
-            onClick={() => void controller.restart()}
-            disabled={!supportsDebug || transitionLocked}
-            title="Restart playback"
-          >
-            <KarelControlIcon name="restart" />
-            <span>Restart</span>
           </button>
         </div>
 
@@ -368,47 +363,52 @@ export function KarelPanel({
             className="karel-control-button"
             type="button"
             onClick={() => controller.stepBack()}
-            disabled={!canStepBack}
+            disabled={!canStepBack || playing || busy}
             aria-describedby={historyExplanationId}
-            title="Step back through recorded history"
+            title="Back through recorded history"
           >
             <KarelControlIcon name="step-back" />
-            <span>Step back</span>
+            <span>Back</span>
           </button>
           <button
             className="karel-control-button"
             type="button"
             onClick={() => void controller.stepForward()}
-            disabled={!canStepForward}
-            title="Step forward"
+            disabled={!canStepForward || playing || busy}
+            aria-describedby={historyExplanationId}
+            title={
+              timeline.cursor.mode === 'history'
+                ? 'Forward through history; the newest frame returns to live'
+                : 'Advance one live step'
+            }
           >
             <KarelControlIcon name="step-forward" />
-            <span>Step forward</span>
-          </button>
-          <button
-            className="karel-control-button"
-            type="button"
-            onClick={() => controller.showLive()}
-            disabled={live}
-            title="Return to the live frame"
-          >
-            <KarelControlIcon name="live" />
-            <span>Return to live</span>
+            <span>Forward</span>
           </button>
         </div>
 
         <div className="karel-control-settings">
-          <label className="karel-control-field">
+          <label className="karel-control-field karel-speed-control">
             <span>Speed</span>
-            <select
-              value={playback.speedMs}
+            <input
+              type="range"
+              min={SPEED_CONTROL_MIN}
+              max={speedControlSteps}
+              step="1"
+              value={currentSpeedPosition}
               aria-label="Playback speed"
-              onChange={(event) => controller.setSpeed(Number(event.target.value))}
-            >
-              <option value="1000">Slow</option>
-              <option value="300">Normal</option>
-              <option value="100">Fast</option>
-            </select>
+              aria-valuetext={`${currentSpeedName}, ${String(playback.speedMs)} milliseconds between steps`}
+              disabled={speedControlSteps === 0}
+              onChange={(event) => controller.setSpeed(speedDelay(
+                Number(event.target.value),
+                speedLimits.minSpeedMs,
+                speedLimits.maxSpeedMs,
+                speedControlSteps,
+              ))}
+            />
+            <span className="karel-speed-value" aria-hidden="true">
+              {currentSpeedName}
+            </span>
           </label>
 
           {worlds.length > 0 && (
@@ -441,45 +441,46 @@ export function KarelPanel({
         </p>
       )}
 
-      {(session.error || playback.message) && (
+      {runtimeMessage && (
         <p
-          className={session.error ? 'karel-panel-error' : 'karel-panel-message'}
-          role={session.error ? 'alert' : 'note'}
+          className={session.error !== undefined || visibleStatus === 'Error'
+            ? 'karel-panel-error'
+            : 'karel-panel-message'}
+          role={session.error !== undefined || visibleStatus === 'Error' ? 'alert' : 'note'}
           aria-live="polite"
         >
-          {session.error ?? playback.message}
+          {runtimeMessage}
         </p>
       )}
 
       <p id={historyExplanationId} className="karel-visually-hidden">
-        Step back changes only the displayed recorded world. It does not reverse
-        the live Python process.
+        Back changes only the displayed recorded world. It does not reverse the
+        live Python process. Forward rejoins the live frame after the newest
+        recorded frame. At the live frame, Forward advances one runtime step.
       </p>
 
       <div className="karel-world-viewport">
-        <div className="karel-frame-status" aria-live="polite">
-          <span>{frameLabel(timeline)}</span>
-          <span>
-            {timeline.retention.truncated
-              ? `${timeline.retention.evictedFrames} older frames discarded within the memory limit`
-              : `${timeline.retention.retainedFrames} retained`}
+        <div className="karel-frame-status">
+          <span
+            className={`karel-status karel-status-${statusTone(visibleStatus)}`}
+            data-status={visibleStatus.toLowerCase().replaceAll(' ', '-')}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="karel-status-indicator" aria-hidden="true" />
+            {visibleStatus}
           </span>
+          <span className="karel-frame-position" aria-live="polite">
+            {frameLabel(timeline)}
+          </span>
+          {timeline.retention.truncated && (
+            <span>
+              {timeline.retention.evictedFrames} older frames discarded
+            </span>
+          )}
         </div>
         <KarelWorldView world={world} className="karel-world" />
       </div>
-
-      <footer className="karel-panel-footer" aria-label="Karel runtime feedback">
-        <span className="karel-runtime-feedback">
-          <strong>Runtime</strong>
-          {runtimeFeedback(visibleStatus)}
-        </span>
-        <span>Last action: {session.lastAction ?? 'waiting for run'}</span>
-        <span>Bag: {String(world.karel.beepersInBag)} beepers</span>
-        <span className="karel-world-summary">
-          {world.beepers.length} beeper piles, {world.walls.length} walls,
-          {' '}{world.colors.length} painted corners
-        </span>
-      </footer>
     </section>
   )
 }

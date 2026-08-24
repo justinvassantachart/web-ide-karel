@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import {
   captureEvidence,
   contrastRatio,
@@ -14,6 +14,20 @@ import {
   protocolEvents,
   runKarel,
 } from './helpers'
+
+async function forwardThroughHistoryToLive(
+  panel: Locator,
+  maximumFrames = 256,
+): Promise<void> {
+  const status = panel.getByRole('status')
+  const forward = panel.getByRole('button', { name: 'Forward', exact: true })
+  for (let frame = 0; frame < maximumFrames; frame += 1) {
+    if ((await status.textContent()) !== 'History') return
+    await expect(forward).toBeEnabled()
+    await forward.click()
+  }
+  throw new Error(`Recorded history did not rejoin live within ${maximumFrames} frames`)
+}
 
 test('proves security headers, nested execution, and exact source/action/world correlation', async ({
   page,
@@ -37,8 +51,8 @@ test('proves security headers, nested execution, and exact source/action/world c
   ])
 
   const panel = await openKarelPanel(page)
-  await expect(panel.getByRole('heading', { name: 'Nested Module World' })).toBeVisible()
-  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  await expect(panel.getByRole('img', { name: /Nested Module World/u })).toBeVisible()
+  await panel.getByRole('button', { name: 'Prepare', exact: true }).click()
   await expect(panel.getByRole('status')).toHaveText('Paused', { timeout: 150_000 })
 
   await expect(page.getByRole('tab', { name: /^main\.py/u })).toHaveAttribute(
@@ -85,7 +99,6 @@ test('proves security headers, nested execution, and exact source/action/world c
     outcome: 'completed',
     world: { karel: { avenue: 3, street: 2, direction: 'east' } },
   })
-  await expect(panel).toContainText('Avenue 3, street 2 · facing east')
   await expect(panel.getByRole('img')).toHaveAttribute(
     'aria-label',
     /avenue 3, street 2, facing east/u,
@@ -100,14 +113,14 @@ test('proves security headers, nested execution, and exact source/action/world c
   )
   await expect(page.locator('.xterm-rows')).toContainText('Program exited with code 0')
 
-  const stepBack = panel.getByRole('button', { name: 'Step back' })
-  await stepBack.click()
+  const back = panel.getByRole('button', { name: 'Back', exact: true })
+  await back.click()
   for (let frame = 0; frame < 32; frame += 1) {
     if ((await instanceSnapshot(page))?.editor.activeFile === '/workspace/student/route.py') {
       break
     }
-    if (await stepBack.isDisabled()) break
-    await stepBack.click()
+    if (await back.isDisabled()) break
+    await back.click()
   }
   await expect(panel.getByRole('status')).toHaveText('History')
   await expect(panel).toContainText(/Recorded frame \d+ of \d+/u)
@@ -115,7 +128,7 @@ test('proves security headers, nested execution, and exact source/action/world c
     '/workspace/student/route.py',
   )
   await expect(page.locator('.monaco-editor .source-presentation-historical-line')).toHaveCount(1)
-  await panel.getByRole('button', { name: 'Return to live' }).click()
+  await forwardThroughHistoryToLive(panel)
   await expect(panel.getByRole('status')).toHaveText('Complete')
 
   await expect.poll(() => diagnostics.externalResponses.some(
@@ -152,7 +165,7 @@ test('terminates a line-only loop at the configured debugger-pause limit', async
     timeout: 150_000,
   })
   await expect(panel).toContainText('Karel run exceeded the debugger-pause limit.')
-  await expect(panel).toContainText(/\d+ retained/u)
+  await expect(panel).toContainText(/Live frame \d+ of \d+/u)
   const events = await protocolEvents(page)
   expect(events.filter((event) => event.type === 'state').length).toBeLessThanOrEqual(1)
   await captureEvidence(page, '02-line-only-pause-limit.png')
@@ -220,12 +233,12 @@ test('processes 2,000 valid actions and exposes bounded visible history', async 
   })
   expect(events.every((event, index) => event.sequence === index)).toBe(true)
   await expect(panel).toContainText('Live frame 10 of 10')
-  await expect(panel).toContainText(/older frames discarded within the memory limit/u)
+  await expect(panel).toContainText(/older frames discarded/u)
 
-  await panel.getByRole('button', { name: 'Step back' }).click()
+  await panel.getByRole('button', { name: 'Back', exact: true }).click()
   await expect(panel.getByRole('status')).toHaveText('History')
   await expect(panel).toContainText(/Recorded frame \d+ of 10/u)
-  await panel.getByRole('button', { name: 'Return to live' }).click()
+  await forwardThroughHistoryToLive(panel)
   await expect(panel.getByRole('status')).toHaveText('Complete')
   await captureEvidence(page, '04-protocol-stress-truncated-history.png')
   expectCleanBrowser(diagnostics)
@@ -246,7 +259,6 @@ test('preserves ordinary stdout and reports a typed nested exception source', as
     timeout: 150_000,
   })
   await expect(panel.getByRole('alert')).toContainText('synthetic nested failure')
-  await expect(panel).toContainText('Last action: SyntheticNestedError')
   const terminal = page.locator('.xterm-rows')
   const exceptionProbe = await instanceProbe(page)
   expect(exceptionProbe?.stdoutSample).toContain(
@@ -280,23 +292,30 @@ test('aborts an active debug run and completes a clean correlated rerun', async 
   const diagnostics = observeBrowserDiagnostics(page)
   await gotoScenario(page, 'abort')
   const panel = await openKarelPanel(page)
-  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  await panel.getByRole('button', { name: 'Prepare', exact: true }).click()
   // Require both the correlated host pause and its visible live frame before
-  // Stop so this scenario exercises an active debug run deterministically.
+  // Reset so this scenario exercises an active debug run deterministically.
   await expect.poll(async () => {
     return (await hostEvents(page)).filter(({ type }) => type === 'debug_paused').length
   }, { timeout: 150_000 }).toBe(1)
   await expect(panel.getByRole('status')).toHaveText('Paused', { timeout: 150_000 })
   await expect(panel).toContainText('Live frame 1 of 1')
-  await panel.getByRole('button', { name: 'Stop', exact: true }).click()
-  await expect(panel.getByRole('status')).toHaveText('Stopped', { timeout: 150_000 })
-  await expect(panel).toContainText('Karel run stopped.')
+  await panel.getByRole('button', { name: 'Reset', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Ready', { timeout: 150_000 })
+  await expect(panel).toContainText('No recorded frames')
+  await expect.poll(async () => {
+    return (await hostEvents(page)).filter(({ type }) => type === 'program_exit').length
+  }, { timeout: 150_000 }).toBe(1)
 
-  await panel.getByRole('button', { name: 'Restart', exact: true }).click()
+  const play = panel.getByRole('button', { name: 'Play', exact: true })
+  await expect(play).toBeEnabled()
+  await play.click()
   await expect(panel.getByRole('status')).toHaveText('Complete', {
     timeout: 150_000,
   })
   const events = await protocolEvents(page)
+  const abortedRunEvents = events.filter(({ runId }) => runId === 'primary-run-1')
+  expect(abortedRunEvents.some(({ type }) => type === 'terminal')).toBe(false)
   const rerunEvents = events.filter(({ runId }) => runId === 'primary-run-2')
   expect(rerunEvents).toHaveLength(26)
   expect(rerunEvents.at(-1)).toMatchObject({
@@ -318,7 +337,10 @@ test('remounts sequential workspaces without files, state, or listeners crossing
   await expectPackedIDEReady(page, first)
   const firstPanel = await openKarelPanel(first)
   await runKarel(first, firstPanel)
-  await expect(firstPanel).toContainText('Avenue 2, street 1 · facing east')
+  await expect(firstPanel.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /avenue 2, street 1, facing east/u,
+  )
   expect(await page.evaluate(() => Object.keys(
     window.__PACKED_KAREL__.persistedFiles('sequential-project-a') ?? {},
   ).sort())).toEqual(['/workspace/a_only.py', '/workspace/main.py'])
@@ -343,7 +365,10 @@ test('remounts sequential workspaces without files, state, or listeners crossing
   const secondPanel = await openKarelPanel(second)
   await expect(secondPanel.getByRole('status')).toHaveText('Ready')
   await runKarel(second, secondPanel)
-  await expect(secondPanel).toContainText('Avenue 1, street 1 · facing north')
+  await expect(secondPanel.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /avenue 1, street 1, facing north/u,
+  )
   expect(await page.evaluate(() => Object.keys(
     window.__PACKED_KAREL__.persistedFiles('sequential-project-b') ?? {},
   ).sort())).toEqual(['/workspace/b_only.py', '/workspace/main.py'])
@@ -376,8 +401,14 @@ test('runs two simultaneous isolated IDE realms with overlapping local run ident
     runKarel(page, firstPanel),
     runKarel(secondPage, secondPanel),
   ])
-  await expect(firstPanel).toContainText('Avenue 2, street 1 · facing east')
-  await expect(secondPanel).toContainText('Avenue 1, street 1 · facing north')
+  await expect(firstPanel.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /avenue 2, street 1, facing east/u,
+  )
+  await expect(secondPanel.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /avenue 1, street 1, facing north/u,
+  )
 
   const [firstEvents, secondEvents] = await Promise.all([
     protocolEvents(page),
@@ -444,7 +475,7 @@ test('unmounts an active IDE with exact listener, session, persistence, and work
   const scope = page.locator('[data-instance-id="lifecycle"]')
   await expectPackedIDEReady(page, scope)
   const panel = await openKarelPanel(scope)
-  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  await panel.getByRole('button', { name: 'Prepare', exact: true }).click()
   await expect(panel.getByRole('status')).toHaveText('Paused', { timeout: 150_000 })
   const before = await instanceProbe(page, 'lifecycle')
   expect(before?.activeRuntimeSubscriptions).toBeGreaterThan(0)
@@ -502,8 +533,13 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   await expect(panel.getByRole('group', { name: 'Run controls' })).toBeVisible()
   await expect(panel.getByRole('group', { name: 'Recorded history controls' })).toBeVisible()
   await expect(panel.getByTestId('karel-robot-icon')).toBeVisible()
+  await expect(panel.locator('.karel-panel-header')).toHaveCount(0)
+  await expect(panel.locator('.karel-panel-footer')).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Restart', exact: true })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Return to live' })).toHaveCount(0)
 
-  const prepare = panel.getByRole('button', { name: 'Prepare & pause' })
+  const prepare = panel.getByRole('button', { name: 'Prepare', exact: true })
   await prepare.focus()
   await page.keyboard.press('Tab')
   const play = panel.getByRole('button', { name: 'Play', exact: true })
@@ -517,12 +553,15 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   expect(await panel.locator('.karel-world-robot').evaluate(
     (element) => getComputedStyle(element).transitionDuration,
   )).toBe('0s')
-  expect(await panel.locator('.karel-playback-controls').evaluate(
+  const playbackControls = panel.locator('.karel-playback-controls')
+  expect(await playbackControls.evaluate(
     (element) => getComputedStyle(element).display,
-  )).toBe('grid')
-  expect(await panel.locator('.karel-panel-footer').evaluate(
-    (element) => getComputedStyle(element).flexDirection,
-  )).toBe('column')
+  )).toBe('flex')
+  const speed = panel.getByRole('slider', { name: 'Playback speed' })
+  await expect(speed).toHaveAttribute(
+    'aria-valuetext',
+    /^(?:Slow|Normal|Fast), \d+ milliseconds between steps$/u,
+  )
   const responsiveLayout = await panel.evaluate((element) => {
     const controls = element.querySelector<HTMLElement>('.karel-playback-controls')
     const settings = element.querySelector<HTMLElement>('.karel-control-settings')
@@ -533,10 +572,16 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
     return {
       panelClientWidth: element.clientWidth,
       panelScrollWidth: element.scrollWidth,
+      controlsWrap: getComputedStyle(controls).flexWrap,
+      controlsOverflowX: getComputedStyle(controls).overflowX,
       controlsClientWidth: controls.clientWidth,
       controlsScrollWidth: controls.scrollWidth,
       settingsClientWidth: settings.clientWidth,
       settingsScrollWidth: settings.scrollWidth,
+      buttonWhiteSpace: [...controls.querySelectorAll<HTMLElement>('.karel-control-button')]
+        .map((button) => getComputedStyle(button).whiteSpace),
+      fieldDirections: [...settings.querySelectorAll<HTMLElement>('.karel-control-field')]
+        .map((field) => getComputedStyle(field).flexDirection),
       worldWidth: worldViewport.getBoundingClientRect().width,
       worldHeight: worldViewport.getBoundingClientRect().height,
     }
@@ -545,12 +590,23 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   expect(responsiveLayout.panelScrollWidth).toBeLessThanOrEqual(
     responsiveLayout.panelClientWidth,
   )
-  expect(responsiveLayout.controlsScrollWidth).toBeLessThanOrEqual(
+  expect(responsiveLayout.controlsWrap).toBe('nowrap')
+  expect(responsiveLayout.controlsOverflowX).toBe('auto')
+  expect(responsiveLayout.controlsClientWidth).toBeLessThanOrEqual(
+    responsiveLayout.panelClientWidth,
+  )
+  expect(responsiveLayout.controlsScrollWidth).toBeGreaterThanOrEqual(
     responsiveLayout.controlsClientWidth,
   )
   expect(responsiveLayout.settingsScrollWidth).toBeLessThanOrEqual(
     responsiveLayout.settingsClientWidth,
   )
+  expect(responsiveLayout.buttonWhiteSpace.every(
+    (value) => value === 'nowrap',
+  )).toBe(true)
+  expect(responsiveLayout.fieldDirections.every(
+    (value) => value === 'row',
+  )).toBe(true)
   expect(responsiveLayout.worldWidth).toBeCloseTo(
     responsiveLayout.panelClientWidth,
     0,
@@ -560,8 +616,9 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   await expect(panel.getByText('World', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 
-  const heading = panel.getByRole('heading', { name: 'Nested Module World' })
-  expect(await contrastRatio(heading, panel)).toBeGreaterThanOrEqual(4.5)
+  const speedValue = panel.locator('.karel-speed-value')
+  await expect(speedValue).toBeVisible()
+  expect(await contrastRatio(speedValue, playbackControls)).toBeGreaterThanOrEqual(4.5)
   expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light')
   const lightPalette = await panel.evaluate((element) => {
     const style = getComputedStyle(element)
@@ -574,7 +631,7 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   await expect.poll(() => page.evaluate(
     () => document.documentElement.dataset.theme,
   )).toBe('dark')
-  expect(await contrastRatio(heading, panel)).toBeGreaterThanOrEqual(4.5)
+  expect(await contrastRatio(speedValue, playbackControls)).toBeGreaterThanOrEqual(4.5)
   const darkPalette = await panel.evaluate((element) => {
     const style = getComputedStyle(element)
     return { color: style.color, background: style.backgroundColor }
@@ -589,7 +646,6 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
     timeout: 150_000,
   })
   await expect(panel.getByRole('status')).toHaveText('Complete')
-  await expect(panel).toContainText('Last action: complete')
   await expect(panel.getByRole('img')).toHaveAttribute(
     'aria-label',
     /avenue 3, street 2, facing east/u,

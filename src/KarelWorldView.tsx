@@ -106,7 +106,10 @@ export function KarelWorldView({
       aria-describedby={descriptionId}
       preserveAspectRatio="xMidYMid meet"
     >
-      <title>{world.name}</title>
+      <title>
+        {world.name}. Avenue {world.karel.avenue}, street {world.karel.street},
+        {' '}facing {world.karel.direction}.
+      </title>
       <desc id={descriptionId}>{describeKarelWorld(world)}</desc>
       <defs aria-hidden="true">
         <pattern

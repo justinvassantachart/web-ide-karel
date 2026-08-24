@@ -124,11 +124,11 @@ than presented as student source.
 
 The controller separately records whether the current run has reached its
 first validated student-source pause. Until then the panel reports `Starting`
-and does not offer Stop, Reset, Restart, or world selection, even if execution
-startup resolves or an initial protocol state arrives first. Terminal
-settlement invalidates pending local preparation generations before cleanup.
-This readiness state resets with every run and lifecycle teardown; a support/
-runtime pause cannot satisfy it.
+and locks Reset, world selection, and conflicting run transitions, even if
+execution startup resolves or an initial protocol state arrives first.
+Terminal settlement invalidates pending local preparation generations before
+cleanup. This readiness state resets with every run and lifecycle teardown; a
+support/runtime pause cannot satisfy it.
 
 Before a playback run starts, the controller snapshots ordinary workspace
 files and derives an overlay from every non-empty, non-comment line in each
@@ -153,10 +153,10 @@ action, and world. It owns these phases:
 
 History is bounded independently by frame count and UTF-8 serialized bytes.
 Oldest frames are evicted deterministically. The live frame always remains
-distinct from a historical display cursor. Step Back and recorded Step Forward
-only move that cursor; returning to live is explicit, and no API claims or
-invokes Python process reversal. Terminal detail and its final/last-valid world
-are held outside evictable history.
+distinct from a historical display cursor. Back and recorded Forward only move
+that cursor; Forward clears the history cursor when it reaches the newest
+frame, and no UI or API claims or invokes Python process reversal. Terminal
+detail and its final/last-valid world are held outside evictable history.
 
 On stop, reset, world change, deactivation, or disposal, the controller clears
 timers and owned source decoration state, revokes listeners, and resets its run
@@ -165,17 +165,19 @@ rejected rather than presented.
 
 ## Rendering and accessibility
 
-`KarelPanel` is the package's presentation boundary. It exposes compact native
-buttons/selects with visible disabled and focus states, groups run and recorded-
-history controls, and uses a small local CSS-token set that consumes host color
-variables without owning theme selection. Polite live regions report status,
-frame retention, and exact error/controller messages; a separate visible,
-non-live footer stays aligned with the combined controller status. The panel
-explicitly explains recorded history, provides a bounded textual description
-of beeper, wall, and painted-corner locations plus visible item counts, responds
-to its container width, fills only host-provided space, and removes robot motion
-under `prefers-reduced-motion`. Ordinary stdout/stderr remains in Web IDE's
-terminal.
+`KarelPanel` is the package's presentation boundary. It exposes one compact
+single-line strip of native buttons, a range input, and a world selector with
+visible disabled and focus states. Its only actions are Prepare, a Play/Pause
+toggle, Reset, Back, and Forward. It uses a small local CSS-token set that
+consumes host color variables without owning theme selection. Polite live
+regions report compact status/frame information and exact errors or limits.
+The panel omits a repeated visual header and diagnostic footer; world name,
+coordinates, direction, beeper, wall, and painted-corner details remain in the
+selector, SVG title, and bounded accessible description. It fills only
+host-provided space, allows internal toolbar scrolling at exceptionally narrow
+container widths instead of wrapping controls into multiple lines, and removes
+robot motion under `prefers-reduced-motion`. Ordinary stdout/stderr remains in
+Web IDE's terminal.
 
 `KarelWorldView` renders validated world data with React/SVG primitives and one
 owner-authorized pixel-art PNG imported from `src/assets/karel.png`. Vite

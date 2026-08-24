@@ -281,6 +281,9 @@ export class KarelPlaybackController {
     const current = this.timeline.getSnapshot()
     if (current.cursor.mode === 'history') {
       if (this.timeline.stepRecordedForward()) {
+        if (this.timeline.getSnapshot().cursor.mode === 'live') {
+          this.message = undefined
+        }
         this.presentDisplayedSource()
         this.publish()
       }
