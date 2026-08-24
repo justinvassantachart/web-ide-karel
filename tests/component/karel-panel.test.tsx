@@ -5,6 +5,8 @@ import { StrictMode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_KAREL_WORLD,
+  KAREL_OSC_PREFIX,
+  KAREL_OSC_TERMINATOR,
   KAREL_PROTOCOL_NAME,
   KAREL_PROTOCOL_VERSION,
   KarelPanel,
@@ -142,7 +144,6 @@ describe('Karel panel', () => {
       'avenue 2, street 1, facing north',
     )
     expect(screen.getByRole('status').textContent).toContain('Running')
-    expect(screen.getByText('Last action: move')).toBeTruthy()
 
     unmount()
     detach()
@@ -182,7 +183,55 @@ describe('Karel panel', () => {
     )
   })
 
-  it('keeps an explicit stop visible after the runtime clears its terminal', async () => {
+  it('announces a protocol error even while playback was paused', async () => {
+    const { runtime, events } = createFakeRuntime()
+    Object.assign(runtime.capabilities, { debug: true })
+    const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)
+    const detach = store.attach(runtime)
+    const { unmount } = render(
+      <KarelPanel
+        runtime={runtime}
+        execution={{
+          start: async () => undefined,
+          stop: () => undefined,
+          restart: async () => undefined,
+        }}
+        source={{
+          reveal: () => undefined,
+          replaceDecorations: () => undefined,
+          clearDecorations: () => undefined,
+          dispose: () => undefined,
+        }}
+        store={store}
+        workspace={{ snapshot: () => ({ '/workspace/main.py': 'move()\n' }) }}
+        panels={{ reveal: () => undefined }}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare' }))
+    })
+    act(() => events.debugPaused.emit({
+      file: '/main.py',
+      line: 1,
+      func: 'main',
+      callStack: [],
+      memorySnapshot: null,
+    }))
+    expect(screen.getByRole('status').textContent).toBe('Paused')
+
+    act(() => events.stdout.emit(
+      `${KAREL_OSC_PREFIX}not-base64!${KAREL_OSC_TERMINATOR}`,
+    ))
+
+    expect(screen.getByRole('status').textContent).toBe('Error')
+    expect(screen.getByRole('alert').textContent).toBeTruthy()
+
+    unmount()
+    detach()
+  })
+
+  it('uses Reset to settle an active run and restore the initial world', async () => {
     const { runtime, events } = createFakeRuntime()
     Object.assign(runtime.capabilities, { debug: true })
     const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)
@@ -213,7 +262,7 @@ describe('Karel panel', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Prepare & pause' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare' }))
     })
     act(() => events.debugPaused.emit({
       file: '/main.py',
@@ -223,18 +272,22 @@ describe('Karel panel', () => {
       memorySnapshot: null,
     }))
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Stop' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
     })
 
     expect(stop).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('status').textContent).toContain('Stopped')
-    expect(screen.getByText('Karel run stopped.')).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('Ready')
+    expect(screen.getByText('No recorded frames')).toBeTruthy()
+    expect(screen.getByRole('img').getAttribute('aria-label')).toContain(
+      'avenue 1, street 1, facing east',
+    )
+    expect(screen.queryByText('Karel run stopped.')).toBeNull()
 
     unmount()
     detach()
   })
 
-  it('does not permit run transitions until the runtime actually pauses', async () => {
+  it('locks Reset and world selection until the runtime actually pauses', async () => {
     const { runtime, events } = createFakeRuntime()
     Object.assign(runtime.capabilities, { debug: true })
     const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)
@@ -269,21 +322,14 @@ describe('Karel panel', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Prepare & pause' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare' }))
       await Promise.resolve()
     })
     await vi.waitFor(() => expect(start).toHaveBeenCalledWith('debug'))
     expect(screen.getByRole('status').textContent).toContain('Starting')
-    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
-      'Preparing the Karel runtime.',
-    )
-    const stopButton = screen.getByRole('button', { name: 'Stop' }) as HTMLButtonElement
     const resetButton = screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement
-    const restartButton = screen.getByRole('button', { name: 'Restart' }) as HTMLButtonElement
     const worldSelect = screen.getByLabelText('World') as HTMLSelectElement
-    expect(stopButton.disabled).toBe(true)
     expect(resetButton.disabled).toBe(true)
-    expect(restartButton.disabled).toBe(true)
     expect(worldSelect.disabled).toBe(true)
 
     const startupWorld = cloneKarelWorld(DEFAULT_KAREL_WORLD)
@@ -297,15 +343,9 @@ describe('Karel panel', () => {
       world: startupWorld,
     })))
     expect(screen.getByRole('status').textContent).toContain('Starting')
-    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
-      'Preparing the Karel runtime.',
-    )
-    expect(stopButton.disabled).toBe(true)
     expect(resetButton.disabled).toBe(true)
-    expect(restartButton.disabled).toBe(true)
     expect(worldSelect.disabled).toBe(true)
     fireEvent.click(resetButton)
-    fireEvent.click(restartButton)
     fireEvent.change(worldSelect, { target: { value: 'second' } })
     expect(stop).not.toHaveBeenCalled()
     expect(restart).not.toHaveBeenCalled()
@@ -319,18 +359,14 @@ describe('Karel panel', () => {
       memorySnapshot: null,
     }))
     expect(screen.getByRole('status').textContent).toContain('Paused')
-    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
-      'Playback is paused at the live frame.',
-    )
-    expect(stopButton.disabled).toBe(false)
     expect(resetButton.disabled).toBe(false)
-    expect(restartButton.disabled).toBe(false)
     expect(worldSelect.disabled).toBe(false)
 
     await act(async () => {
-      fireEvent.click(stopButton)
+      fireEvent.click(resetButton)
     })
-    expect(screen.getByRole('status').textContent).toContain('Stopped')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status').textContent).toContain('Ready')
 
     unmount()
     detach()
@@ -349,7 +385,7 @@ describe('Karel panel', () => {
     secondWorld.name = 'Second world'
     secondWorld.karel.avenue = 3
 
-    const { unmount } = render(
+    const { container, unmount } = render(
       <StrictMode>
         <KarelPanel
           runtime={runtime}
@@ -377,34 +413,70 @@ describe('Karel panel', () => {
     expect(screen.getByLabelText('Karel playback controls')).toBeTruthy()
     expect(screen.getByRole('group', { name: 'Run controls' })).toBeTruthy()
     expect(screen.getByRole('group', { name: 'Recorded history controls' })).toBeTruthy()
+    expect(screen.getAllByRole('button').map((button) => button.textContent?.trim()))
+      .toEqual(['Prepare', 'Play', 'Reset', 'Back', 'Forward'])
     expect(
-      (screen.getByRole('button', { name: 'Prepare & pause' }) as HTMLButtonElement)
+      (screen.getByRole('button', { name: 'Prepare' }) as HTMLButtonElement)
         .disabled,
     ).toBe(false)
-    expect(screen.getByLabelText('Playback speed')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Restart' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Return to live' })).toBeNull()
+    expect(container.querySelector('.karel-panel-header')).toBeNull()
+    expect(container.querySelector('.karel-panel-footer')).toBeNull()
+    expect(screen.queryByRole('heading')).toBeNull()
+    expect(container.querySelector('svg title')?.textContent).toContain(
+      'Avenue 1, street 1',
+    )
+    const playbackSpeed = screen.getByLabelText('Playback speed') as HTMLInputElement
+    expect(playbackSpeed.type).toBe('range')
+    expect(playbackSpeed.min).toBe('0')
+    expect(playbackSpeed.max).toBe('100')
+    expect(playbackSpeed.value).toBe('50')
+    expect(playbackSpeed.getAttribute('aria-valuetext')).toBe(
+      'Normal, 300 milliseconds between steps',
+    )
+    fireEvent.change(playbackSpeed, { target: { value: '100' } })
+    expect(playbackSpeed.value).toBe('100')
+    expect(playbackSpeed.getAttribute('aria-valuetext')).toBe(
+      'Fast, 50 milliseconds between steps',
+    )
+    fireEvent.change(playbackSpeed, { target: { value: '95' } })
+    expect(playbackSpeed.value).toBe('95')
+    expect(playbackSpeed.getAttribute('aria-valuetext')).toMatch(
+      /^Fast, (?!50\b)\d+ milliseconds between steps$/u,
+    )
     expect(screen.getByLabelText('World')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Reset' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Prepare & pause' }).querySelector(
+    expect(screen.getByRole('button', { name: 'Prepare' }).querySelector(
       '[data-karel-control-icon="prepare"]',
     )).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Play' }).querySelector(
       '[data-karel-control-icon="play"]',
     )).toBeTruthy()
-    const stepBack = screen.getByRole('button', { name: 'Step back' })
-    const historyExplanationId = stepBack.getAttribute('aria-describedby')
+    const back = screen.getByRole('button', { name: 'Back' })
+    const forward = screen.getByRole('button', { name: 'Forward' })
+    const historyExplanationId = back.getAttribute('aria-describedby')
     expect(historyExplanationId).toBeTruthy()
+    expect(forward.getAttribute('aria-describedby')).toBe(historyExplanationId)
     expect(document.getElementById(historyExplanationId!)?.textContent).toContain(
       'does not reverse the live Python process',
     )
+    expect(document.getElementById(historyExplanationId!)?.textContent).toContain(
+      'Forward rejoins the live frame',
+    )
+    expect(document.getElementById(historyExplanationId!)?.textContent).toContain(
+      'Forward advances one runtime step',
+    )
     expect(screen.getByRole('status').getAttribute('aria-live')).toBe('polite')
-    expect((screen.getByLabelText('Playback speed') as HTMLElement).tabIndex).toBe(0)
+    expect(playbackSpeed.tabIndex).toBe(0)
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Prepare & pause' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare' }))
     })
     expect(start).toHaveBeenCalledWith('debug')
     const reset = screen.getByRole('button', { name: 'Reset' })
-    const playbackSpeed = screen.getByLabelText('Playback speed')
     playbackSpeed.focus()
     expect(document.activeElement).toBe(playbackSpeed)
     act(() => events.debugPaused.emit({
@@ -424,6 +496,20 @@ describe('Karel panel', () => {
       line: 2,
     })
     expect(document.activeElement).toBe(playbackSpeed)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Play' }))
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('button', { name: 'Play' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Pause' }).querySelector(
+      '[data-karel-control-icon="pause"]',
+    )).toBeTruthy()
+    expect(screen.getAllByRole('button')).toHaveLength(5)
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }))
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Play' }).querySelector(
+      '[data-karel-control-icon="play"]',
+    )).toBeTruthy()
     reset.focus()
     expect(document.activeElement).toBe(reset)
 
@@ -433,8 +519,13 @@ describe('Karel panel', () => {
       })
     })
     expect(stop).toHaveBeenCalled()
-    expect(screen.getByRole('heading', { name: 'Second world' })).toBeTruthy()
-    expect(screen.getByRole('img').getAttribute('aria-label')).toContain('avenue 3')
+    expect(screen.queryByRole('heading')).toBeNull()
+    expect(screen.getByRole('img').getAttribute('aria-label')).toContain(
+      'Second world: Karel at avenue 3',
+    )
+    expect(container.querySelector('svg title')?.textContent).toContain(
+      'Second world. Avenue 3',
+    )
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
@@ -477,7 +568,7 @@ describe('Karel panel', () => {
     )
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Prepare & pause' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare' }))
     })
     act(() => events.debugPaused.emit({
       file: '/main.py',
@@ -500,24 +591,24 @@ describe('Karel panel', () => {
     })))
 
     expect(screen.getByText('Live frame 2 of 2')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Step back' }))
+    const back = screen.getByRole('button', { name: 'Back' }) as HTMLButtonElement
+    const forward = screen.getByRole('button', { name: 'Forward' }) as HTMLButtonElement
+    expect(back.disabled).toBe(false)
+    fireEvent.click(back)
     expect(screen.getByRole('status').textContent).toContain('History')
     expect(screen.getByText('Recorded frame 1 of 2')).toBeTruthy()
-    expect(screen.getByText(/Viewing recorded history/)).toBeTruthy()
-    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
-      'Recorded history is shown; the live process is unchanged.',
-    )
-    expect(
-      (screen.getByRole('button', { name: 'Return to live' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(false)
+    expect(screen.queryByText(/Viewing recorded history/)).toBeNull()
+    expect(back.disabled).toBe(true)
+    expect(forward.disabled).toBe(false)
+    expect(forward.title).toContain('newest frame returns to live')
+    expect(screen.queryByRole('button', { name: 'Return to live' })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Return to live' }))
+    await act(async () => {
+      fireEvent.click(forward)
+    })
     expect(screen.getByText('Live frame 2 of 2')).toBeTruthy()
-    expect(
-      (screen.getByRole('button', { name: 'Return to live' }) as HTMLButtonElement)
-        .disabled,
-    ).toBe(true)
+    expect(screen.getByRole('status').textContent).toContain('Paused')
+    expect(back.disabled).toBe(false)
 
     act(() => events.stdout.emit(encodeKarelProtocolEvent({
       protocol: KAREL_PROTOCOL_NAME,
@@ -531,9 +622,7 @@ describe('Karel panel', () => {
       world: moved,
     })))
     expect(screen.getByRole('status').textContent).toContain('Limit reached')
-    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
-      'Run reached a configured safety limit.',
-    )
+    expect(screen.getByText('Karel action limit reached.')).toBeTruthy()
 
     unmount()
     detach()

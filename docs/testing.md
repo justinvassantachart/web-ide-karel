@@ -89,9 +89,10 @@ Use narrower scripts while iterating:
   `formative-only` final-state differences and explicit completion semantics.
 - `tests/component/karel-panel.test.tsx` covers the rendered world, pixel-art
   icon and directional transforms, visible fallback, unavailable runtime
-  messaging, control states and grouping, live/history labels, accessible
-  controls/status, multi-world reset, source presentation, startup transition
-  locking, and Strict Mode listener cleanup. `tests/unit/karel-icon.test.ts`
+  messaging, the exact compact control set and Play/Pause toggle, speed slider,
+  live/history labels, accessible controls/status, Forward-to-live behavior,
+  multi-world reset, source presentation, startup transition locking, and
+  Strict Mode listener cleanup. `tests/unit/karel-icon.test.ts`
   binds the checked-in icon's exact byte count and SHA-256.
 - `tests/unit/plugin.test.ts` covers ordinary versus execution-only resources,
   fresh run materialization, public Run registration, language capability
@@ -114,16 +115,17 @@ The Playwright suite verifies:
    execution-only files out of the Explorer;
 3. the generic Python runtime completes a nested-module Karel program in a
    cross-origin-isolated browser; and
-4. public services drive prepare/pause, live Step Forward, recorded Step Back,
-   Return to live, and settled Stop with accessible status text; and
-5. the real icon, desktop host composition, narrow container layout, light/dark
-   palettes, focus visibility, and reduced-motion behavior remain present.
+4. public services drive Prepare, the Play/Pause toggle, live Forward, recorded
+   Back/Forward-to-live, and Reset with accessible status text; and
+5. the exact five-button surface, speed slider, real icon, desktop host
+   composition, single-line narrow control strip, light/dark palettes, focus
+   visibility, and reduced-motion behavior remain present.
 
 Component coverage also resolves execution startup and delivers an initial
 protocol state before the first valid student pause. The panel must remain
-`Starting` with Stop, Reset, Restart, and world selection disabled until that
-pause arrives, preventing the packed abort/rerun scenario from racing runtime
-preparation through another transition.
+`Starting` with Reset and world selection disabled until that pause arrives,
+preventing the packed reset/rerun scenario from racing runtime preparation
+through another transition.
 
 Browser scenarios fail if their asserted runtime, isolation, UI, or lifecycle
 outcome is absent. `playwright.config.ts` runs them headlessly and gives the two
@@ -183,7 +185,7 @@ The production browser matrix proves:
 4. 2,000 valid Karel actions with contiguous sequences and visible
    count/byte-bounded history truncation;
 5. ordinary stdout, traceback, typed error, and nested source preservation;
-6. active abort followed by a clean, newly correlated rerun;
+6. active Reset followed by a clean, newly correlated Play rerun;
 7. sequential project remount without workspace, state, session, or listener
    leakage;
 8. two simultaneous browser realms with overlapping local run IDs and isolated
@@ -191,8 +193,8 @@ The production browser matrix proves:
 9. close/unmount cleanup of listeners, sessions, persistence, workers, and
    post-disposal events; and
 10. keyboard-only operation, retained focus indication, polite/non-color
-    status, exact inlined Karel icon rendering, reduced motion, narrow
-    responsive layout without horizontal overflow, light/dark themes, and at
+    status, exact inlined Karel icon rendering, reduced motion, a single-line
+    narrow control strip contained within the panel, light/dark themes, and at
     least 4.5:1 text contrast.
 
 Passing scenarios write 13 full-page PNGs, while Playwright retains trace and

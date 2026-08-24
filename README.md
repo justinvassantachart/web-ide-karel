@@ -266,20 +266,23 @@ nested student modules without changing visible editor breakpoints. The overlay
 is cleared on settlement, stop, reset, deactivation, and disposal. Replacement
 is subject to the selected runtime provider's combined breakpoint quota.
 
-The panel exposes Prepare, Play, Pause, Stop, Restart, Reset, Step forward,
-Step back, Return to live, playback speed, and multi-world selection. Step back
-changes only the displayed recorded world; it never reverses the live Python
-process. Reset stops the run and restores the selected initial world without
-rewriting student files. Changing worlds performs the same execution/timeline
-reset before selecting the next initial world. Cleanup cancels timers, clears
-owned source decorations, and revokes subscriptions.
+The panel exposes only Prepare, one Play/Pause toggle, Reset, Back, Forward, a
+playback-speed slider, and multi-world selection. Back changes only the
+displayed recorded world; it never reverses the live Python process. Repeated
+Forward presses rejoin the live frame at the history frontier, while Forward at
+a paused live frame advances one runtime step. Reset stops the run and restores
+the selected initial world without rewriting student files, so separate Stop,
+Restart, and Return-to-live buttons are unnecessary. Changing worlds performs
+the same execution/timeline reset before selecting the next initial world.
+Cleanup cancels timers, clears owned source decorations, and revokes
+subscriptions.
 
-A new run remains visibly `Starting`, with Stop, Reset, Restart, and world
-selection unavailable, until the runtime has delivered its first validated
-pause in a student workspace file. An early execution-start resolution,
-support-code pause, or protocol state frame cannot be mistaken for that
-readiness boundary. Terminal settlement invalidates pending local preparation
-generations so a limit cannot launch execution after it has already settled.
+A new run remains visibly `Starting`, with Reset and world selection
+unavailable, until the runtime has delivered its first validated pause in a
+student workspace file. An early execution-start resolution, support-code
+pause, or protocol state frame cannot be mistaken for that readiness boundary.
+Terminal settlement invalidates pending local preparation generations so a
+limit cannot launch execution after it has already settled.
 
 Current defaults are:
 
@@ -297,13 +300,16 @@ serialized UTF-8 bytes. Limits are instance-scoped, validated at controller
 construction, and do not change the protocol decoder's defensive ceilings.
 
 Terminal failures and limits are preserved separately from evictable history.
-Accessible names, live status/frame text, visible focus, responsive controls,
-a reduced-motion rule, and a bounded textual world description are included in
-the panel. The SVG world uses the owner-authorized Karel pixel-art PNG, inlined
-into the package bundle, with east as its source orientation and a directional
-SVG fallback if the image cannot render. The compact presentation fills the
-space supplied by its host and adapts by panel width; it does not own the
-host's editor, terminal, theme selection, or application layout.
+Accessible names, live status/frame text, visible focus, a single-line compact
+control strip, a reduced-motion rule, and a bounded textual world description
+are included in the panel. The visual header and diagnostic footer are omitted;
+world name, coordinates, direction, and item details remain available through
+the world selector, SVG tooltip, and accessible description. The SVG world uses
+the owner-authorized Karel pixel-art PNG, inlined into the package bundle, with
+east as its source orientation and a directional SVG fallback if the image
+cannot render. The presentation fills the space supplied by its host and adapts
+by panel width; it does not own the host's editor, terminal, theme selection, or
+application layout.
 
 The panel presents decoded Karel state, controller feedback, and terminal
 outcomes available through its existing public services. Ordinary Python

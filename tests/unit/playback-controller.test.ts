@@ -189,7 +189,7 @@ describe('KarelPlaybackController', () => {
     expect(fixture.start).toHaveBeenCalledTimes(1)
   })
 
-  it('advances the live runtime and scrubs recorded history without reversing it', async () => {
+  it('advances live state and uses Forward to rejoin live history cleanly', async () => {
     const fixture = setup()
     const continueExecution = vi.spyOn(fixture.runtime, 'continueExecution')
     await fixture.controller.prepare()
@@ -202,12 +202,16 @@ describe('KarelPlaybackController', () => {
 
     fixture.controller.stepBack()
     expect(fixture.controller.getSnapshot().timeline.cursor.mode).toBe('history')
+    expect(fixture.controller.getSnapshot().message).toBe(
+      'Viewing recorded history; live Python is not reversed.',
+    )
     expect(fixture.replaceDecorations).toHaveBeenLastCalledWith([
       { path: '/workspace/main.py', line: 1, kind: 'historical' },
     ])
 
     await fixture.controller.stepForward()
     expect(fixture.controller.getSnapshot().timeline.cursor.mode).toBe('live')
+    expect(fixture.controller.getSnapshot().message).toBeUndefined()
     expect(continueExecution).toHaveBeenCalledTimes(1)
   })
 

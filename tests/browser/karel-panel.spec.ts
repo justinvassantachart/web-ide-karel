@@ -71,6 +71,20 @@ async function readSvgContrast(foreground: Locator, backgroundSelector: string) 
   }, backgroundSelector)
 }
 
+async function forwardThroughHistoryToLive(
+  panel: Locator,
+  maximumFrames = 256,
+): Promise<void> {
+  const status = panel.getByRole('status')
+  const forward = panel.getByRole('button', { name: 'Forward', exact: true })
+  for (let frame = 0; frame < maximumFrames; frame += 1) {
+    if ((await status.textContent()) !== 'History') return
+    await expect(forward).toBeEnabled()
+    await forward.click()
+  }
+  throw new Error(`Recorded history did not rejoin live within ${maximumFrames} frames`)
+}
+
 test('renders runtime frames and releases subscriptions on browser unmount', async ({
   page,
 }) => {
@@ -132,19 +146,26 @@ test('announces and navigates bounded history through visible controls', async (
 }) => {
   await page.goto('/')
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
-  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  await panel.getByRole('button', { name: 'Prepare', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Paused')
+  await panel.getByRole('button', { name: 'Play', exact: true }).click()
+  const pause = panel.getByRole('button', { name: 'Pause', exact: true })
+  await expect(pause).toBeEnabled()
+  await pause.click()
+  await expect(panel.getByRole('button', { name: 'Play', exact: true })).toBeEnabled()
   await expect(panel.getByRole('status')).toHaveText('Paused')
 
   const emitMove = page.getByRole('button', { name: 'Emit move' })
   for (let event = 0; event < 5; event += 1) await emitMove.click()
-  await expect(panel.getByText('2 older frames discarded within the memory limit')).toBeVisible()
+  await expect(panel.getByText('2 older frames discarded')).toBeVisible()
   await expect(panel.getByText('Live frame 4 of 4')).toBeVisible()
 
-  await panel.getByRole('button', { name: 'Step back' }).click()
+  const back = panel.getByRole('button', { name: 'Back', exact: true })
+  await back.click()
   await expect(panel.getByRole('status')).toHaveText('History')
   await expect(panel.getByText('Recorded frame 3 of 4')).toBeVisible()
-  await expect(panel.getByText(/Viewing recorded history/)).toBeVisible()
-  await panel.getByRole('button', { name: 'Return to live' }).click()
+  await expect(back).toHaveAttribute('aria-describedby', /.+/u)
+  await forwardThroughHistoryToLive(panel)
   await expect(panel.getByRole('status')).toHaveText('Paused')
 })
 
@@ -152,19 +173,26 @@ test('registers through a real Web IDE host using only public APIs', async ({ pa
   await page.goto('/host.html')
 
   await expect(page.getByText('KAREL TEST', { exact: true })).toBeVisible()
-  const karelTab = page.getByRole('button', { name: 'Karel', exact: true })
+  const karelTab = page.getByRole('tab', { name: 'Karel', exact: true })
   await expect(karelTab).toBeVisible()
   await karelTab.focus()
   await page.keyboard.press('Enter')
   await expect(karelTab).toBeFocused()
 
-  await expect(page.getByRole('heading', { name: 'First Steps' })).toBeVisible()
   await expect(page.getByRole('img', { name: /First Steps/ })).toBeVisible()
   await expect(page.getByRole('group', { name: 'Run controls' })).toBeVisible()
   await expect(page.getByRole('group', { name: 'Recorded history controls' })).toBeVisible()
-  await expect(page.getByLabel('Karel runtime feedback')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Run Karel' })).toBeEnabled()
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
+  await expect(panel.locator('.karel-panel-header')).toHaveCount(0)
+  await expect(panel.locator('.karel-panel-footer')).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Restart', exact: true })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Return to live' })).toHaveCount(0)
+  await expect(panel.getByRole('slider', { name: 'Playback speed' })).toHaveAttribute(
+    'aria-valuetext',
+    /^(?:Slow|Normal|Fast), \d+ milliseconds between steps$/u,
+  )
   const reset = panel.getByRole('button', { name: 'Reset', exact: true })
   await reset.focus()
   await page.keyboard.press('Enter')
@@ -191,18 +219,26 @@ test('honors reduced motion and a high-zoom-equivalent narrow viewport', async (
 
   const layout = await page.evaluate(() => {
     const controls = document.querySelector<HTMLElement>('.karel-playback-controls')
-    const footer = document.querySelector<HTMLElement>('.karel-panel-footer')
+    const settings = document.querySelector<HTMLElement>('.karel-control-settings')
     const robot = document.querySelector<SVGGElement>('.karel-world-robot')
     const viewport = document.querySelector<HTMLElement>('.karel-world-viewport')
     const icon = document.querySelector<SVGImageElement>('.karel-world-robot-icon')
-    if (!controls || !footer || !robot || !viewport || !icon) {
+    if (!controls || !settings || !robot || !viewport || !icon) {
       throw new Error('Karel layout is incomplete')
     }
     const controlsStyle = getComputedStyle(controls)
     return {
       controlsDisplay: controlsStyle.display,
-      controlColumns: controlsStyle.gridTemplateColumns.split(' ').filter(Boolean).length,
-      footerDirection: getComputedStyle(footer).flexDirection,
+      controlsWrap: controlsStyle.flexWrap,
+      controlsOverflowX: controlsStyle.overflowX,
+      controlsClientWidth: controls.clientWidth,
+      controlsScrollWidth: controls.scrollWidth,
+      buttonWhiteSpace: [...controls.querySelectorAll<HTMLElement>('.karel-control-button')]
+        .map((button) => getComputedStyle(button).whiteSpace),
+      fieldDirections: [...settings.querySelectorAll<HTMLElement>('.karel-control-field')]
+        .map((field) => getComputedStyle(field).flexDirection),
+      headerCount: document.querySelectorAll('.karel-panel-header').length,
+      footerCount: document.querySelectorAll('.karel-panel-footer').length,
       robotTransitionDuration: getComputedStyle(robot).transitionDuration,
       iconRendering: getComputedStyle(icon).imageRendering,
       worldWidth: viewport.getBoundingClientRect().width,
@@ -212,9 +248,14 @@ test('honors reduced motion and a high-zoom-equivalent narrow viewport', async (
     }
   })
 
-  expect(layout.controlsDisplay).toBe('grid')
-  expect(layout.controlColumns).toBe(1)
-  expect(layout.footerDirection).toBe('column')
+  expect(layout.controlsDisplay).toBe('flex')
+  expect(layout.controlsWrap).toBe('nowrap')
+  expect(layout.controlsOverflowX).toBe('auto')
+  expect(layout.controlsScrollWidth).toBeGreaterThanOrEqual(layout.controlsClientWidth)
+  expect(layout.buttonWhiteSpace.every((value) => value === 'nowrap')).toBe(true)
+  expect(layout.fieldDirections.every((value) => value === 'row')).toBe(true)
+  expect(layout.headerCount).toBe(0)
+  expect(layout.footerCount).toBe(0)
   expect(layout.robotTransitionDuration).toBe('0s')
   expect(['pixelated', 'crisp-edges']).toContain(layout.iconRendering)
   expect(layout.worldWidth).toBeGreaterThan(300)
@@ -227,7 +268,7 @@ test('fits controls and labeled settings inside a narrow host-provided pane', as
 }) => {
   await page.setViewportSize({ width: 640, height: 820 })
   await page.goto('/host.html')
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await page.getByRole('tab', { name: 'Karel', exact: true }).click()
 
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   const layout = await panel.evaluate((element) => {
@@ -240,10 +281,17 @@ test('fits controls and labeled settings inside a narrow host-provided pane', as
     return {
       panelClientWidth: element.clientWidth,
       panelScrollWidth: element.scrollWidth,
+      controlsDisplay: getComputedStyle(controls).display,
+      controlsWrap: getComputedStyle(controls).flexWrap,
+      controlsOverflowX: getComputedStyle(controls).overflowX,
       controlsClientWidth: controls.clientWidth,
       controlsScrollWidth: controls.scrollWidth,
       settingsClientWidth: settings.clientWidth,
       settingsScrollWidth: settings.scrollWidth,
+      buttonWhiteSpace: [...controls.querySelectorAll<HTMLElement>('.karel-control-button')]
+        .map((button) => getComputedStyle(button).whiteSpace),
+      fieldDirections: [...settings.querySelectorAll<HTMLElement>('.karel-control-field')]
+        .map((field) => getComputedStyle(field).flexDirection),
       worldWidth: worldViewport.getBoundingClientRect().width,
       worldHeight: worldViewport.getBoundingClientRect().height,
       documentWidth: document.documentElement.scrollWidth,
@@ -253,13 +301,20 @@ test('fits controls and labeled settings inside a narrow host-provided pane', as
 
   expect(layout.panelClientWidth).toBeGreaterThan(0)
   expect(layout.panelScrollWidth).toBeLessThanOrEqual(layout.panelClientWidth)
-  expect(layout.controlsScrollWidth).toBeLessThanOrEqual(layout.controlsClientWidth)
+  expect(layout.controlsDisplay).toBe('flex')
+  expect(layout.controlsWrap).toBe('nowrap')
+  expect(layout.controlsOverflowX).toBe('auto')
+  expect(layout.controlsClientWidth).toBeLessThanOrEqual(layout.panelClientWidth)
+  expect(layout.controlsScrollWidth).toBeGreaterThanOrEqual(layout.controlsClientWidth)
   expect(layout.settingsScrollWidth).toBeLessThanOrEqual(layout.settingsClientWidth)
+  expect(layout.buttonWhiteSpace.every((value) => value === 'nowrap')).toBe(true)
+  expect(layout.fieldDirections.every((value) => value === 'row')).toBe(true)
   expect(layout.worldWidth).toBeCloseTo(layout.panelClientWidth, 0)
   expect(layout.worldHeight).toBeGreaterThanOrEqual(150)
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth)
   await expect(panel.getByText('Speed', { exact: true })).toBeVisible()
   await expect(panel.getByText('World', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('slider', { name: 'Playback speed' })).toBeVisible()
 })
 
 test('follows the host theme and preserves readable panel contrast', async ({ page }) => {
@@ -267,7 +322,7 @@ test('follows the host theme and preserves readable panel contrast', async ({ pa
     window.localStorage.setItem('web-ide.theme', 'dark')
   })
   await page.goto('/host.html')
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await page.getByRole('tab', { name: 'Karel', exact: true }).click()
 
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   const darkPalette = await readPalette(panel)
@@ -297,7 +352,7 @@ test('runs a nested-module Karel program through the generic Python runtime sess
   await page.goto('/host.html')
   expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true)
 
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await page.getByRole('tab', { name: 'Karel', exact: true }).click()
   await page.getByRole('button', { name: 'Run Karel' }).click()
 
   await expect(page.getByRole('status')).toHaveText(/Complete|Stopped|Error/, {
@@ -325,13 +380,12 @@ test('drives accessible line playback and recorded history through public servic
   await page.goto('/host.html')
   expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true)
 
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await page.getByRole('tab', { name: 'Karel', exact: true }).click()
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   const statusBar = page.getByRole('contentinfo', { name: 'Status bar' })
-  const framePosition = panel.locator('.karel-frame-status > span').first()
-  const retention = panel.locator('.karel-frame-status > span').nth(1)
+  const framePosition = panel.locator('.karel-frame-position')
   const world = panel.getByRole('img')
-  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  await panel.getByRole('button', { name: 'Prepare', exact: true }).click()
   await expect(panel.getByRole('status')).toHaveText('Paused', {
     timeout: 150_000,
   })
@@ -344,39 +398,37 @@ test('drives accessible line playback and recorded history through public servic
   await expect(statusBar).toContainText('Paused at main.py:1')
   await expect(statusBar).toContainText('Ln 1, Col 1')
 
-  const stepForward = panel.getByRole('button', { name: 'Step forward' })
+  const forward = panel.getByRole('button', { name: 'Forward', exact: true })
   for (let step = 0; step < 16; step += 1) {
     const worldLabel = await world.getAttribute('aria-label')
     if (worldLabel?.includes('avenue 2, street 1')) break
-    const previousRetention = await retention.textContent()
-    await stepForward.click()
-    await expect(retention).not.toHaveText(previousRetention ?? '', { timeout: 30_000 })
+    const previousFrame = await framePosition.textContent()
+    await forward.click()
+    await expect(framePosition).not.toHaveText(previousFrame ?? '', { timeout: 30_000 })
     if ((await panel.getByRole('status').textContent()) === 'Complete') {
       throw new Error(JSON.stringify({
         completedAtStep: step + 1,
         frame: await framePosition.textContent(),
-        retention: await retention.textContent(),
         source: await statusBar.textContent(),
         world: await world.getAttribute('aria-label'),
       }))
     }
     await expect(panel.getByRole('status')).toHaveText('Paused', { timeout: 30_000 })
   }
-  await expect(panel.getByText('Last action: move', { exact: true })).toBeVisible()
   await expect(world).toHaveAttribute('aria-label', /avenue 2, street 1/)
 
-  const stepBack = panel.getByRole('button', { name: 'Step back' })
+  const back = panel.getByRole('button', { name: 'Back', exact: true })
   for (let frame = 0; frame < 4; frame += 1) {
     const worldLabel = await world.getAttribute('aria-label')
     if (worldLabel?.includes('avenue 1, street 1')) break
     const previousFrame = await framePosition.textContent()
-    await expect(stepBack).toBeEnabled()
-    await stepBack.click()
+    await expect(back).toBeEnabled()
+    await back.click()
     await expect(framePosition).not.toHaveText(previousFrame ?? '')
   }
   await expect(world).toHaveAttribute('aria-label', /avenue 1, street 1/)
   const previousFrame = await framePosition.textContent()
-  await stepForward.click()
+  await forward.click()
   await expect(framePosition).not.toHaveText(previousFrame ?? '')
   await expect(world).toHaveAttribute('aria-label', /avenue 2, street 1/)
   await expect(page.getByRole('tab', { name: /^steps\.py/u })).toHaveAttribute(
@@ -389,12 +441,13 @@ test('drives accessible line playback and recorded history through public servic
   await expect(statusBar).toContainText('Ln 6, Col 1')
   await expect(page.locator('.monaco-editor .source-presentation-historical-line')).toHaveCount(1)
   await expect(panel.getByRole('status')).toHaveText('History')
-  await expect(panel.getByText(/Viewing recorded history/)).toBeVisible()
 
-  await panel.getByRole('button', { name: 'Return to live' }).click()
+  await forwardThroughHistoryToLive(panel)
   await expect(panel.getByRole('status')).toHaveText('Paused')
-  await panel.getByRole('button', { name: 'Stop' }).click()
-  await expect(panel.getByRole('status')).toHaveText('Stopped', {
+  await expect(page.locator('.monaco-editor .source-presentation-historical-line')).toHaveCount(0)
+  await panel.getByRole('button', { name: 'Reset', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Ready', {
     timeout: 30_000,
   })
+  await expect(panel.getByText('No recorded frames')).toBeVisible()
 })
