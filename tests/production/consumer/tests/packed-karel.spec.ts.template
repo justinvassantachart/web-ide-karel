@@ -90,6 +90,14 @@ test('proves security headers, nested execution, and exact source/action/world c
     'aria-label',
     /avenue 3, street 2, facing east/u,
   )
+  await expect(panel.getByTestId('karel-robot-icon')).toHaveAttribute(
+    'href',
+    /^data:image\/png;base64,/u,
+  )
+  await expect(panel.getByTestId('karel-robot')).toHaveAttribute(
+    'transform',
+    /rotate\(0\)/u,
+  )
   await expect(page.locator('.xterm-rows')).toContainText('Program exited with code 0')
 
   const stepBack = panel.getByRole('button', { name: 'Step back' })
@@ -485,6 +493,9 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   await expect(panel).toBeVisible()
   await expect(panel.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+  await expect(panel.getByRole('group', { name: 'Run controls' })).toBeVisible()
+  await expect(panel.getByRole('group', { name: 'Recorded history controls' })).toBeVisible()
+  await expect(panel.getByTestId('karel-robot-icon')).toBeVisible()
 
   const prepare = panel.getByRole('button', { name: 'Prepare & pause' })
   await prepare.focus()
@@ -506,6 +517,41 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   expect(await panel.locator('.karel-panel-footer').evaluate(
     (element) => getComputedStyle(element).flexDirection,
   )).toBe('column')
+  const responsiveLayout = await panel.evaluate((element) => {
+    const controls = element.querySelector<HTMLElement>('.karel-playback-controls')
+    const settings = element.querySelector<HTMLElement>('.karel-control-settings')
+    const worldViewport = element.querySelector<HTMLElement>('.karel-world-viewport')
+    if (!controls || !settings || !worldViewport) {
+      throw new Error('Karel responsive layout is incomplete')
+    }
+    return {
+      panelClientWidth: element.clientWidth,
+      panelScrollWidth: element.scrollWidth,
+      controlsClientWidth: controls.clientWidth,
+      controlsScrollWidth: controls.scrollWidth,
+      settingsClientWidth: settings.clientWidth,
+      settingsScrollWidth: settings.scrollWidth,
+      worldWidth: worldViewport.getBoundingClientRect().width,
+      worldHeight: worldViewport.getBoundingClientRect().height,
+    }
+  })
+  expect(responsiveLayout.panelClientWidth).toBeGreaterThan(0)
+  expect(responsiveLayout.panelScrollWidth).toBeLessThanOrEqual(
+    responsiveLayout.panelClientWidth,
+  )
+  expect(responsiveLayout.controlsScrollWidth).toBeLessThanOrEqual(
+    responsiveLayout.controlsClientWidth,
+  )
+  expect(responsiveLayout.settingsScrollWidth).toBeLessThanOrEqual(
+    responsiveLayout.settingsClientWidth,
+  )
+  expect(responsiveLayout.worldWidth).toBeCloseTo(
+    responsiveLayout.panelClientWidth,
+    0,
+  )
+  expect(responsiveLayout.worldHeight).toBeGreaterThanOrEqual(150)
+  await expect(panel.getByText('Speed', { exact: true })).toBeVisible()
+  await expect(panel.getByText('World', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 
   const heading = panel.getByRole('heading', { name: 'Nested Module World' })

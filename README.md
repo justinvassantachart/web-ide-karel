@@ -5,12 +5,15 @@ owns Karel's world contract, Python teaching library, protocol, playback,
 renderer, and panel. It does not provide a Python interpreter, persist host
 data, or add Karel behavior to Web IDE core.
 
-The private source repository is preparing the MIT-licensed `0.2.0` candidate.
-The package remains `private: true` and is not published to npm. Its supported
-Web IDE peer line is `>=0.2.0 <0.3.0`; release consumers still install one exact
-reviewed Web IDE/Karel artifact pair rather than choosing a version from that
-range. P2.5 remains open until the candidate also has complete license, SBOM,
-reproducibility, immutable-release, and independent-download evidence.
+The MIT-licensed `0.2.0` artifact built from source checkpoint r6 is an
+immutable private release; the package remains `private: true` and is not
+published to npm. This presentation redesign changes packaged bytes and is
+unreleased. It cannot reuse the `0.2.0` artifact, r6 source tag, or Hamilton's
+existing capability release ID; the successor version, tag, and capability ID
+are deliberately deferred to coordinated release integration. The supported
+Web IDE peer line remains `>=0.2.0 <0.3.0`, and release consumers install one
+exact reviewed Web IDE/Karel artifact pair rather than selecting from that
+range.
 
 The package composes only through public Web IDE contributions and panel
 services. A host selects a generic runtime that advertises Python and, for line
@@ -295,8 +298,17 @@ construction, and do not change the protocol decoder's defensive ceilings.
 
 Terminal failures and limits are preserved separately from evictable history.
 Accessible names, live status/frame text, visible focus, responsive controls,
-a reduced-motion rule, an SVG robot description, and a textual world summary
-are included in the panel.
+a reduced-motion rule, and a bounded textual world description are included in
+the panel. The SVG world uses the owner-authorized Karel pixel-art PNG, inlined
+into the package bundle, with east as its source orientation and a directional
+SVG fallback if the image cannot render. The compact presentation fills the
+space supplied by its host and adapts by panel width; it does not own the
+host's editor, terminal, theme selection, or application layout.
+
+The panel presents decoded Karel state, controller feedback, and terminal
+outcomes available through its existing public services. Ordinary Python
+stdout/stderr remains in Web IDE's host-owned terminal rather than being copied
+into a second Karel console or retained by this package.
 
 ## Formative comparison
 
@@ -353,15 +365,18 @@ candidate, execution, workspace, and home roots with stable placeholders and
 fails if a personal or temporary absolute path remains.
 
 The source license and package version do not themselves complete a release.
-See [publishing readiness](docs/publishing-readiness.md) for the remaining
-artifact and immutable-release evidence.
+See [publishing readiness](docs/publishing-readiness.md) for the immutable r6
+record and the forward-only successor boundary.
 
 ### Deterministic release evidence
 
-`npm run release:candidate` is the Karel candidate builder. In its
-default `final` mode it requires a clean, pushed `main`, the pushed annotated
-`web-ide-karel-v0.2.0-source-r6` tag at `HEAD`, the exact Node/npm toolchain, an
-absent external output path, and the exact Web IDE candidate state and tarball.
+The checked-in release tooling is frozen to the historical `0.2.0` r6 release;
+it cannot mint a successor redesign artifact without a separate forward-only
+release-tooling update. For that historical workflow, `npm run
+release:candidate` in its default `final` mode requires a clean, pushed `main`,
+the pushed annotated `web-ide-karel-v0.2.0-source-r6` tag at `HEAD`, the exact
+Node/npm toolchain, an absent external output path, and the exact Web IDE
+candidate state and tarball.
 It verifies the canonical Web candidate state, runtime-assets report, tar
 SHA-256, consumer-lock SHA-512 integrity, and package identity before running
 two isolated clean Karel installs/builds/packs with fresh npm caches. It then

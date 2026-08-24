@@ -38,6 +38,39 @@ async function readPalette(panel: Locator) {
   })
 }
 
+async function readSvgContrast(foreground: Locator, backgroundSelector: string) {
+  return foreground.evaluate((element, selector) => {
+    const background = element.closest('svg')?.querySelector(selector)
+    if (!background) throw new Error(`Missing SVG background: ${selector}`)
+    const canvas = document.createElement('canvas')
+    canvas.width = 1
+    canvas.height = 1
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) throw new Error('Canvas color sampling is unavailable')
+    const sample = (color: string): [number, number, number] => {
+      context.clearRect(0, 0, 1, 1)
+      context.fillStyle = color
+      context.fillRect(0, 0, 1, 1)
+      const data = context.getImageData(0, 0, 1, 1).data
+      return [data[0]!, data[1]!, data[2]!]
+    }
+    const luminance = ([red, green, blue]: [number, number, number]) => {
+      const channel = (value: number) => {
+        const normalized = value / 255
+        return normalized <= 0.04045
+          ? normalized / 12.92
+          : ((normalized + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    }
+    const foregroundLuminance = luminance(sample(getComputedStyle(element).fill))
+    const backgroundLuminance = luminance(sample(getComputedStyle(background).fill))
+    const lighter = Math.max(foregroundLuminance, backgroundLuminance)
+    const darker = Math.min(foregroundLuminance, backgroundLuminance)
+    return (lighter + 0.05) / (darker + 0.05)
+  }, backgroundSelector)
+}
+
 test('renders runtime frames and releases subscriptions on browser unmount', async ({
   page,
 }) => {
@@ -47,11 +80,23 @@ test('renders runtime frames and releases subscriptions on browser unmount', asy
     'aria-label',
     /avenue 1, street 1/,
   )
+  await expect(page.getByTestId('karel-robot-icon')).toHaveAttribute(
+    'href',
+    /(?:\/src\/assets\/karel\.png|^data:image\/png;base64,)/,
+  )
+  await expect(page.getByTestId('karel-robot')).toHaveAttribute(
+    'transform',
+    /rotate\(0\)/,
+  )
   await expect(page.getByRole('status')).toHaveText('Ready')
   await page.getByRole('button', { name: 'Emit move' }).click()
   await expect(page.getByRole('img')).toHaveAttribute(
     'aria-label',
-    /avenue 2, street 1/,
+    /avenue 2, street 1, facing south/,
+  )
+  await expect(page.getByTestId('karel-robot')).toHaveAttribute(
+    'transform',
+    /rotate\(90\)/,
   )
   await expect(page.getByRole('status')).toHaveText('Running')
 
@@ -115,6 +160,9 @@ test('registers through a real Web IDE host using only public APIs', async ({ pa
 
   await expect(page.getByRole('heading', { name: 'First Steps' })).toBeVisible()
   await expect(page.getByRole('img', { name: /First Steps/ })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Run controls' })).toBeVisible()
+  await expect(page.getByRole('group', { name: 'Recorded history controls' })).toBeVisible()
+  await expect(page.getByLabel('Karel runtime feedback')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Run Karel' })).toBeEnabled()
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   const reset = panel.getByRole('button', { name: 'Reset', exact: true })
@@ -145,23 +193,73 @@ test('honors reduced motion and a high-zoom-equivalent narrow viewport', async (
     const controls = document.querySelector<HTMLElement>('.karel-playback-controls')
     const footer = document.querySelector<HTMLElement>('.karel-panel-footer')
     const robot = document.querySelector<SVGGElement>('.karel-world-robot')
-    if (!controls || !footer || !robot) throw new Error('Karel layout is incomplete')
+    const viewport = document.querySelector<HTMLElement>('.karel-world-viewport')
+    const icon = document.querySelector<SVGImageElement>('.karel-world-robot-icon')
+    if (!controls || !footer || !robot || !viewport || !icon) {
+      throw new Error('Karel layout is incomplete')
+    }
     const controlsStyle = getComputedStyle(controls)
     return {
       controlsDisplay: controlsStyle.display,
       controlColumns: controlsStyle.gridTemplateColumns.split(' ').filter(Boolean).length,
       footerDirection: getComputedStyle(footer).flexDirection,
       robotTransitionDuration: getComputedStyle(robot).transitionDuration,
+      iconRendering: getComputedStyle(icon).imageRendering,
+      worldWidth: viewport.getBoundingClientRect().width,
+      worldHeight: viewport.getBoundingClientRect().height,
       documentWidth: document.documentElement.scrollWidth,
       viewportWidth: window.innerWidth,
     }
   })
 
   expect(layout.controlsDisplay).toBe('grid')
-  expect(layout.controlColumns).toBe(2)
+  expect(layout.controlColumns).toBe(1)
   expect(layout.footerDirection).toBe('column')
   expect(layout.robotTransitionDuration).toBe('0s')
+  expect(['pixelated', 'crisp-edges']).toContain(layout.iconRendering)
+  expect(layout.worldWidth).toBeGreaterThan(300)
+  expect(layout.worldHeight).toBeGreaterThan(150)
   expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth)
+})
+
+test('fits controls and labeled settings inside a narrow host-provided pane', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 820 })
+  await page.goto('/host.html')
+  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+
+  const panel = page.getByRole('region', { name: 'Karel world and playback' })
+  const layout = await panel.evaluate((element) => {
+    const controls = element.querySelector<HTMLElement>('.karel-playback-controls')
+    const settings = element.querySelector<HTMLElement>('.karel-control-settings')
+    const worldViewport = element.querySelector<HTMLElement>('.karel-world-viewport')
+    if (!controls || !settings || !worldViewport) {
+      throw new Error('Karel responsive layout is incomplete')
+    }
+    return {
+      panelClientWidth: element.clientWidth,
+      panelScrollWidth: element.scrollWidth,
+      controlsClientWidth: controls.clientWidth,
+      controlsScrollWidth: controls.scrollWidth,
+      settingsClientWidth: settings.clientWidth,
+      settingsScrollWidth: settings.scrollWidth,
+      worldWidth: worldViewport.getBoundingClientRect().width,
+      worldHeight: worldViewport.getBoundingClientRect().height,
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    }
+  })
+
+  expect(layout.panelClientWidth).toBeGreaterThan(0)
+  expect(layout.panelScrollWidth).toBeLessThanOrEqual(layout.panelClientWidth)
+  expect(layout.controlsScrollWidth).toBeLessThanOrEqual(layout.controlsClientWidth)
+  expect(layout.settingsScrollWidth).toBeLessThanOrEqual(layout.settingsClientWidth)
+  expect(layout.worldWidth).toBeCloseTo(layout.panelClientWidth, 0)
+  expect(layout.worldHeight).toBeGreaterThanOrEqual(150)
+  expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewportWidth)
+  await expect(panel.getByText('Speed', { exact: true })).toBeVisible()
+  await expect(panel.getByText('World', { exact: true })).toBeVisible()
 })
 
 test('follows the host theme and preserves readable panel contrast', async ({ page }) => {
@@ -185,6 +283,11 @@ test('follows the host theme and preserves readable panel contrast', async ({ pa
   expect(lightState.background).not.toBe(darkPalette.background)
   expect(lightState.foreground).not.toBe(darkPalette.foreground)
   expect(lightState.contrast).toBeGreaterThanOrEqual(4.5)
+
+  await panel.getByTestId('karel-robot-icon').dispatchEvent('error')
+  const fallback = panel.getByTestId('karel-robot-fallback')
+  await expect(fallback).toBeVisible()
+  expect(await readSvgContrast(fallback, '.karel-world-background')).toBeGreaterThanOrEqual(3)
 })
 
 test('runs a nested-module Karel program through the generic Python runtime session', async ({
@@ -208,6 +311,11 @@ test('runs a nested-module Karel program through the generic Python runtime sess
     'aria-label',
     /avenue 4, street 2, facing east/,
   )
+  await expect(page.getByTestId('karel-robot')).toHaveAttribute(
+    'transform',
+    /rotate\(0\)/,
+  )
+  await expect(page.getByTestId('karel-robot-icon')).toBeVisible()
 })
 
 test('drives accessible line playback and recorded history through public services', async ({

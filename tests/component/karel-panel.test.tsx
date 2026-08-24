@@ -39,8 +39,59 @@ describe('Karel panel', () => {
     expect(description).toContain('and 1 more')
     expect(description).toContain('Walls: east of avenue 3, street 2')
     expect(description).toContain('Painted corners: purple at avenue 4, street 3')
-    expect(container.querySelectorAll('.karel-world-beepers circle')).toHaveLength(21)
+    expect(container.querySelectorAll('.karel-world-beepers path')).toHaveLength(21)
     expect(container.querySelectorAll('.karel-world-walls line')).toHaveLength(1)
+  })
+
+  it('renders the pixel-art icon at the correct directional rotation with a fallback', () => {
+    const world = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    world.karel.direction = 'east'
+    const { rerender } = render(<KarelWorldView world={world} />)
+
+    const robot = screen.getByTestId('karel-robot')
+    const icon = screen.getByTestId('karel-robot-icon')
+    expect(icon.tagName.toLowerCase()).toBe('image')
+    expect(icon.getAttribute('href')).toMatch(
+      /^(?:data:image\/png;base64,|\/src\/assets\/karel\.png)$/u,
+    )
+    expect(icon.getAttribute('aria-hidden')).toBe('true')
+    expect(robot.getAttribute('transform')).toContain('rotate(0)')
+    expect(robot.getAttribute('data-direction')).toBe('east')
+
+    for (const [direction, degrees] of [
+      ['north', -90],
+      ['south', 90],
+      ['west', 180],
+    ] as const) {
+      const rotated = cloneKarelWorld(world)
+      rotated.karel.direction = direction
+      rerender(<KarelWorldView world={rotated} />)
+      expect(robot.getAttribute('transform')).toContain(`rotate(${degrees})`)
+      expect(robot.getAttribute('data-direction')).toBe(direction)
+      expect(screen.getByRole('img').getAttribute('aria-label')).toContain(
+        `facing ${direction}`,
+      )
+    }
+
+    fireEvent.error(screen.getByTestId('karel-robot-icon'))
+    expect(robot.getAttribute('data-icon-state')).toBe('fallback')
+    expect(screen.getByTestId('karel-robot-fallback')).toBeTruthy()
+    expect(screen.getByRole('img').getAttribute('aria-describedby')).toBeTruthy()
+  })
+
+  it('renders maximum world dimensions with one repeated grid primitive', () => {
+    const world = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    world.columns = 100
+    world.rows = 100
+    world.beepers = []
+    world.walls = []
+    world.colors = []
+
+    const { container } = render(<KarelWorldView world={world} />)
+
+    expect(container.querySelectorAll('.karel-world-grid')).toHaveLength(1)
+    expect(container.querySelectorAll('.karel-world-intersection')).toHaveLength(1)
+    expect(container.querySelectorAll('.karel-world-labels text')).toHaveLength(200)
   })
 
   it('renders a responsive world and updates the robot from runtime events', () => {
@@ -223,6 +274,9 @@ describe('Karel panel', () => {
     })
     await vi.waitFor(() => expect(start).toHaveBeenCalledWith('debug'))
     expect(screen.getByRole('status').textContent).toContain('Starting')
+    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
+      'Preparing the Karel runtime.',
+    )
     const stopButton = screen.getByRole('button', { name: 'Stop' }) as HTMLButtonElement
     const resetButton = screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement
     const restartButton = screen.getByRole('button', { name: 'Restart' }) as HTMLButtonElement
@@ -243,6 +297,9 @@ describe('Karel panel', () => {
       world: startupWorld,
     })))
     expect(screen.getByRole('status').textContent).toContain('Starting')
+    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
+      'Preparing the Karel runtime.',
+    )
     expect(stopButton.disabled).toBe(true)
     expect(resetButton.disabled).toBe(true)
     expect(restartButton.disabled).toBe(true)
@@ -262,6 +319,9 @@ describe('Karel panel', () => {
       memorySnapshot: null,
     }))
     expect(screen.getByRole('status').textContent).toContain('Paused')
+    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
+      'Playback is paused at the live frame.',
+    )
     expect(stopButton.disabled).toBe(false)
     expect(resetButton.disabled).toBe(false)
     expect(restartButton.disabled).toBe(false)
@@ -315,6 +375,8 @@ describe('Karel panel', () => {
     )
 
     expect(screen.getByLabelText('Karel playback controls')).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Run controls' })).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Recorded history controls' })).toBeTruthy()
     expect(
       (screen.getByRole('button', { name: 'Prepare & pause' }) as HTMLButtonElement)
         .disabled,
@@ -322,11 +384,16 @@ describe('Karel panel', () => {
     expect(screen.getByLabelText('Playback speed')).toBeTruthy()
     expect(screen.getByLabelText('World')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Reset' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Prepare & pause' }).querySelector(
+      '[data-karel-control-icon="prepare"]',
+    )).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Play' }).querySelector(
+      '[data-karel-control-icon="play"]',
+    )).toBeTruthy()
     const stepBack = screen.getByRole('button', { name: 'Step back' })
-    expect(stepBack.getAttribute('aria-describedby')).toBe(
-      'karel-history-explanation',
-    )
-    expect(document.getElementById('karel-history-explanation')?.textContent).toContain(
+    const historyExplanationId = stepBack.getAttribute('aria-describedby')
+    expect(historyExplanationId).toBeTruthy()
+    expect(document.getElementById(historyExplanationId!)?.textContent).toContain(
       'does not reverse the live Python process',
     )
     expect(screen.getByRole('status').getAttribute('aria-live')).toBe('polite')
@@ -381,5 +448,94 @@ describe('Karel panel', () => {
     expect(events.stdout.listenerCount).toBe(1)
     detach()
     expect(events.stdout.listenerCount).toBe(0)
+  })
+
+  it('labels the live frontier and recorded history without claiming process rewind', async () => {
+    const { runtime, events } = createFakeRuntime()
+    Object.assign(runtime.capabilities, { debug: true })
+    const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)
+    const detach = store.attach(runtime)
+
+    const { unmount } = render(
+      <KarelPanel
+        runtime={runtime}
+        execution={{
+          start: async () => undefined,
+          stop: () => undefined,
+          restart: async () => undefined,
+        }}
+        source={{
+          reveal: () => undefined,
+          replaceDecorations: () => undefined,
+          clearDecorations: () => undefined,
+          dispose: () => undefined,
+        }}
+        store={store}
+        workspace={{ snapshot: () => ({ '/workspace/main.py': 'move()\n' }) }}
+        panels={{ reveal: () => undefined }}
+      />,
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Prepare & pause' }))
+    })
+    act(() => events.debugPaused.emit({
+      file: '/main.py',
+      line: 1,
+      func: 'main',
+      callStack: [],
+      memorySnapshot: null,
+    }))
+
+    const moved = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    moved.karel.avenue = 2
+    act(() => events.stdout.emit(encodeKarelProtocolEvent({
+      protocol: KAREL_PROTOCOL_NAME,
+      version: KAREL_PROTOCOL_VERSION,
+      runId: 'history-labels',
+      type: 'state',
+      sequence: 0,
+      action: 'move',
+      world: moved,
+    })))
+
+    expect(screen.getByText('Live frame 2 of 2')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Step back' }))
+    expect(screen.getByRole('status').textContent).toContain('History')
+    expect(screen.getByText('Recorded frame 1 of 2')).toBeTruthy()
+    expect(screen.getByText(/Viewing recorded history/)).toBeTruthy()
+    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
+      'Recorded history is shown; the live process is unchanged.',
+    )
+    expect(
+      (screen.getByRole('button', { name: 'Return to live' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to live' }))
+    expect(screen.getByText('Live frame 2 of 2')).toBeTruthy()
+    expect(
+      (screen.getByRole('button', { name: 'Return to live' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+
+    act(() => events.stdout.emit(encodeKarelProtocolEvent({
+      protocol: KAREL_PROTOCOL_NAME,
+      version: KAREL_PROTOCOL_VERSION,
+      runId: 'history-labels',
+      type: 'terminal',
+      sequence: 1,
+      outcome: 'limit-exceeded',
+      reason: 'event-limit',
+      message: 'Karel action limit reached.',
+      world: moved,
+    })))
+    expect(screen.getByRole('status').textContent).toContain('Limit reached')
+    expect(screen.getByLabelText('Karel runtime feedback').textContent).toContain(
+      'Run reached a configured safety limit.',
+    )
+
+    unmount()
+    detach()
   })
 })

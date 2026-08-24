@@ -25,6 +25,7 @@ export function Fixture() {
   const move = () => {
     const world = cloneKarelWorld(DEFAULT_KAREL_WORLD)
     world.karel.avenue = 2
+    world.karel.direction = 'south'
     events.stdout.emit(
       encodeKarelProtocolEvent({
         protocol: KAREL_PROTOCOL_NAME,

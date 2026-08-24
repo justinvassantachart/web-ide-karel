@@ -1,9 +1,16 @@
 # Publishing readiness
 
-`@web-ide/karel@0.2.0` is an MIT-licensed private release candidate. The
-source manifest, public package boundary, Web IDE peer range, and locked packed
-consumer are release inputs; none of them publishes or authorizes publication
-by itself.
+`@web-ide/karel@0.2.0` r6 is an MIT-licensed immutable private release. Its
+license/SBOM, reproducibility, production validation, publication, independent
+download, and downstream retention evidence completed P2.5. It remains
+`private: true` and is not published to npm.
+
+The presentation redesign changes packaged bytes and is unreleased. It cannot
+reuse or move the `0.2.0` artifact or r6 source tag, and Hamilton's immutable
+`hamilton.python-karel/1` capability release cannot be rebound. A successor
+package version, source tag, artifact, and capability release ID require a
+separate coordinated forward-only release update; this implementation branch
+deliberately does not choose or publish them.
 
 The packed-production consumer commits one npm v3 lock for the stable local
 references `artifacts/web-ide.tgz` and `artifacts/web-ide-karel.tgz`. Validation
@@ -19,8 +26,8 @@ KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.2.0.tgz \
   npm run test:packed-production
 ```
 
-P2.5 is complete only when the exact candidate digest also has all of the
-following recorded evidence:
+Any successor artifact must independently produce all of the following
+evidence for its exact digest:
 
 - a reviewed per-file license/provenance inventory and production SBOM;
 - two clean, reproducible package builds with identical artifact bytes;
@@ -36,19 +43,22 @@ prepublication checkpoints: no Hamilton release or uploaded asset was created
 from them. The r2 and r3 candidates were superseded with their paired Web
 captures; r4 failed closed on Vitest's ANSI-prefixed repository path, and r5
 failed closed on the receipt runner's own temporary-directory label.
-The forward-only evidence run uses `web-ide-karel-v0.2.0-source-r6`; none of
-these tags may be moved or rewritten.
+The completed forward-only evidence run used
+`web-ide-karel-v0.2.0-source-r6`; that tag and every earlier checkpoint remain
+immutable.
 
-The package remains `private: true` and is not published to npm. The accepted
-`hamilton.python-karel/1` identifier is recorded only in release-evidence
-inputs/manifests, not in package runtime contracts. Published URLs, credentials,
-and host cache state remain distribution-owned records and are not embedded in
-the package.
+The accepted `hamilton.python-karel/1` identifier is recorded only in the r6
+release-evidence inputs/manifests, not in package runtime contracts. Published
+URLs, credentials, and host cache state remain distribution-owned records and
+are not embedded in the package.
 
 ## Deterministic evidence and dependency order
 
-The checked-in `release/` inputs and `scripts/release/` tooling now define the
-Karel evidence format and fail-closed workflow. Candidate generation binds
+The checked-in `release/` inputs and `scripts/release/` tooling define the
+historical `0.2.0` r6 evidence format and fail-closed workflow. They are pinned
+to that immutable identity and cannot release the redesign until a successor
+update changes the version, tag, and capability bindings forward-only.
+Candidate generation binds
 the canonical Web IDE candidate state, exact Web tarball, Web-owned runtime
 verification report, committed consumer lock, exact pushed/tagged Karel source,
 two isolated byte-identical Karel packs, independent safe tar inventory,
@@ -91,3 +101,5 @@ commit, digest, or integrity printed in prose is release evidence. The actual
 source identities, candidate digests, lock bindings, and receipts belong only
 in the external canonical evidence directory and the downstream release
 ledger. Test-mode generation is disposable and cannot close this boundary.
+Rebinding the development consumer lock to validate redesign bytes likewise
+proves compatibility only; it is not successor release evidence.

@@ -165,16 +165,26 @@ rejected rather than presented.
 
 ## Rendering and accessibility
 
-`KarelPanel` exposes native buttons/selects with visible disabled and focus
-states. Polite live regions report status and frame retention. It explicitly
-explains recorded history, supplies an SVG image label for Karel's position and
-direction, provides a bounded textual description of beeper, wall, and painted
-corner locations plus visible item counts, responds to narrow layouts, and
-removes robot motion under `prefers-reduced-motion`.
+`KarelPanel` is the package's presentation boundary. It exposes compact native
+buttons/selects with visible disabled and focus states, groups run and recorded-
+history controls, and uses a small local CSS-token set that consumes host color
+variables without owning theme selection. Polite live regions report status,
+frame retention, and exact error/controller messages; a separate visible,
+non-live footer stays aligned with the combined controller status. The panel
+explicitly explains recorded history, provides a bounded textual description
+of beeper, wall, and painted-corner locations plus visible item counts, responds
+to its container width, fills only host-provided space, and removes robot motion
+under `prefers-reduced-motion`. Ordinary stdout/stderr remains in Web IDE's
+terminal.
 
-`KarelWorldView` renders validated data with React/SVG primitives. World names
-are text nodes and colors are restricted by the world parser; the renderer
-does not inject markup or active CSS values.
+`KarelWorldView` renders validated world data with React/SVG primitives and one
+owner-authorized pixel-art PNG imported from `src/assets/karel.png`. Vite
+inlines those exact bytes into the library bundle, so rendering performs no
+asset fetch. The source image faces east; the SVG transform rotates it for the
+other directions and replaces it with an SVG arrow after an image error. The
+outer SVG retains the single accessible image name and bounded description.
+World names are text nodes and colors are restricted by the world parser; the
+renderer does not inject markup or active CSS values.
 
 ## Formative comparison
 
