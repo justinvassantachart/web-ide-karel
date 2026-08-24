@@ -38,7 +38,7 @@ export async function loadReleaseConfiguration() {
   if (
     input.capabilityReleaseId !== 'hamilton.python-karel/1'
     || input.packageRole !== 'karel'
-    || input.sourceTag !== 'web-ide-karel-v0.2.0-source-r5'
+    || input.sourceTag !== 'web-ide-karel-v0.2.0-source-r6'
   ) {
     throw new TypeError('Release input does not match the accepted Hamilton Karel identity')
   }

@@ -290,6 +290,7 @@ export async function captureValidationGate({
       ) throw new TypeError('Validation gate capture produced an invalid exit code')
       const replacements = [
         ...normalizationPaths,
+        { value: temporaryRoot, placeholder: '<execution-root>' },
         { value: executionRoot, placeholder: '<execution-root>' },
         { value: stage, placeholder: '<gate-staging-root>' },
         { value: cwd, placeholder: '<repository-root>' },

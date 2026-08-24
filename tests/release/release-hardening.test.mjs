@@ -123,7 +123,7 @@ describe('captured validation gate evidence', () => {
       return {
         exitCode: 0,
         logBytes: Buffer.from(
-          `actual captured output from ${repositoryRoot}\ntemp=${env.TMPDIR}\n`,
+          `actual captured output from ${repositoryRoot}\ntemp=${env.TMPDIR}/consumer\n`,
         ),
       }
     })
@@ -150,7 +150,7 @@ describe('captured validation gate evidence', () => {
       'validation-audit-full.log',
     ), 'utf8')).toBe(
       'actual captured output from <repository-root>\n'
-      + 'temp=<execution-root>/tmp\n',
+      + 'temp=<execution-root>/consumer\n',
     )
     const receiptBytes = await readFile(path.join(
       outputDirectory,
