@@ -24,8 +24,9 @@ export function Fixture() {
       encodeKarelProtocolEvent({
         protocol: KAREL_PROTOCOL_NAME,
         version: KAREL_PROTOCOL_VERSION,
+        runId: 'browser-fixture',
         type: 'state',
-        sequence: 1,
+        sequence: 0,
         action: 'move',
         world,
       }),
@@ -41,6 +42,17 @@ export function Fixture() {
       </div>
       <KarelPanel
         runtime={runtime}
+        execution={{
+          start: async () => undefined,
+          stop: () => undefined,
+          restart: async () => undefined,
+        }}
+        source={{
+          reveal: () => undefined,
+          replaceDecorations: () => undefined,
+          clearDecorations: () => undefined,
+          dispose: () => undefined,
+        }}
         store={store}
         workspace={{ snapshot: () => ({}) }}
         panels={{ reveal: () => undefined }}

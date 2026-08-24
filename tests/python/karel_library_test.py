@@ -44,6 +44,7 @@ class KarelWorldTests(unittest.TestCase):
         karel._set_protocol_stream_for_testing(self.output)
 
     def tearDown(self):
+        karel._set_protocol_limits_for_testing()
         karel._set_protocol_stream_for_testing(sys.stdout)
 
     def test_movement_turning_and_state_frames(self):
@@ -56,6 +57,17 @@ class KarelWorldTests(unittest.TestCase):
         frames = decode_frames(self.output.getvalue())
         self.assertEqual([frame["action"] for frame in frames], ["load", "move", "turn_left"])
         self.assertEqual([frame["sequence"] for frame in frames], [0, 1, 2])
+        self.assertEqual({frame["version"] for frame in frames}, {2})
+        self.assertEqual(len({frame["runId"] for frame in frames}), 1)
+        self.assertEqual(frames[1]["source"]["path"], "tests/python/karel_library_test.py")
+
+    def test_native_turn_right_is_one_clockwise_action(self):
+        karel.set_world(world(direction="north"))
+        karel.turn_right()
+
+        self.assertEqual(karel.get_world().karel.direction, "east")
+        frames = decode_frames(self.output.getvalue())
+        self.assertEqual([frame["action"] for frame in frames], ["load", "turn_right"])
 
     def test_wall_described_from_neighbor_blocks_both_sides(self):
         value = world()
@@ -89,7 +101,8 @@ class KarelWorldTests(unittest.TestCase):
     def test_run_karel_emits_complete(self):
         karel.run_karel(karel.move, world())
         frames = decode_frames(self.output.getvalue())
-        self.assertEqual(frames[-1]["type"], "complete")
+        self.assertEqual(frames[-1]["type"], "terminal")
+        self.assertEqual(frames[-1]["outcome"], "completed")
         self.assertEqual(frames[-1]["world"]["karel"]["avenue"], 2)
 
     def test_run_karel_emits_error_and_reraises(self):
@@ -99,8 +112,22 @@ class KarelWorldTests(unittest.TestCase):
             karel.run_karel(karel.move, value)
 
         frames = decode_frames(self.output.getvalue())
-        self.assertEqual(frames[-1]["type"], "error")
+        self.assertEqual(frames[-1]["type"], "terminal")
+        self.assertEqual(frames[-1]["outcome"], "runtime-error")
         self.assertEqual(frames[-1]["errorType"], "KarelBlockedError")
+
+    def test_protocol_event_limit_settles_once_and_stops_actions(self):
+        karel._set_protocol_limits_for_testing(max_events=3)
+        karel.set_world(world())
+        karel.move()
+        with self.assertRaisesRegex(karel.KarelLimitError, "protocol events"):
+            karel.turn_left()
+
+        frames = decode_frames(self.output.getvalue())
+        self.assertEqual([frame["sequence"] for frame in frames], [0, 1, 2])
+        self.assertEqual(frames[-1]["type"], "terminal")
+        self.assertEqual(frames[-1]["outcome"], "limit-exceeded")
+        self.assertEqual(frames[-1]["reason"], "event-limit")
 
     def test_world_validation_rejects_invalid_coordinates(self):
         value = world(avenue=4)

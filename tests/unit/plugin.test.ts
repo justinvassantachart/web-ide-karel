@@ -4,15 +4,23 @@ import type {
   DisposableLike,
   IDECommandContext,
   IDEContributionRegistrar,
+  IDEPanelContribution,
+  IDEPanelServices,
   IDEPluginContext,
+  IDEWorkspaceResourceContribution,
 } from 'web-ide'
 import {
   DEFAULT_KAREL_PANEL_ID,
   DEFAULT_KAREL_RESOURCE_ID,
   DEFAULT_KAREL_RUN_COMMAND_ID,
-  KAREL_LIBRARY_WORKSPACE_PATH,
+  KAREL_LIBRARY_EXECUTION_PATH,
+  KAREL_RUN_EXECUTION_PATH,
   KAREL_STARTER_WORKSPACE_PATH,
-  KAREL_WORLD_WORKSPACE_PATH,
+  KAREL_WORLD_SCHEMA_NAME,
+  KAREL_WORLD_SCHEMA_VERSION,
+  KAREL_WORLD_EXECUTION_PATH,
+  DEFAULT_KAREL_WORLD,
+  cloneKarelWorld,
   createKarelPlugin,
 } from '../../src'
 import { createFakeRuntime } from '../helpers/fake-runtime'
@@ -32,13 +40,23 @@ function disposable(value?: DisposableLike): Disposable {
 function activationContext(
   runtime: IDEPluginContext['runtime'],
   onCommand: (value: Parameters<IDEPluginContext['commands']['register']>[0]) => void,
+  capture: {
+    onResource?(value: IDEWorkspaceResourceContribution): void
+  } = {},
 ) {
   const cleanups: Disposable[] = []
   const registrar = { register: () => disposable() } as IDEContributionRegistrar<never>
   const context = {
     activities: registrar,
     panels: registrar,
-    resources: registrar,
+    resources: {
+      register(value) {
+        capture.onResource?.(value)
+        const cleanup = disposable()
+        cleanups.push(cleanup)
+        return cleanup
+      },
+    },
     runtimeProviders: registrar,
     testProviders: registrar,
     commands: {
@@ -62,25 +80,85 @@ function activationContext(
   }
 }
 
+function panelServices(
+  runtime: IDEPanelServices['runtime'],
+): IDEPanelServices {
+  return {
+    runtime,
+    execution: {
+      start: async () => undefined,
+      stop: () => undefined,
+      restart: async () => undefined,
+    },
+    source: {
+      reveal: () => undefined,
+      replaceDecorations: () => undefined,
+      clearDecorations: () => undefined,
+      dispose: () => undefined,
+    },
+    workspace: { snapshot: () => ({}) },
+    panels: { reveal: () => undefined },
+  }
+}
+
+interface KarelPanelElement {
+  props: {
+    selectedWorldId?: string
+    onSelectWorld?(worldId: string): void
+    store: unknown
+  }
+}
+
+function renderPluginPanel(
+  panel: IDEPanelContribution,
+  services: IDEPanelServices,
+): KarelPanelElement {
+  return (panel.component as unknown as (
+    value: IDEPanelServices,
+  ) => KarelPanelElement)(services)
+}
+
 describe('host-created Karel plugin', () => {
-  it('owns its panel and bundled Python/world workspace resources', () => {
-    const plugin = createKarelPlugin()
+  it('keeps only starter code editable and materializes a fresh execution run', () => {
+    let run = 0
+    const plugin = createKarelPlugin({ createRunId: () => `run-${++run}` })
     const panel = plugin.contributes?.panels?.[0]
-    const resources = plugin.contributes?.resources?.[0]
+    const workspace = plugin.contributes?.resources?.find(
+      ({ scope }) => scope !== 'execution-only',
+    )
+    const python = createFakeRuntime()
+    const resources: IDEWorkspaceResourceContribution[] = []
+    const activation = activationContext(python.runtime, vi.fn(), {
+      onResource: (resource) => resources.push(resource),
+    })
+    plugin.activate?.(activation.context)
+    const execution = resources.find(({ scope }) => scope === 'execution-only')
 
     expect(panel).toMatchObject({ id: DEFAULT_KAREL_PANEL_ID, title: 'Karel' })
-    expect(resources?.id).toBe(DEFAULT_KAREL_RESOURCE_ID)
-    expect(Object.keys(resources?.files ?? {}).sort()).toEqual(
-      [
-        KAREL_LIBRARY_WORKSPACE_PATH,
-        KAREL_STARTER_WORKSPACE_PATH,
-        KAREL_WORLD_WORKSPACE_PATH,
-      ].sort(),
-    )
-    expect(resources?.files[KAREL_LIBRARY_WORKSPACE_PATH]).toContain(
-      'def run_karel(',
-    )
-    expect(resources?.files[KAREL_WORLD_WORKSPACE_PATH]).toContain('First Steps')
+    expect(workspace?.files).toEqual(expect.objectContaining({
+      [KAREL_STARTER_WORKSPACE_PATH]: expect.any(String),
+    }))
+    expect(Object.keys(workspace?.files ?? {})).toEqual([KAREL_STARTER_WORKSPACE_PATH])
+    expect(execution).toMatchObject({
+      id: DEFAULT_KAREL_RESOURCE_ID,
+      scope: 'execution-only',
+    })
+    expect(typeof execution?.files).toBe('function')
+    if (typeof execution?.files !== 'function') return
+
+    const first = execution.files()
+    const second = execution.files()
+    expect(first[KAREL_LIBRARY_EXECUTION_PATH]).toContain('def run_karel(')
+    expect(first[KAREL_WORLD_EXECUTION_PATH]).toContain('First Steps')
+    expect(JSON.parse(first[KAREL_RUN_EXECUTION_PATH] ?? '')).toMatchObject({
+      protocol: 'web-ide-karel',
+      version: 2,
+      runId: 'run-1',
+    })
+    expect(JSON.parse(second[KAREL_RUN_EXECUTION_PATH] ?? '')).toMatchObject({
+      runId: 'run-2',
+    })
+    activation.dispose()
   })
 
   it('registers Run Karel only for a selected Python runtime session', async () => {
@@ -138,5 +216,138 @@ describe('host-created Karel plugin', () => {
     expect(plugin.contributes?.panels?.[0]?.id).toBe('course.world')
     expect(commands).not.toHaveBeenCalled()
     activation.dispose()
+  })
+
+  it('selects an explicit strict world document for each execution run', () => {
+    const second = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    second.name = 'Second world'
+    second.karel.avenue = 3
+    const plugin = createKarelPlugin({
+      worlds: [{
+        id: 'second',
+        label: 'Second world',
+        document: {
+          schema: KAREL_WORLD_SCHEMA_NAME,
+          version: KAREL_WORLD_SCHEMA_VERSION,
+          world: second,
+        },
+      }],
+      initialWorldId: 'second',
+    })
+    const python = createFakeRuntime()
+    const resources: IDEWorkspaceResourceContribution[] = []
+    const activation = activationContext(python.runtime, vi.fn(), {
+      onResource: (resource) => resources.push(resource),
+    })
+    plugin.activate?.(activation.context)
+    const execution = resources.find(({ scope }) => scope === 'execution-only')
+    expect(typeof execution?.files).toBe('function')
+    if (typeof execution?.files !== 'function') return
+    expect(JSON.parse(execution.files()[KAREL_WORLD_EXECUTION_PATH] ?? '')).toMatchObject({
+      name: 'Second world',
+      karel: { avenue: 3 },
+    })
+    activation.dispose()
+  })
+
+  it('isolates selected worlds and dynamic execution resources across runtimes', () => {
+    const second = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    second.name = 'Second world'
+    second.karel.avenue = 3
+    const document = {
+      schema: KAREL_WORLD_SCHEMA_NAME,
+      version: KAREL_WORLD_SCHEMA_VERSION,
+      world: DEFAULT_KAREL_WORLD,
+    }
+    const plugin = createKarelPlugin({
+      worlds: [
+        { id: 'first', document },
+        {
+          id: 'second',
+          document: {
+            schema: KAREL_WORLD_SCHEMA_NAME,
+            version: KAREL_WORLD_SCHEMA_VERSION,
+            world: second,
+          },
+        },
+      ],
+    })
+    const panel = plugin.contributes?.panels?.[0]
+    expect(panel).toBeDefined()
+    if (!panel) return
+
+    const firstRuntime = createFakeRuntime()
+    const secondRuntime = createFakeRuntime()
+    const firstResources: IDEWorkspaceResourceContribution[] = []
+    const secondResources: IDEWorkspaceResourceContribution[] = []
+    const firstActivation = activationContext(firstRuntime.runtime, vi.fn(), {
+      onResource: (resource) => firstResources.push(resource),
+    })
+    const secondActivation = activationContext(secondRuntime.runtime, vi.fn(), {
+      onResource: (resource) => secondResources.push(resource),
+    })
+    plugin.activate?.(firstActivation.context)
+    plugin.activate?.(secondActivation.context)
+
+    const firstPanel = renderPluginPanel(panel, panelServices(firstRuntime.runtime))
+    const secondPanel = renderPluginPanel(panel, panelServices(secondRuntime.runtime))
+    expect(firstPanel.props.selectedWorldId).toBe('first')
+    expect(secondPanel.props.selectedWorldId).toBe('first')
+    expect(firstPanel.props.store).not.toBe(secondPanel.props.store)
+
+    firstPanel.props.onSelectWorld?.('second')
+    expect(
+      renderPluginPanel(panel, panelServices(firstRuntime.runtime)).props
+        .selectedWorldId,
+    ).toBe('second')
+    expect(
+      renderPluginPanel(panel, panelServices(secondRuntime.runtime)).props
+        .selectedWorldId,
+    ).toBe('first')
+
+    const firstExecution = firstResources.find(
+      ({ scope }) => scope === 'execution-only',
+    )
+    const secondExecution = secondResources.find(
+      ({ scope }) => scope === 'execution-only',
+    )
+    expect(typeof firstExecution?.files).toBe('function')
+    expect(typeof secondExecution?.files).toBe('function')
+    if (
+      typeof firstExecution?.files !== 'function'
+      || typeof secondExecution?.files !== 'function'
+    ) return
+
+    expect(
+      JSON.parse(firstExecution.files()[KAREL_WORLD_EXECUTION_PATH] ?? ''),
+    ).toMatchObject({ name: 'Second world', karel: { avenue: 3 } })
+    expect(
+      JSON.parse(secondExecution.files()[KAREL_WORLD_EXECUTION_PATH] ?? ''),
+    ).toMatchObject({ name: 'First Steps', karel: { avenue: 1 } })
+
+    firstActivation.dispose()
+    secondActivation.dispose()
+  })
+
+  it('rejects ambiguous, duplicate, and unknown world selections', () => {
+    const document = {
+      schema: KAREL_WORLD_SCHEMA_NAME,
+      version: KAREL_WORLD_SCHEMA_VERSION,
+      world: DEFAULT_KAREL_WORLD,
+    }
+    expect(() => createKarelPlugin({
+      world: DEFAULT_KAREL_WORLD,
+      worlds: [{ id: 'one', document }],
+    })).toThrow('either world or worlds')
+    expect(() => createKarelPlugin({
+      worlds: [
+        { id: 'same', document },
+        { id: 'same', document },
+      ],
+    })).toThrow('Duplicate Karel world ID')
+    expect(() => createKarelPlugin({
+      worlds: [{ id: 'one', document }],
+      initialWorldId: 'missing',
+    })).toThrow('Unknown initial Karel world ID')
   })
 })

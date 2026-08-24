@@ -12,9 +12,12 @@
   "files": [
     "dist",
     "python/karel.py",
+    "python/karel_world_contract.py",
     "python/starter.py",
     "worlds/default.json",
     "README.md",
+    "SECURITY.md",
+    "docs",
     "LICENSE.md",
     "THIRD_PARTY_NOTICES.md"
   ],
@@ -25,6 +28,7 @@
     },
     "./styles.css": "./dist/styles.css",
     "./python/karel.py": "./python/karel.py",
+    "./python/karel_world_contract.py": "./python/karel_world_contract.py",
     "./worlds/default.json": "./worlds/default.json",
     "./package.json": "./package.json"
   },

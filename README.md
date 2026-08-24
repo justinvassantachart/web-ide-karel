@@ -1,20 +1,18 @@
 # Web IDE Karel
 
-`@web-ide/karel` is a separate, host-registered Karel companion for Web IDE.
-It owns the Karel panel, world model, Python teaching library, workspace
-resources, framed event protocol, and subscription cleanup. Web IDE core does
-not import this package and contains no Karel-specific behavior.
+`@web-ide/karel` is a reusable, host-registered Karel companion for Web IDE. It
+owns Karel's world contract, Python teaching library, protocol, playback,
+renderer, and panel. It does not provide a Python interpreter, persist host
+data, or add Karel behavior to Web IDE core.
 
-The companion does **not** provide a Python interpreter. A host composes it
-with any generic Web IDE Python runtime provider whose selected session exposes
-the public runtime contract. The plugin checks the `python` language ID and
-subscribes to standard `stdout`, `terminalClear`, and `exit` events; it never
-checks a provider ID or imports a provider implementation.
+The package composes only through public Web IDE contributions and panel
+services. A host selects a generic runtime that advertises Python and, for line
+playback, debugger support.
 
 ## Host composition
 
-Install this package alongside `web-ide`, React, and the Python runtime provider
-chosen by your host. Create the plugin inside the host's composition:
+Create strict world documents, pass them to one plugin instance, and register
+that plugin beside the generic workbench and runtime plugins:
 
 ```tsx
 import {
@@ -23,55 +21,21 @@ import {
   type WebIDEConfiguration,
   type WebIDEHost,
 } from 'web-ide'
+import { coreWorkbenchPlugin } from 'web-ide/plugins'
 import { pythonRuntimePlugin } from 'web-ide/runtimes'
-import { createKarelPlugin } from '@web-ide/karel'
+import {
+  DEFAULT_KAREL_WORLD,
+  KAREL_WORLD_SCHEMA_NAME,
+  KAREL_WORLD_SCHEMA_VERSION,
+  createKarelPlugin,
+  type KarelWorldDocumentV1,
+} from '@web-ide/karel'
 import 'web-ide/styles.css'
 import '@web-ide/karel/styles.css'
 
-const configuration: WebIDEConfiguration = {
-  runtimeProvider: 'web-ide.runtime.python',
-  plugins: [pythonRuntimePlugin, createKarelPlugin()],
-}
-
-const host: WebIDEHost = {
-  workspace: {
-    id: 'karel-example-v1',
-    localCache: 'memory',
-  },
-}
-
-export function PythonKarelIDE() {
-  return (
-    <WebIDEHostProvider host={host}>
-      <div style={{ width: '100vw', height: '100vh' }}>
-        <WebIDE configuration={configuration} />
-      </div>
-    </WebIDEHostProvider>
-  )
-}
-```
-
-This runnable example uses Web IDE's built-in generic Python provider, but the
-Karel package does not import it. A host can substitute any plugin contributing
-a structurally compatible `RuntimeProvider`/`RuntimeSession`; the provider ID
-is chosen by the host and is intentionally not known by Karel. Hosts with their
-own Run button can pass `createKarelPlugin({ contributeRunCommand: false })`.
-
-## Workspace resources
-
-The default plugin contributes three ordinary workspace seed files:
-
-- `/workspace/karel.py` — the dependency-free Python library;
-- `/workspace/karel_world.json` — the initial world, available directly to the
-  bundled starter and replaceable by the host;
-- `/workspace/main.py` — a small runnable starter program.
-
-Web IDE's normal precedence rules apply, so host `initialFiles` can replace the
-starter or world without changing this package. A custom world can also be
-provided directly:
-
-```ts
-const karel = createKarelPlugin({
+const challenge: KarelWorldDocumentV1 = {
+  schema: KAREL_WORLD_SCHEMA_NAME,
+  version: KAREL_WORLD_SCHEMA_VERSION,
   world: {
     name: 'Collect the Beeper',
     columns: 6,
@@ -86,26 +50,134 @@ const karel = createKarelPlugin({
     walls: [{ avenue: 2, street: 2, direction: 'east' }],
     colors: [],
   },
+}
+
+const karelPlugin = createKarelPlugin({
+  worlds: [
+    {
+      id: 'first-steps',
+      document: {
+        schema: KAREL_WORLD_SCHEMA_NAME,
+        version: KAREL_WORLD_SCHEMA_VERSION,
+        world: DEFAULT_KAREL_WORLD,
+      },
+    },
+    { id: 'challenge', document: challenge },
+  ],
 })
+
+const configuration: WebIDEConfiguration = {
+  runtimeProvider: 'web-ide.runtime.python',
+  plugins: [pythonRuntimePlugin, coreWorkbenchPlugin, karelPlugin],
+}
+
+const host: WebIDEHost = {
+  workspace: { id: 'karel-example-v1', localCache: 'memory' },
+}
+
+export function PythonKarelIDE() {
+  return (
+    <WebIDEHostProvider host={host}>
+      <div style={{ width: '100vw', height: '100vh' }}>
+        <WebIDE configuration={configuration} />
+      </div>
+    </WebIDEHostProvider>
+  )
+}
 ```
 
-Coordinates follow traditional Karel conventions: avenues increase from left
-to right and streets increase from bottom to top. World boundaries are always
-walls. An internal wall may be described from either adjacent corner; the
-Python model blocks movement from both sides.
+The example selects Web IDE's generic Python provider, but this package does
+not import that provider. Hosts may use another public-contract-compatible
+Python provider. Set `contributeRunCommand: false` when the host already owns
+its Run affordance.
 
-## Python API
+## World documents
+
+Portable worlds use one explicit, versioned envelope:
+
+```json
+{
+  "schema": "web-ide-karel/world",
+  "version": 1,
+  "world": {
+    "name": "Example",
+    "columns": 10,
+    "rows": 8,
+    "karel": {
+      "avenue": 1,
+      "street": 1,
+      "direction": "east",
+      "beepersInBag": "infinite"
+    },
+    "beepers": [],
+    "walls": [],
+    "colors": []
+  }
+}
+```
+
+`parseKarelWorldDocument` rejects unknown or missing fields, unsupported
+versions, non-plain objects and arrays, unsafe integers, invalid or duplicate
+items, out-of-bounds coordinates, implicit boundary walls, and unsafe colors.
+Worlds are limited to 100 by 100, each item array to 10,000 entries, and names
+to 256 characters. Canonicalization sorts items, lowercases colors, and
+normalizes equivalent west/south wall descriptions to east/north.
+
+Public world-contract exports include:
+
+- `KAREL_WORLD_DOCUMENT_SCHEMA`, the immutable portable JSON Schema;
+- `parseKarelWorldDocument`, `canonicalizeKarelWorldDocument`, and
+  `serializeKarelWorldDocument`;
+- `convertBareKarelWorldToDocument`, for the former companion body shape; and
+- `convertStandaloneKarelWorldToDocument`, for the documented
+  `r`/`c`/`cols`, keyed-beeper, and wall-string shape.
+
+Converters are explicit and return a canonical preview plus conversion
+warnings. The strict parser never guesses a legacy shape. The older
+`parseKarelWorld`/`serializeKarelWorld` functions remain compatibility-only
+bare-world APIs; new portable storage and interchange should use the versioned
+document.
+
+The same strict contract is available to Python consumers from
+`@web-ide/karel/python/karel_world_contract.py`. TypeScript and Python parity
+tests share the fixtures in `tests/fixtures/world-contract-cases.json`.
+
+Coordinates are one-based. Avenues increase left-to-right and streets increase
+bottom-to-top. World boundaries are implicit walls.
+
+## Workspace and execution resources
+
+The default plugin separates student workspace content from runtime support:
+
+| Path | Scope | Purpose |
+| --- | --- | --- |
+| `/workspace/main.py` | Ordinary workspace | Editable starter/student program |
+| `/sysroot/karel.py` | Execution-only | Python teaching library |
+| `/sysroot/karel_world.json` | Execution-only | Exact selected world for the next run |
+| `/sysroot/karel_run.json` | Execution-only | Fresh protocol-v2 run identity |
+
+`createKarelWorkspaceFiles` returns only the starter. The plugin materializes
+the other three paths dynamically for every execution with
+`createKarelExecutionFiles`. Web IDE excludes execution-only files from the
+editor and persisted-file projection, so changing or resetting a world does
+not modify student code.
+
+Execution-only resources are still delivered into a user-controlled browser.
+They are not confidential and must never contain secrets or hidden,
+authoritative checks.
+
+## Python teaching API
 
 A program defines `main` and passes it to `run_karel`:
 
 ```py
-from karel import *
+from karel import move, run_karel, turn_left, turn_right
 
 
 def main():
-    while front_is_clear():
-        move()
-    put_beeper()
+    move()
+    turn_left()
+    turn_right()
 
 
 if __name__ == "__main__":
@@ -114,57 +186,113 @@ if __name__ == "__main__":
 
 The library includes:
 
-- actions: `move`, `turn_left`, `pick_beeper`, `put_beeper`, `paint_corner`;
-- movement tests: `front_is_clear`, `left_is_clear`, `right_is_clear` and their
-  `*_is_blocked` complements;
-- beeper tests: `beepers_present`, `no_beepers_present`, `beepers_in_bag`,
-  `no_beepers_in_bag`;
-- direction tests: `facing_north/east/south/west` and `not_facing_*`;
+- actions: `move`, `turn_left`, native single-action `turn_right`,
+  `pick_beeper`, `put_beeper`, and `paint_corner`;
+- movement predicates: `front/left/right_is_clear` and the corresponding
+  `*_is_blocked` forms;
+- beeper predicates: `beepers_present`, `no_beepers_present`,
+  `beepers_in_bag`, and `no_beepers_in_bag`;
+- direction predicates: all four `facing_*` and `not_facing_*` forms; and
 - world helpers: `set_world`, `get_world`, `corner_color_is`, and
   `KarelWorld.load`.
 
-Invalid moves and beeper operations raise specific `KarelError` subclasses.
-`run_karel` publishes the error state and re-raises so the generic Python
-runtime can still report the normal traceback.
+Invalid operations raise typed `KarelError` subclasses. `run_karel` publishes
+one correlated terminal event and re-raises Python failures so the generic
+runtime retains the ordinary traceback.
 
-## Protocol
+## Protocol v2
 
-Karel events travel through stdout in a versioned private ANSI OSC frame:
+Runtime events travel through stdout in a private ANSI OSC frame:
 
 ```text
 ESC ] 777 ; web-ide-karel ; <base64url JSON> BEL
 ```
 
-OSC frames are invisible in xterm-compatible terminals. The JSON envelope
-contains `protocol`, `version`, `type`, and monotonic `sequence` fields. Event
-types are `state`, `complete`, and `error`. `KarelProtocolDecoder` handles
-frames split across arbitrary stdout chunks, multiple frames in a chunk,
-ordinary output before/between/after frames, malformed payloads, and truncated
-process output. It limits frame and world sizes before rendering untrusted
-runtime data.
+Every v2 event contains `protocol`, `version`, an opaque `runId`, and a
+contiguous sequence beginning at zero. State events contain an action, a
+validated world, and an eligible relative POSIX source location when one is
+available. One terminal event settles the run as `completed`, `runtime-error`,
+`aborted`, or `limit-exceeded`.
 
-## Public exports
+`KarelProtocolDecoder` incrementally separates framed events from ordinary
+stdout, validates exact event fields and source paths, rejects wrong-run,
+non-contiguous, unsupported, malformed, oversized, and post-terminal events,
+and can resume after a rejected frame. Current defensive limits are:
 
-The root entry exports the plugin factory, Karel panel/world view, TypeScript
-world and protocol types, incremental decoder, session store, embedded source
-strings, and workspace resource helpers. Raw package assets are also available
-at `@web-ide/karel/python/karel.py` and
-`@web-ide/karel/worlds/default.json`.
+| Boundary | Limit |
+| --- | ---: |
+| One OSC frame | 2,000,000 characters |
+| Protocol events per run | 100,000 |
+| Protocol events per decoder push | 1,024 |
+| Reported decoder errors per push | 64 |
+| Framed protocol characters per run | 8,388,608 characters |
+| Run ID / source path | 128 / 512 characters |
+| Action / message / error type | 64 / 4,096 / 128 characters |
+
+Protocol data and student stdout are untrusted browser input. A decoded event
+is formative UI state, never an authorization or grading result.
+
+## Playback and history
+
+`KarelPlaybackController` consumes only the panel's public `runtime`,
+`execution`, `source`, and `workspace` services. It filters debugger pauses to
+existing `/workspace` files, skips support/runtime locations, combines eligible
+line pauses with validated Karel action frames, and owns current, historical,
+and error source decorations.
+
+The panel exposes Prepare, Play, Pause, Stop, Restart, Reset, Step forward,
+Step back, Return to live, playback speed, and multi-world selection. Step back
+changes only the displayed recorded world; it never reverses the live Python
+process. Reset stops the run and restores the selected initial world without
+rewriting student files. Changing worlds performs the same execution/timeline
+reset before selecting the next initial world. Cleanup cancels timers, clears
+owned source decorations, and revokes subscriptions.
+
+Current defaults are:
+
+- timeline retention: at most 128 frames and 8 MiB of serialized frames, with
+  deterministic oldest-first eviction and visible truncation counts;
+- debugger pauses: 10,000 per run;
+- elapsed time: 60 seconds per run;
+- ordinary stdout/stderr observed by playback: 16 MiB per run; and
+- playback delay: 300 ms, clamped to 50–2,000 ms.
+
+Terminal failures and limits are preserved separately from evictable history.
+Accessible names, live status/frame text, visible focus, responsive controls,
+a reduced-motion rule, an SVG robot description, and a textual world summary
+are included in the panel.
+
+## Formative comparison
+
+`compareKarelFinalState(actual, expected, options)` compares dimensions,
+position, direction, beeper bag, beeper piles, walls, colors, and an explicitly
+supplied completion fact. Ordering is deterministic and input worlds are
+snapshotted.
+
+Every result carries `authority: "formative-only"`. The helper returns matches
+and differences, not a score or grade, and must not be used as trusted evidence
+or an authorization boundary.
 
 ## Development
 
+The package declares Node 20 or later and Python 3.10 or later. From a clean
+checkout:
+
 ```sh
-npm install
+npm ci
+npx playwright install chromium
 npm run validate
 npm run test:browser
 ```
 
-`validate` runs TypeScript/React unit, component, and integration tests; Python
-standard-library tests; type checking; linting; the library build; and a package
-contents check. Browser tests use Playwright and require its Chromium browser
-to be installed (`npx playwright install chromium`).
+`npm run validate` executes, in order, lint, all non-browser TypeScript and
+Python tests, typechecking, the library and basic-example builds, and
+`npm pack --dry-run`. Browser tests are separate. They run the fixture on port
+4178 with COOP/COEP headers and cover mock cleanup, public host registration,
+a real nested-module Python run, and accessible line/history playback.
 
-`examples/basic` is a complete host composition using only public `web-ide`,
-`web-ide/plugins`, `web-ide/runtimes`, and package-root exports. The production
-build compiles this example after the library to catch consumer-facing export
-or configuration drift.
+The current browser command uses a cross-origin-isolated Vite development
+fixture. It is not, by itself, a packed-production-consumer or production-server
+proof. See [docs/testing.md](docs/testing.md) for the exact workflows and
+[docs/architecture.md](docs/architecture.md) for ownership and lifecycle
+details. Security boundaries and reporting are in [SECURITY.md](SECURITY.md).

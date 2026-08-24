@@ -9,6 +9,7 @@ import { cloneKarelWorld } from './world'
 
 export type KarelRuntimeSession = IDEPanelServices['runtime']
 export type KarelSessionListener = () => void
+export type KarelProtocolEventListener = (event: KarelProtocolEvent) => void
 
 function waitingSnapshot(world: KarelWorld): KarelSessionSnapshot {
   return {
@@ -22,7 +23,8 @@ function waitingSnapshot(world: KarelWorld): KarelSessionSnapshot {
 export class KarelSessionStore {
   private readonly decoder = new KarelProtocolDecoder()
   private readonly listeners = new Set<KarelSessionListener>()
-  private readonly initialWorld: KarelWorld
+  private readonly protocolListeners = new Set<KarelProtocolEventListener>()
+  private initialWorld: KarelWorld
   private snapshotValue: KarelSessionSnapshot
   private attachmentCount = 0
   private detachRuntime: (() => void) | undefined
@@ -37,6 +39,14 @@ export class KarelSessionStore {
   readonly subscribe = (listener: KarelSessionListener): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
+  }
+
+  /** Supplies only already-decoded, run-correlated v2 events. */
+  readonly subscribeProtocol = (
+    listener: KarelProtocolEventListener,
+  ): (() => void) => {
+    this.protocolListeners.add(listener)
+    return () => this.protocolListeners.delete(listener)
   }
 
   /**
@@ -74,6 +84,12 @@ export class KarelSessionStore {
     this.update(waitingSnapshot(this.initialWorld))
   }
 
+  /** Replaces the exact reset world without changing student workspace files. */
+  setInitialWorld(world: KarelWorld): void {
+    this.initialWorld = cloneKarelWorld(world)
+    this.reset()
+  }
+
   setUnavailable(message: string): void {
     this.update({
       ...waitingSnapshot(this.initialWorld),
@@ -104,28 +120,53 @@ export class KarelSessionStore {
         this.update({
           world: event.world,
           status: 'running',
+          runId: event.runId,
           lastAction: event.action,
           sequence: event.sequence,
         })
         break
-      case 'complete':
-        this.update({
-          world: event.world,
-          status: 'complete',
-          lastAction: 'complete',
-          sequence: event.sequence,
-        })
-        break
-      case 'error':
-        this.update({
-          ...this.snapshotValue,
-          status: 'error',
-          error: event.message,
-          lastAction: event.errorType ?? 'error',
-          sequence: event.sequence,
-        })
+      case 'terminal':
+        if (event.outcome === 'completed') {
+          this.update({
+            world: event.world,
+            status: 'complete',
+            runId: event.runId,
+            lastAction: 'complete',
+            sequence: event.sequence,
+          })
+        } else if (event.outcome === 'runtime-error') {
+          this.update({
+            ...this.snapshotValue,
+            ...(event.world === undefined ? {} : { world: event.world }),
+            status: 'error',
+            runId: event.runId,
+            error: event.message,
+            lastAction: event.errorType ?? 'runtime-error',
+            sequence: event.sequence,
+          })
+        } else if (event.outcome === 'limit-exceeded') {
+          this.update({
+            ...this.snapshotValue,
+            ...(event.world === undefined ? {} : { world: event.world }),
+            status: 'error',
+            runId: event.runId,
+            error: event.message ?? `Karel stopped at the ${event.reason}`,
+            lastAction: event.reason,
+            sequence: event.sequence,
+          })
+        } else {
+          this.update({
+            ...this.snapshotValue,
+            ...(event.world === undefined ? {} : { world: event.world }),
+            status: 'exited',
+            runId: event.runId,
+            lastAction: 'aborted',
+            sequence: event.sequence,
+          })
+        }
         break
     }
+    for (const listener of [...this.protocolListeners]) listener(event)
   }
 
   private onExit(code: number): void {

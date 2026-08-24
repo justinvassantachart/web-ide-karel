@@ -4,18 +4,31 @@ import type {
   IDEPlugin,
 } from 'web-ide'
 import {
+  createKarelExecutionFiles,
   createKarelWorkspaceFiles,
   type KarelWorkspaceResourcesOptions,
 } from './assets'
-import { KarelPanel } from './KarelPanel'
+import {
+  KarelPanel,
+  type KarelPanelWorldOption,
+} from './KarelPanel'
 import { KarelSessionStore, type KarelRuntimeSession } from './session-store'
-import type { KarelWorld } from './types'
 import { DEFAULT_KAREL_WORLD } from './assets'
+import {
+  parseKarelWorldDocument,
+  type KarelWorldDocumentV1,
+} from './world-contract'
 
 export const DEFAULT_KAREL_PLUGIN_ID = 'web-ide-karel'
 export const DEFAULT_KAREL_PANEL_ID = 'web-ide-karel.world'
 export const DEFAULT_KAREL_RESOURCE_ID = 'web-ide-karel.resources'
 export const DEFAULT_KAREL_RUN_COMMAND_ID = 'web-ide-karel.run'
+
+export interface KarelPluginWorldOption {
+  id: string
+  label?: string
+  document: KarelWorldDocumentV1
+}
 
 export interface CreateKarelPluginOptions extends KarelWorkspaceResourcesOptions {
   pluginId?: string
@@ -25,8 +38,17 @@ export interface CreateKarelPluginOptions extends KarelWorkspaceResourcesOptions
   panelTitle?: string
   panelOrder?: number
   commandOrder?: number
+  /** Strict portable worlds selectable by this activity instance. */
+  worlds?: readonly KarelPluginWorldOption[]
+  /** Defaults to the first configured world. */
+  initialWorldId?: string
   /** Set false when the host already supplies its own run affordance. */
   contributeRunCommand?: boolean
+}
+
+interface KarelRuntimeState {
+  selectedWorld: KarelPanelWorldOption
+  store: KarelSessionStore
 }
 
 function id(value: string, field: string): string {
@@ -34,6 +56,49 @@ function id(value: string, field: string): string {
     throw new TypeError(`${field} must be a non-empty contribution ID`)
   }
   return value
+}
+
+function label(value: string, field: string): string {
+  if (
+    value.trim() === ''
+    || value.length > 128
+    || Array.from(value).some((character) => {
+      const code = character.codePointAt(0) ?? 0
+      return code <= 0x1f || code === 0x7f
+    })
+  ) {
+    throw new TypeError(`${field} must be a non-empty control-free label`)
+  }
+  return value
+}
+
+function configuredWorlds(
+  options: CreateKarelPluginOptions,
+): KarelPanelWorldOption[] {
+  if (options.world !== undefined && options.worlds !== undefined) {
+    throw new TypeError('Configure either world or worlds, not both')
+  }
+  if (options.worlds === undefined) {
+    const world = options.world ?? DEFAULT_KAREL_WORLD
+    return [{ id: 'default', label: world.name, world }]
+  }
+  if (options.worlds.length === 0) {
+    throw new TypeError('worlds must contain at least one strict world document')
+  }
+  const seen = new Set<string>()
+  return options.worlds.map((option, index) => {
+    const optionId = id(option.id, `worlds[${index}].id`)
+    if (seen.has(optionId)) {
+      throw new TypeError(`Duplicate Karel world ID: ${optionId}`)
+    }
+    seen.add(optionId)
+    const document = parseKarelWorldDocument(option.document)
+    return {
+      id: optionId,
+      label: label(option.label ?? document.world.name, `worlds[${index}].label`),
+      world: document.world,
+    }
+  })
 }
 
 /**
@@ -54,19 +119,40 @@ export function createKarelPlugin(options: CreateKarelPluginOptions = {}): IDEPl
     options.runCommandId ?? DEFAULT_KAREL_RUN_COMMAND_ID,
     'runCommandId',
   )
-  const initialWorld: KarelWorld = options.world ?? DEFAULT_KAREL_WORLD
-  const stores = new WeakMap<KarelRuntimeSession, KarelSessionStore>()
-  const storeFor = (runtime: KarelRuntimeSession): KarelSessionStore => {
-    let store = stores.get(runtime)
-    if (!store) {
-      store = new KarelSessionStore(initialWorld)
-      stores.set(runtime, store)
+  const worlds = configuredWorlds(options)
+  const initialSelection = options.initialWorldId === undefined
+    ? worlds[0]!
+    : worlds.find(({ id: worldId }) => worldId === options.initialWorldId)
+  if (!initialSelection) {
+    throw new TypeError(`Unknown initial Karel world ID: ${options.initialWorldId}`)
+  }
+  const runtimeStates = new WeakMap<KarelRuntimeSession, KarelRuntimeState>()
+  const stateFor = (runtime: KarelRuntimeSession): KarelRuntimeState => {
+    let state = runtimeStates.get(runtime)
+    if (!state) {
+      state = {
+        selectedWorld: initialSelection,
+        store: new KarelSessionStore(initialSelection.world),
+      }
+      runtimeStates.set(runtime, state)
     }
-    return store
+    return state
   }
 
   function PluginKarelPanel(services: IDEPanelServices) {
-    return <KarelPanel {...services} store={storeFor(services.runtime)} />
+    const state = stateFor(services.runtime)
+    return (
+      <KarelPanel
+        {...services}
+        store={state.store}
+        worlds={worlds}
+        selectedWorldId={state.selectedWorld.id}
+        onSelectWorld={(worldId) => {
+          state.selectedWorld =
+            worlds.find((world) => world.id === worldId) ?? state.selectedWorld
+        }}
+      />
+    )
   }
 
   const runCommand: IDECommandContribution = {
@@ -104,10 +190,9 @@ export function createKarelPlugin(options: CreateKarelPluginOptions = {}): IDEPl
       ],
       resources: [
         {
-          id: resourceId,
+          id: `${resourceId}.workspace`,
           order: options.panelOrder ?? 25,
           files: createKarelWorkspaceFiles({
-            world: initialWorld,
             starterCode: options.starterCode,
           }),
         },
@@ -115,18 +200,27 @@ export function createKarelPlugin(options: CreateKarelPluginOptions = {}): IDEPl
     },
     activate(context) {
       if (!context.runtime) return
-      const store = storeFor(context.runtime)
+      const state = stateFor(context.runtime)
+      context.resources.register({
+        id: resourceId,
+        order: options.panelOrder ?? 25,
+        scope: 'execution-only',
+        files: () => createKarelExecutionFiles({
+          world: state.selectedWorld.world,
+          createRunId: options.createRunId,
+        }),
+      })
       const supportsPython = context.runtime.languageIds.some(
         (languageId) => languageId.toLowerCase() === 'python',
       )
       if (!supportsPython) {
-        store.setUnavailable(
+        state.store.setUnavailable(
           'Karel requires a selected runtime session that advertises the Python language ID.',
         )
         return
       }
 
-      context.register(store.attach(context.runtime))
+      context.register(state.store.attach(context.runtime))
       if (options.contributeRunCommand !== false) {
         context.commands.register(runCommand)
       }

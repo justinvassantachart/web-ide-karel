@@ -13,12 +13,7 @@ import 'web-ide/styles.css'
 import { createKarelPlugin } from '../../src'
 
 const nestedModuleStarter = `from helpers.steps import move_steps
-from karel import run_karel, turn_left
-
-
-def turn_right():
-    for _ in range(3):
-        turn_left()
+from karel import run_karel, turn_left, turn_right
 
 
 def main():

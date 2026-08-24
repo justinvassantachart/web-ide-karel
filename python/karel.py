@@ -9,9 +9,11 @@ rewritten.
 from __future__ import annotations
 
 import base64
+import inspect
 import json
 import re
 import sys
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping, TextIO
@@ -20,10 +22,17 @@ Direction = Literal["north", "east", "south", "west"]
 Color = str
 
 PROTOCOL_NAME = "web-ide-karel"
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 PROTOCOL_OSC_CODE = 777
 PROTOCOL_OSC_PREFIX = f"\x1b]{PROTOCOL_OSC_CODE};{PROTOCOL_NAME};"
 PROTOCOL_OSC_END = "\x07"
+PROTOCOL_MAX_EVENTS = 100_000
+PROTOCOL_MAX_CHARACTERS = 8 * 1024 * 1024
+PROTOCOL_MAX_RUN_ID_CHARACTERS = 128
+PROTOCOL_MAX_SOURCE_PATH_CHARACTERS = 512
+PROTOCOL_MAX_ACTION_CHARACTERS = 64
+PROTOCOL_MAX_MESSAGE_CHARACTERS = 4_096
+PROTOCOL_MAX_ERROR_TYPE_CHARACTERS = 128
 
 _DIRECTIONS: tuple[Direction, ...] = ("north", "east", "south", "west")
 _DELTAS: dict[Direction, tuple[int, int]] = {
@@ -61,6 +70,10 @@ class NoBeeperError(KarelError):
 
 class EmptyBeeperBagError(KarelError):
     """Raised when Karel tries to put down a beeper with an empty bag."""
+
+
+class KarelLimitError(KarelError):
+    """Raised after the runtime publishes a terminal resource-limit event."""
 
 
 @dataclass(frozen=True)
@@ -231,7 +244,12 @@ class KarelWorld:
 
 
 _world: KarelWorld | None = None
+_run_id: str | None = None
 _sequence = 0
+_protocol_characters = 0
+_terminal_emitted = False
+_protocol_event_limit = PROTOCOL_MAX_EVENTS
+_protocol_character_limit = PROTOCOL_MAX_CHARACTERS
 _protocol_stream: TextIO = sys.stdout
 
 
@@ -291,25 +309,195 @@ def _default_world_path() -> Path:
     return candidates[0]
 
 
-def _emit(event_type: str, **payload: Any) -> None:
-    global _sequence
+def _default_run_resource_path() -> Path | None:
+    candidates = (
+        Path("karel_run.json"),
+        Path(__file__).resolve().with_name("karel_run.json"),
+        Path(__file__).resolve().parent.parent / "karel_run.json",
+    )
+    return next((candidate for candidate in candidates if candidate.exists()), None)
+
+
+def _portable_run_id(value: Any) -> str:
+    if (
+        not isinstance(value, str)
+        or not 1 <= len(value) <= PROTOCOL_MAX_RUN_ID_CHARACTERS
+        or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]*", value) is None
+    ):
+        raise KarelWorldError(
+            "runId must be 1-128 portable ASCII letters, digits, dot, underscore, "
+            "colon, or hyphen"
+        )
+    return value
+
+
+def _configured_run_id() -> str:
+    resource_path = _default_run_resource_path()
+    if resource_path is None:
+        return f"local-{uuid.uuid4().hex}"
+    try:
+        raw = json.loads(resource_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise KarelWorldError(f"Could not load Karel run resource: {error}") from error
+    if not isinstance(raw, Mapping) or set(raw) != {"protocol", "version", "runId"}:
+        raise KarelWorldError(
+            "Karel run resource must contain exactly protocol, version, and runId"
+        )
+    if raw["protocol"] != PROTOCOL_NAME or raw["version"] != PROTOCOL_VERSION:
+        raise KarelWorldError("Karel run resource protocol or version does not match")
+    return _portable_run_id(raw["runId"])
+
+
+def _begin_run(run_id: str) -> None:
+    global _run_id, _sequence, _protocol_characters, _terminal_emitted
+    _run_id = _portable_run_id(run_id)
+    _sequence = 0
+    _protocol_characters = 0
+    _terminal_emitted = False
+
+
+def _source_path(filename: str, line: int) -> dict[str, Any] | None:
+    if not isinstance(filename, str) or filename.startswith("<"):
+        return None
+    normalized = filename.replace("\\", "/")
+    library_path = Path(__file__).resolve().as_posix()
+    try:
+        resolved = Path(filename).resolve().as_posix()
+    except OSError:
+        resolved = normalized
+    if resolved == library_path:
+        return None
+
+    marker = "/workspace/"
+    if marker in normalized:
+        relative = normalized.rsplit(marker, 1)[1]
+    else:
+        path = Path(filename)
+        try:
+            relative = path.resolve().relative_to(Path.cwd().resolve()).as_posix()
+        except (OSError, ValueError):
+            if path.is_absolute():
+                return None
+            relative = path.as_posix().lstrip("/")
+
+    parts = relative.split("/")
+    if (
+        not relative
+        or len(relative) > PROTOCOL_MAX_SOURCE_PATH_CHARACTERS
+        or any(part in ("", ".", "..") for part in parts)
+        or any(ord(character) < 32 or ord(character) == 127 for character in relative)
+        or not isinstance(line, int)
+        or isinstance(line, bool)
+        or line <= 0
+    ):
+        return None
+    return {"path": relative, "line": line}
+
+
+def _student_source() -> dict[str, Any] | None:
+    frame = inspect.currentframe()
+    try:
+        frame = None if frame is None else frame.f_back
+        while frame is not None:
+            source = _source_path(frame.f_code.co_filename, frame.f_lineno)
+            if source is not None:
+                return source
+            frame = frame.f_back
+    finally:
+        del frame
+    return None
+
+
+def _exception_source(error: BaseException) -> dict[str, Any] | None:
+    trace = error.__traceback__
+    selected = None
+    while trace is not None:
+        source = _source_path(trace.tb_frame.f_code.co_filename, trace.tb_lineno)
+        if source is not None:
+            selected = source
+        trace = trace.tb_next
+    return selected
+
+
+def _encode_frame(event_type: str, payload: Mapping[str, Any]) -> str:
+    if _run_id is None:
+        raise KarelError("Karel protocol has no active run")
     frame = {
         "protocol": PROTOCOL_NAME,
         "version": PROTOCOL_VERSION,
+        "runId": _run_id,
         "type": event_type,
         "sequence": _sequence,
         **payload,
     }
-    _sequence += 1
     encoded = base64.urlsafe_b64encode(
         json.dumps(frame, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     ).decode("ascii")
-    _protocol_stream.write(f"{PROTOCOL_OSC_PREFIX}{encoded}{PROTOCOL_OSC_END}")
+    return f"{PROTOCOL_OSC_PREFIX}{encoded}{PROTOCOL_OSC_END}"
+
+
+def _write_frame(event_type: str, payload: Mapping[str, Any], terminal: bool) -> None:
+    global _sequence, _protocol_characters, _terminal_emitted
+    if _terminal_emitted:
+        raise KarelError("Karel protocol run has already settled")
+    frame = _encode_frame(event_type, payload)
+    if _sequence >= _protocol_event_limit:
+        raise KarelLimitError("Karel protocol event limit exceeded")
+    if _protocol_characters + len(frame) > _protocol_character_limit:
+        raise KarelLimitError("Karel protocol character limit exceeded")
+    _protocol_stream.write(frame)
     _protocol_stream.flush()
+    _sequence += 1
+    _protocol_characters += len(frame)
+    if terminal:
+        _terminal_emitted = True
+
+
+def _emit_limit(reason: str, message: str) -> None:
+    global _terminal_emitted
+    if _terminal_emitted:
+        return
+    payload = {
+        "outcome": "limit-exceeded",
+        "reason": reason,
+        "message": message[:PROTOCOL_MAX_MESSAGE_CHARACTERS],
+    }
+    try:
+        _write_frame("terminal", payload, terminal=True)
+    except KarelLimitError:
+        # A host-provided quota smaller than one terminal frame cannot carry a
+        # trustworthy settlement. Mark it settled and fail closed.
+        _terminal_emitted = True
+
+
+def _emit(event_type: str, *, terminal: bool = False, **payload: Any) -> None:
+    if not terminal and _sequence >= _protocol_event_limit - 1:
+        message = f"Karel stopped after {_protocol_event_limit} protocol events"
+        _emit_limit("event-limit", message)
+        raise KarelLimitError(message)
+
+    frame = _encode_frame(event_type, payload)
+    # Keep room for a small terminal limit event. This makes protocol-byte
+    # exhaustion observable without allowing another unbounded world frame.
+    terminal_reserve = 1_024
+    reserve = 0 if terminal else terminal_reserve
+    if _protocol_characters + len(frame) + reserve > _protocol_character_limit:
+        message = "Karel protocol character limit exceeded"
+        _emit_limit("protocol-byte-limit", message)
+        raise KarelLimitError(message)
+    _write_frame(event_type, payload, terminal=terminal)
 
 
 def _emit_state(action: str) -> None:
-    _emit("state", action=action, world=_require_world().to_dict())
+    if not isinstance(action, str) or not 1 <= len(action) <= PROTOCOL_MAX_ACTION_CHARACTERS:
+        raise KarelError("Karel action name is outside the protocol limit")
+    source = None if action == "load" else _student_source()
+    _emit(
+        "state",
+        action=action,
+        world=_require_world().to_dict(),
+        **({} if source is None else {"source": source}),
+    )
 
 
 def _require_world() -> KarelWorld:
@@ -318,21 +506,28 @@ def _require_world() -> KarelWorld:
     return _world
 
 
+def _coerce_world(world: str | Path | Mapping[str, Any] | KarelWorld) -> KarelWorld:
+    if isinstance(world, KarelWorld):
+        return world
+    if isinstance(world, (str, Path)):
+        return KarelWorld.load(world)
+    if isinstance(world, Mapping):
+        return KarelWorld.from_dict(world)
+    raise KarelWorldError("world must be a path, mapping, or KarelWorld")
+
+
+def _start_world(world: str | Path | Mapping[str, Any] | KarelWorld, run_id: str) -> None:
+    global _world
+    next_world = _coerce_world(world)
+    _begin_run(run_id)
+    _world = next_world
+    _emit_state("load")
+
+
 def set_world(world: str | Path | Mapping[str, Any] | KarelWorld) -> None:
     """Replace the current world and publish its initial state."""
 
-    global _world, _sequence
-    if isinstance(world, KarelWorld):
-        next_world = world
-    elif isinstance(world, (str, Path)):
-        next_world = KarelWorld.load(world)
-    elif isinstance(world, Mapping):
-        next_world = KarelWorld.from_dict(world)
-    else:
-        raise KarelWorldError("world must be a path, mapping, or KarelWorld")
-    _world = next_world
-    _sequence = 0
-    _emit_state("load")
+    _start_world(world, f"local-{uuid.uuid4().hex}")
 
 
 def get_world() -> KarelWorld:
@@ -356,6 +551,14 @@ def turn_left() -> None:
     state = _require_world().karel
     state.direction = _DIRECTIONS[(_DIRECTIONS.index(state.direction) - 1) % 4]
     _emit_state("turn_left")
+
+
+def turn_right() -> None:
+    """Turn Karel clockwise by one quarter-turn and publish one native action."""
+
+    state = _require_world().karel
+    state.direction = _DIRECTIONS[(_DIRECTIONS.index(state.direction) + 1) % 4]
+    _emit_state("turn_right")
 
 
 def pick_beeper() -> None:
@@ -494,17 +697,37 @@ def run_karel(
 
     if not callable(program):
         raise TypeError("run_karel(program) requires a callable")
-    set_world(_default_world_path() if world is None else world)
+    _start_world(
+        _default_world_path() if world is None else world,
+        _configured_run_id(),
+    )
     try:
         result = program()
     except BaseException as error:
-        _emit(
-            "error",
-            message=str(error) or error.__class__.__name__,
-            errorType=error.__class__.__name__,
-        )
+        if not _terminal_emitted:
+            message = (str(error) or error.__class__.__name__)[
+                :PROTOCOL_MAX_MESSAGE_CHARACTERS
+            ]
+            error_type = error.__class__.__name__[:PROTOCOL_MAX_ERROR_TYPE_CHARACTERS]
+            source = _exception_source(error)
+            _emit(
+                "terminal",
+                terminal=True,
+                outcome="runtime-error",
+                message=message,
+                errorType=error_type,
+                world=_require_world().to_dict(),
+                **({} if source is None else {"source": source}),
+            )
         raise
-    _emit("complete", world=_require_world().to_dict())
+    source = _student_source()
+    _emit(
+        "terminal",
+        terminal=True,
+        outcome="completed",
+        world=_require_world().to_dict(),
+        **({} if source is None else {"source": source}),
+    )
     return result
 
 
@@ -515,12 +738,26 @@ def _set_protocol_stream_for_testing(stream: TextIO) -> None:
     _protocol_stream = stream
 
 
+def _set_protocol_limits_for_testing(
+    max_events: int = PROTOCOL_MAX_EVENTS,
+    max_characters: int = PROTOCOL_MAX_CHARACTERS,
+) -> None:
+    """Internal deterministic quota seam; student programs should not call it."""
+
+    global _protocol_event_limit, _protocol_character_limit
+    if max_events < 1 or max_characters < 1:
+        raise ValueError("protocol test limits must be positive")
+    _protocol_event_limit = max_events
+    _protocol_character_limit = max_characters
+
+
 __all__ = [
     "Color",
     "Direction",
     "EmptyBeeperBagError",
     "KarelBlockedError",
     "KarelError",
+    "KarelLimitError",
     "KarelState",
     "KarelWorld",
     "KarelWorldError",
@@ -554,4 +791,5 @@ __all__ = [
     "run_karel",
     "set_world",
     "turn_left",
+    "turn_right",
 ]

@@ -1,0 +1,98 @@
+{
+  "canonicalization": {
+    "input": {
+      "schema": "web-ide-karel/world",
+      "version": 1,
+      "world": {
+        "name": "Parity World",
+        "columns": 5,
+        "rows": 4,
+        "karel": {
+          "avenue": 2,
+          "street": 1,
+          "direction": "north",
+          "beepersInBag": 3
+        },
+        "beepers": [
+          { "avenue": 5, "street": 3, "count": 2 },
+          { "avenue": 1, "street": 1, "count": 1 }
+        ],
+        "walls": [
+          { "avenue": 2, "street": 3, "direction": "south" },
+          { "avenue": 4, "street": 1, "direction": "west" }
+        ],
+        "colors": [
+          { "avenue": 4, "street": 2, "color": "BLUE" },
+          { "avenue": 2, "street": 1, "color": "#A0B1C2" }
+        ]
+      }
+    },
+    "expected": {
+      "schema": "web-ide-karel/world",
+      "version": 1,
+      "world": {
+        "name": "Parity World",
+        "columns": 5,
+        "rows": 4,
+        "karel": {
+          "avenue": 2,
+          "street": 1,
+          "direction": "north",
+          "beepersInBag": 3
+        },
+        "beepers": [
+          { "avenue": 1, "street": 1, "count": 1 },
+          { "avenue": 5, "street": 3, "count": 2 }
+        ],
+        "walls": [
+          { "avenue": 3, "street": 1, "direction": "east" },
+          { "avenue": 2, "street": 2, "direction": "north" }
+        ],
+        "colors": [
+          { "avenue": 2, "street": 1, "color": "#a0b1c2" },
+          { "avenue": 4, "street": 2, "color": "blue" }
+        ]
+      }
+    }
+  },
+  "standaloneConversion": {
+    "input": {
+      "id": "reference-1",
+      "name": "Standalone Evidence",
+      "rows": 3,
+      "cols": 5,
+      "karel": { "r": 1, "c": 1, "dir": "east" },
+      "walls": ["2,2,south", "1,4,west"],
+      "beepers": { "3,5": 2, "1,2": 1 }
+    },
+    "expected": {
+      "schema": "web-ide-karel/world",
+      "version": 1,
+      "world": {
+        "name": "Standalone Evidence",
+        "columns": 5,
+        "rows": 3,
+        "karel": {
+          "avenue": 1,
+          "street": 1,
+          "direction": "east",
+          "beepersInBag": "infinite"
+        },
+        "beepers": [
+          { "avenue": 2, "street": 1, "count": 1 },
+          { "avenue": 5, "street": 3, "count": 2 }
+        ],
+        "walls": [
+          { "avenue": 2, "street": 1, "direction": "north" },
+          { "avenue": 3, "street": 1, "direction": "east" }
+        ],
+        "colors": []
+      }
+    },
+    "warningCodes": [
+      "standalone-id-omitted",
+      "infinite-beeper-bag-assumed",
+      "unsupported-corner-colors-empty"
+    ]
+  }
+}

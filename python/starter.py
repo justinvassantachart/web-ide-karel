@@ -1,9 +1,4 @@
-from karel import move, run_karel, turn_left
-
-
-def turn_right():
-    for _ in range(3):
-        turn_left()
+from karel import move, run_karel, turn_left, turn_right
 
 
 def main():

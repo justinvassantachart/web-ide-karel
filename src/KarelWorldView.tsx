@@ -1,8 +1,46 @@
-import type { CSSProperties } from 'react'
+import { useId, type CSSProperties } from 'react'
 import type { KarelDirection, KarelWall, KarelWorld } from './types'
 
 const CELL_SIZE = 64
 const PADDING = 24
+const ACCESSIBLE_ITEM_LIMIT = 20
+
+function boundedList(items: readonly string[], empty: string): string {
+  if (items.length === 0) return empty
+  const visible = items.slice(0, ACCESSIBLE_ITEM_LIMIT)
+  const remainder = items.length - visible.length
+  return `${visible.join('; ')}${remainder > 0 ? `; and ${remainder} more` : ''}`
+}
+
+/** A bounded textual equivalent for the visual world state. */
+function describeKarelWorld(world: KarelWorld): string {
+  const beepers = boundedList(
+    world.beepers.map(
+      ({ avenue, street, count }) => `${count} at avenue ${avenue}, street ${street}`,
+    ),
+    'none',
+  )
+  const walls = boundedList(
+    world.walls.map(
+      ({ avenue, street, direction }) =>
+        `${direction} of avenue ${avenue}, street ${street}`,
+    ),
+    'none',
+  )
+  const colors = boundedList(
+    world.colors.map(
+      ({ avenue, street, color }) => `${color} at avenue ${avenue}, street ${street}`,
+    ),
+    'none',
+  )
+  return [
+    `${world.columns} avenues by ${world.rows} streets.`,
+    `Karel is at avenue ${world.karel.avenue}, street ${world.karel.street}, facing ${world.karel.direction}, with ${String(world.karel.beepersInBag)} beepers in the bag.`,
+    `Beeper piles: ${beepers}.`,
+    `Walls: ${walls}.`,
+    `Painted corners: ${colors}.`,
+  ].join(' ')
+}
 
 function center(
   world: KarelWorld,
@@ -45,6 +83,7 @@ export function KarelWorldView({
   className,
   style,
 }: KarelWorldViewProps) {
+  const descriptionId = useId()
   const width = world.columns * CELL_SIZE + PADDING * 2
   const height = world.rows * CELL_SIZE + PADDING * 2
   const robot = center(world, world.karel.avenue, world.karel.street)
@@ -56,9 +95,11 @@ export function KarelWorldView({
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={`${world.name}: Karel at avenue ${world.karel.avenue}, street ${world.karel.street}, facing ${world.karel.direction}`}
+      aria-describedby={descriptionId}
       preserveAspectRatio="xMidYMid meet"
     >
       <title>{world.name}</title>
+      <desc id={descriptionId}>{describeKarelWorld(world)}</desc>
       <rect className="karel-world-background" width={width} height={height} rx="12" />
 
       {world.colors.map((corner) => {

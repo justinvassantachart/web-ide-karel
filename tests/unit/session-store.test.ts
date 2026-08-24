@@ -21,8 +21,9 @@ describe('Karel session store', () => {
     const frame = encodeKarelProtocolEvent({
       protocol: KAREL_PROTOCOL_NAME,
       version: KAREL_PROTOCOL_VERSION,
+      runId: 'session-run',
       type: 'state',
-      sequence: 1,
+      sequence: 0,
       action: 'move',
       world,
     })
@@ -33,8 +34,9 @@ describe('Karel session store', () => {
 
     expect(store.getSnapshot()).toMatchObject({
       status: 'running',
+      runId: 'session-run',
       lastAction: 'move',
-      sequence: 1,
+      sequence: 0,
       world: { karel: { avenue: 2 } },
     })
     expect(listener).toHaveBeenCalledTimes(1)
