@@ -24,6 +24,10 @@ const TERMINAL_CSI_PATTERN = new RegExp(
   String.raw`\u001b\[[0-?]*[ -/]*[@-~]`,
   'gu',
 )
+const TERMINAL_CSI_SUFFIX_PATTERN = new RegExp(
+  `(?:${TERMINAL_CSI_PATTERN.source})+$`,
+  'u',
+)
 const UNSAFE_LOCAL_PATH_PATTERNS = Object.freeze([
   /\/Users\//u,
   /\/home\//u,
@@ -113,7 +117,8 @@ function replaceBoundedPath(text, value, placeholder) {
   while (cursor < text.length) {
     const index = text.indexOf(value, cursor)
     if (index === -1) return output + text.slice(cursor)
-    const before = index === 0 ? undefined : text[index - 1]
+    const visiblePrefix = text.slice(0, index).replace(TERMINAL_CSI_SUFFIX_PATTERN, '')
+    const before = visiblePrefix.length === 0 ? undefined : visiblePrefix.at(-1)
     const afterIndex = index + value.length
     const after = afterIndex === text.length ? undefined : text[afterIndex]
     output += text.slice(cursor, index)

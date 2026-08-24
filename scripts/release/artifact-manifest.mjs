@@ -215,7 +215,7 @@ export function validateArtifactManifest(manifest) {
     'Karel artifact manifest source tag object',
   )
   if (
-    manifest.source.tag.name !== 'web-ide-karel-v0.2.0-source-r4'
+    manifest.source.tag.name !== 'web-ide-karel-v0.2.0-source-r5'
     || manifest.source.tag.objectType !== 'tag'
     || manifest.source.tag.peeledCommit !== manifest.source.commit
   ) throw new TypeError('Karel artifact manifest annotated source tag is wrong')

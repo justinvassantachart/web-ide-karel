@@ -199,6 +199,12 @@ describe('captured validation gate evidence', () => {
     expect(normalized.endsWith(footer)).toBe(true)
     expect(normalized).not.toContain('/Users/')
 
+    const ansiPrefixed = normalizeValidationLogBytes(
+      Buffer.from(`\u001b[90m${repository}\u001b[39m\n`),
+      [{ value: repository, placeholder: '<repository-root>' }],
+    ).toString('utf8')
+    expect(ansiPrefixed).toContain('\u001b[90m<repository-root>\u001b[39m')
+
     expect(() => normalizeValidationLogBytes(
       Buffer.from('unmapped=file:/Users/other/private/output.log\n'),
       [],

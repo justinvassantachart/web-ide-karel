@@ -31,11 +31,12 @@ following recorded evidence:
 - downstream cache seeding and retention under the consuming host's policy.
 
 The earlier annotated `v0.2.0`, `web-ide-karel-v0.2.0-source-r2`, and
-`web-ide-karel-v0.2.0-source-r3` source tags are retained unchanged as abandoned
-prepublication checkpoints: no Hamilton release or uploaded asset was created
-from them. The r2 and r3 Karel candidates were superseded when their paired
-Web receipt captures failed closed before publication.
-The forward-only evidence run uses `web-ide-karel-v0.2.0-source-r4`; none of
+`web-ide-karel-v0.2.0-source-r3` and `web-ide-karel-v0.2.0-source-r4` source tags
+are retained unchanged as abandoned prepublication checkpoints: no Hamilton
+release or uploaded asset was created from them. The r2 and r3 candidates were
+superseded with their paired Web captures; r4 failed closed on Vitest's
+ANSI-prefixed repository path during Karel's independent receipt capture.
+The forward-only evidence run uses `web-ide-karel-v0.2.0-source-r5`; none of
 these tags may be moved or rewritten.
 
 The package remains `private: true` and is not published to npm. The accepted

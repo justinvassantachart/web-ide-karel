@@ -240,7 +240,7 @@ function tarball(entries) {
 function releaseConfiguration() {
   return {
     sourceRepository: 'https://github.com/justinvassantachart/web-ide-karel.git',
-    sourceTag: 'web-ide-karel-v0.2.0-source-r4',
+    sourceTag: 'web-ide-karel-v0.2.0-source-r5',
     capabilityReleaseId: 'hamilton.python-karel/1',
     webIDE: {
       package: 'web-ide@0.2.0',
@@ -1066,9 +1066,9 @@ describe('exact Web IDE evidence', () => {
       npmVersion: '11.6.2',
       sourceEpoch: 1,
       finalEligible: true,
-      sourceReference: 'web-ide-karel-v0.2.0-source-r4',
+      sourceReference: 'web-ide-karel-v0.2.0-source-r5',
       tag: {
-        name: 'web-ide-karel-v0.2.0-source-r4',
+        name: 'web-ide-karel-v0.2.0-source-r5',
         objectId: '0'.repeat(40),
         objectType: 'tag',
         peeledCommit: 'e'.repeat(40),
@@ -1200,7 +1200,7 @@ describe('exact Web IDE evidence', () => {
       candidateFixture.candidateStatePath,
       'utf8',
     ))
-    candidateState.source.tag.name = 'web-ide-karel-v0.2.0-source-r4'
+    candidateState.source.tag.name = 'web-ide-karel-v0.2.0-source-r5'
     await writeFile(
       candidateFixture.candidateStatePath,
       canonicalJSONString(candidateState),
@@ -1215,7 +1215,7 @@ describe('exact Web IDE evidence', () => {
 
     const finalFixture = await webEvidenceFixture({ finalManifest: true })
     const manifest = JSON.parse(await readFile(finalFixture.manifestPath, 'utf8'))
-    manifest.source.tag.name = 'web-ide-karel-v0.2.0-source-r4'
+    manifest.source.tag.name = 'web-ide-karel-v0.2.0-source-r5'
     const manifestInput = structuredClone(manifest)
     delete manifestInput.manifestId
     manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
@@ -1601,7 +1601,7 @@ describe('artifact and validation manifests', () => {
         commit: 'e'.repeat(40),
         tree: 'f'.repeat(40),
         tag: {
-          name: 'web-ide-karel-v0.2.0-source-r4',
+          name: 'web-ide-karel-v0.2.0-source-r5',
           objectId: '0'.repeat(40),
           objectType: 'tag',
           peeledCommit: 'e'.repeat(40),
@@ -1961,7 +1961,7 @@ describe('release source state', () => {
       'user.email=release-fixture@example.invalid',
       'tag',
       '-a',
-      'web-ide-karel-v0.2.0-source-r4',
+      'web-ide-karel-v0.2.0-source-r5',
       '-m',
       'fixture release',
     ], { cwd: checkout })
@@ -1969,12 +1969,12 @@ describe('release source state', () => {
       'push',
       'origin',
       'main',
-      'refs/tags/web-ide-karel-v0.2.0-source-r4',
+      'refs/tags/web-ide-karel-v0.2.0-source-r5',
     ], { cwd: checkout })
     const npmVersion = (await run('npm', ['--version'])).stdout.trim()
     const configuration = {
       sourceRepository: bare,
-      sourceTag: 'web-ide-karel-v0.2.0-source-r4',
+      sourceTag: 'web-ide-karel-v0.2.0-source-r5',
       nodeVersion: process.versions.node,
       npmVersion,
     }
@@ -1982,7 +1982,7 @@ describe('release source state', () => {
     expect(source).toMatchObject({
       branch: 'main',
       tag: {
-        name: 'web-ide-karel-v0.2.0-source-r4',
+        name: 'web-ide-karel-v0.2.0-source-r5',
         objectType: 'tag',
       },
       finalEligible: true,
@@ -2011,7 +2011,7 @@ describe('release source state', () => {
           'tag',
           '--force',
           '--annotate',
-          'web-ide-karel-v0.2.0-source-r4',
+          'web-ide-karel-v0.2.0-source-r5',
           '--message=late tag rewrite',
           'HEAD',
         ], { cwd: checkout })
@@ -2026,7 +2026,7 @@ describe('release source state', () => {
     await expect(lstat(lateMutationTarget)).rejects.toMatchObject({ code: 'ENOENT' })
     await git([
       'update-ref',
-      'refs/tags/web-ide-karel-v0.2.0-source-r4',
+      'refs/tags/web-ide-karel-v0.2.0-source-r5',
       source.tag.objectId,
     ], { cwd: checkout })
 
@@ -2120,10 +2120,10 @@ describe('release source state', () => {
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/dirty/u)
     await rm(path.join(checkout, 'dirty.txt'))
-    await git(['tag', '--delete', 'web-ide-karel-v0.2.0-source-r4'], { cwd: checkout })
-    await git(['push', '--delete', 'origin', 'web-ide-karel-v0.2.0-source-r4'], { cwd: checkout })
-    await git(['tag', 'web-ide-karel-v0.2.0-source-r4'], { cwd: checkout })
-    await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.2.0-source-r4'], { cwd: checkout })
+    await git(['tag', '--delete', 'web-ide-karel-v0.2.0-source-r5'], { cwd: checkout })
+    await git(['push', '--delete', 'origin', 'web-ide-karel-v0.2.0-source-r5'], { cwd: checkout })
+    await git(['tag', 'web-ide-karel-v0.2.0-source-r5'], { cwd: checkout })
+    await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.2.0-source-r5'], { cwd: checkout })
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/annotated/u)
   })
