@@ -48,7 +48,8 @@ outputs are external and it performs no tag, release, or upload mutation.
 
 The sequence is intentionally:
 
-1. generate Web IDE's final candidate state, tarball, and runtime report;
+1. generate Web IDE's final candidate state, tarball, and runtime report from
+   its exact annotated `web-ide-v0.2.0-source` tag;
 2. commit the exact Web candidate into Karel's packed-consumer lock and generate
    the exact Karel candidate;
 3. run the unfiltered exact-pair compatibility gate through the scrubbed capture
@@ -61,6 +62,12 @@ This prevents a circular manifest dependency. Karel's candidate state is a
 pre-manifest binding, not a substitute for Web IDE's final manifest. Karel
 finalization must prove the manifest names the same Web source commit/tree/tag,
 tar SHA-256/SHA-512, and runtime report used at candidate generation.
+The final Karel manifest uses a slash-free
+`urn:sha256:<canonical-manifest-input>` ID. Its digest covers every manifest
+field except the ID itself, so the complete source, artifact, peer, validation,
+runtime-reference, and intended-distribution record is content-bound without
+placing the slash-bearing capability release ID in Hamilton's artifact-ID
+namespace.
 
 ## Lock regeneration boundary
 

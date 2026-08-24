@@ -273,9 +273,12 @@ export function validateArtifactManifest(manifest) {
     manifest.artifact.sha512Integrity,
     'Karel artifact manifest tar integrity',
   )
-  const expectedId = `hamilton.python-karel/1:karel:sha256:${manifest.artifact.sha256}`
-  if (manifest.manifestId !== expectedId) {
-    throw new TypeError('Karel artifact manifest ID is not tarball-bound')
+  const { manifestId, ...identityInput } = manifest
+  const expectedId = `urn:sha256:${sha256Bytes(Buffer.from(
+    canonicalJSONString(identityInput),
+  ))}`
+  if (manifestId !== expectedId) {
+    throw new TypeError('Karel artifact manifest ID is not its canonical content identity')
   }
   validateWebIDEEvidenceReport(manifest.webIDEPeer)
   if (
@@ -423,11 +426,9 @@ export async function createArtifactManifest({
       `validation-${gateId}.receipt.json`,
     ]),
   ])
-  const manifest = {
+  const manifestInput = {
     schemaVersion: 1,
     manifestKind: 'hamilton-capability-package-artifact',
-    manifestId:
-      `hamilton.python-karel/1:karel:sha256:${artifact.sha256}`,
     capabilityReleaseId: configuration.capabilityReleaseId,
     packageRole: configuration.packageRole,
     package: {
@@ -483,6 +484,12 @@ export async function createArtifactManifest({
       intendedAssets,
     },
     reports,
+  }
+  const manifest = {
+    ...manifestInput,
+    manifestId: `urn:sha256:${sha256Bytes(Buffer.from(
+      canonicalJSONString(manifestInput),
+    ))}`,
   }
   validateArtifactManifest(manifest)
   return manifest

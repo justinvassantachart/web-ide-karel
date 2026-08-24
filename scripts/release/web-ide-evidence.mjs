@@ -163,7 +163,10 @@ export function validateWebIDEEvidenceReport(report, configuration) {
   )
   assertCommit(report.artifactManifest.source.commit, 'Web IDE peer source commit')
   assertCommit(report.artifactManifest.source.tree, 'Web IDE peer source tree')
-  if (report.artifactManifest.source.tag !== 'v0.2.0') {
+  if (
+    report.artifactManifest.source.tag
+      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source')
+  ) {
     throw new TypeError('Web IDE peer source tag is wrong')
   }
   assertExactKeys(report.artifact, [
@@ -436,7 +439,7 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
     'Web IDE artifact manifest source tag object',
   )
   if (
-    manifest.source.tag.name !== 'v0.2.0'
+    manifest.source.tag.name !== configuration.webIDE.sourceTag
     || manifest.source.tag.objectType !== 'tag'
     || manifest.source.tag.peeledCommit !== manifest.source.commit
   ) throw new TypeError('Web IDE artifact manifest annotated tag is wrong')
@@ -520,6 +523,13 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
     'NO_UPDATE_NOTIFIER',
     'SOURCE_DATE_EPOCH',
     'npm_config_cache',
+    'npm_config_registry',
+    'npm_config_globalconfig',
+    'npm_config_strict_ssl',
+    'npm_config_package_lock',
+    'npm_config_offline',
+    'npm_config_prefer_offline',
+    'npm_config_prefer_online',
     'npm_config_ignore_scripts',
     'npm_config_audit',
     'npm_config_fund',
@@ -534,6 +544,20 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
       !== manifest.source.sourceDateEpoch
     || manifest.buildInputs.environment.TZ !== 'UTC'
     || manifest.buildInputs.environment.LC_ALL !== 'C'
+    || manifest.buildInputs.environment.npm_config_registry
+      !== 'https://registry.npmjs.org/'
+    || manifest.buildInputs.environment.npm_config_globalconfig
+      !== '<isolated-build>/global.npmrc'
+    || manifest.buildInputs.environment.npm_config_strict_ssl !== 'true'
+    || manifest.buildInputs.environment.npm_config_package_lock !== 'true'
+    || manifest.buildInputs.environment.npm_config_offline !== 'false'
+    || manifest.buildInputs.environment.npm_config_prefer_offline !== 'false'
+    || manifest.buildInputs.environment.npm_config_prefer_online !== 'false'
+    || manifest.buildInputs.environment.npm_config_ignore_scripts !== 'true'
+    || manifest.buildInputs.environment.npm_config_audit !== 'false'
+    || manifest.buildInputs.environment.npm_config_fund !== 'false'
+    || manifest.buildInputs.environment.npm_config_userconfig
+      !== '<isolated-build>/user.npmrc'
   ) throw new TypeError('Web IDE artifact manifest build environment is wrong')
   assertNonEmptyString(
     manifest.buildInputs.pathNormalization,
@@ -589,6 +613,7 @@ export function validateWebIDERuntimeReport(runtime) {
     'package',
     'observedDate',
     'digestRepresentation',
+    'expectedRedirectCount',
     'requestTimeoutMs',
     'scope',
     'limitations',
@@ -601,6 +626,7 @@ export function validateWebIDERuntimeReport(runtime) {
     || runtime.result !== 'pass'
     || !/^\d{4}-\d{2}-\d{2}$/u.test(runtime.observedDate)
     || runtime.digestRepresentation !== 'identity-encoded-response-body'
+    || runtime.expectedRedirectCount !== 0
     || !Number.isSafeInteger(runtime.requestTimeoutMs)
     || runtime.requestTimeoutMs < 1000
     || typeof runtime.scope !== 'string'
@@ -620,7 +646,7 @@ export function validateWebIDERuntimeReport(runtime) {
       'id',
       'requestedUrl',
       'finalUrl',
-      'redirected',
+      'redirectCount',
       'status',
       'contentType',
       'headers',
@@ -645,7 +671,8 @@ export function validateWebIDERuntimeReport(runtime) {
       ) throw new TypeError(`${location}.${field} is not a safe HTTPS URL`)
     }
     if (
-      typeof asset.redirected !== 'boolean'
+      !Number.isSafeInteger(asset.redirectCount)
+      || asset.redirectCount !== runtime.expectedRedirectCount
       || asset.status !== 200
     ) throw new TypeError(`${location} response identity is invalid`)
     assertExactKeys(asset.headers, [
@@ -860,6 +887,7 @@ export async function verifyWebIDEEvidence({
   for (const field of [
     'observedDate',
     'digestRepresentation',
+    'expectedRedirectCount',
     'requestTimeoutMs',
     'scope',
     'limitations',
@@ -895,7 +923,7 @@ export async function verifyWebIDEEvidence({
     }
   }
   if (
-    runtime.assets.filter((asset) => asset.redirected).length
+    runtime.assets.reduce((total, asset) => total + asset.redirectCount, 0)
       !== manifest.runtime.expectedRedirectCount
   ) throw new TypeError('Web IDE runtime redirect count differs from its manifest')
 

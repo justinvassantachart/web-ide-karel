@@ -122,10 +122,12 @@ export async function webIDECompatibilityReceipt({
   if (!stateBytes.equals(Buffer.from(canonicalJSONString(state)))) {
     throw new TypeError('Web IDE compatibility candidate state is not canonical JSON')
   }
-  validateWebIDECandidateState(
-    state,
-    state.result === 'nonrelease-preflight' ? 'test' : 'final',
-  )
+  if (state.result !== 'candidate-generated' || 'preflightFixture' in state) {
+    throw new TypeError(
+      'Web IDE production compatibility receipt requires candidate-generated final state',
+    )
+  }
+  validateWebIDECandidateState(state, 'final')
   assertExactKeys(state, [
     'schemaVersion',
     'package',
@@ -134,11 +136,11 @@ export async function webIDECompatibilityReceipt({
     'capabilityReleaseId',
     'packageRole',
     'artifacts',
-  ], state.result === 'nonrelease-preflight' ? ['preflightFixture'] : [], 'Web IDE candidate state')
+  ], [], 'Web IDE candidate state')
   if (
     state.schemaVersion !== 1
     || state.package !== 'web-ide@0.2.0'
-    || !['candidate-generated', 'nonrelease-preflight'].includes(state.result)
+    || state.result !== 'candidate-generated'
     || state.capabilityReleaseId !== 'hamilton.python-karel/1'
     || state.packageRole !== 'web-ide'
   ) throw new TypeError('Web IDE compatibility candidate identity is wrong')
@@ -161,7 +163,7 @@ export async function webIDECompatibilityReceipt({
     'name', 'objectId', 'objectType', 'peeledCommit',
   ], [], 'Web IDE compatibility candidate tag')
   if (
-    state.source.tag.name !== 'v0.2.0'
+    state.source.tag.name !== 'web-ide-v0.2.0-source'
     || state.source.tag.objectType !== 'tag'
     || state.source.tag.peeledCommit !== state.source.commit
   ) throw new TypeError('Web IDE compatibility candidate tag is invalid')
@@ -187,15 +189,16 @@ export async function webIDECompatibilityReceipt({
     throw new TypeError('Web IDE compatibility tarball does not match candidate state')
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     receiptKind: 'web-ide-release-validation-gate',
+    mode: 'release-gate',
     package: 'web-ide@0.2.0',
     gateId: 'karel-compatibility',
     sourceCommit: state.source.commit,
     candidateSha256,
     command: 'Karel exact-candidate compatibility gate',
     exitCode: 0,
-    emitter: 'karel:release-compatibility-gate@1',
+    emitter: 'karel:release-compatibility-gate@2',
   }
 }
 

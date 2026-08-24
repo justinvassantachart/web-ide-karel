@@ -51,6 +51,7 @@ export async function loadReleaseConfiguration() {
     'package',
     'peerRange',
     'packageRole',
+    'sourceTag',
     'releaseRepository',
     'releaseTag',
     'releaseAssetFilename',
@@ -64,6 +65,7 @@ export async function loadReleaseConfiguration() {
     input.webIDE.package !== 'web-ide@0.2.0'
     || input.webIDE.peerRange !== '>=0.2.0 <0.3.0'
     || input.webIDE.packageRole !== 'web-ide'
+    || input.webIDE.sourceTag !== 'web-ide-v0.2.0-source'
     || input.webIDE.releaseAssetFilename !== 'web-ide-0.2.0.tgz'
     || input.webIDE.artifactManifestFilename !== 'artifact-manifest.json'
     || input.webIDE.runtimeEvidenceFilename !== 'runtime-assets-verification.json'

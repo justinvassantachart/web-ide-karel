@@ -203,6 +203,9 @@ absolute paths, while default source validation packs temporary artifacts from
 the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
+The Web peer source is bound to the annotated
+`web-ide-v0.2.0-source` tag; its separate immutable Hamilton asset release uses
+`web-ide-v0.2.0`.
 
 Release evidence is external output produced by `scripts/release/`; it is not a
 runtime dependency and is never written inside the repository. Candidate and
@@ -219,6 +222,11 @@ receipts, intended private Hamilton release assets, and an unchanged live
 source identity immediately before atomic final publication. The accepted
 composition identity `hamilton.python-karel/1` appears only in release metadata;
 it does not enter Karel's public runtime or world contracts.
+The final artifact manifest uses the slash-free
+`urn:sha256:<canonical-manifest-input>` content identity also used by Web IDE.
+That digest covers every manifest field except `manifestId` itself, binding the
+complete package, source, peer, runtime-reference, validation, and distribution
+record while satisfying Hamilton's artifact-ID grammar.
 
 The evidence dependency order avoids a manifest cycle:
 

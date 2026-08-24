@@ -279,6 +279,7 @@ export function validateValidationLogBytes(
     assertExactKeys(webReceipt, [
       'schemaVersion',
       'receiptKind',
+      'mode',
       'package',
       'gateId',
       'sourceCommit',
@@ -288,15 +289,16 @@ export function validateValidationLogBytes(
       'emitter',
     ], [], 'packed exact-pair Web IDE receipt')
     if (
-      webReceipt.schemaVersion !== 1
+      webReceipt.schemaVersion !== 2
       || webReceipt.receiptKind !== 'web-ide-release-validation-gate'
+      || webReceipt.mode !== 'release-gate'
       || webReceipt.package !== 'web-ide@0.2.0'
       || webReceipt.gateId !== 'karel-compatibility'
       || webReceipt.sourceCommit !== webIDESourceCommit
       || webReceipt.candidateSha256 !== webIDECandidateSha256
       || webReceipt.command !== 'Karel exact-candidate compatibility gate'
       || webReceipt.exitCode !== 0
-      || webReceipt.emitter !== 'karel:release-compatibility-gate@1'
+      || webReceipt.emitter !== 'karel:release-compatibility-gate@2'
     ) throw new TypeError('Packed exact-pair Web IDE receipt identity is wrong')
   }
 }

@@ -44,7 +44,7 @@ function assertGitObject(value, location) {
   }
 }
 
-function validateSource(source) {
+function validateSource(source, sourceTag) {
   assertExactKeys(source, [
     'branch',
     'commit',
@@ -78,14 +78,18 @@ function validateSource(source) {
   assertGitObject(source.tag.objectId, 'Web IDE candidate tag object')
   assertGitObject(source.tag.peeledCommit, 'Web IDE candidate peeled tag commit')
   if (
-    source.tag.name !== 'v0.2.0'
+    source.tag.name !== sourceTag
     || source.tag.objectType !== 'tag'
     || source.tag.peeledCommit !== source.commit
-  ) throw new TypeError('Web IDE candidate source tag is not an annotated v0.2.0 at HEAD')
+  ) throw new TypeError('Web IDE candidate source tag is not the exact annotated tag at HEAD')
   return source
 }
 
-export function validateWebIDECandidateState(state, mode) {
+export function validateWebIDECandidateState(
+  state,
+  mode,
+  sourceTag = 'web-ide-v0.2.0-source',
+) {
   assertExactKeys(state, [
     'schemaVersion',
     'package',
@@ -129,7 +133,7 @@ export function validateWebIDECandidateState(state, mode) {
   ) {
     throw new TypeError('Final Web IDE candidate source repository is wrong')
   }
-  validateSource(state.source)
+  validateSource(state.source, sourceTag)
   if (!Array.isArray(state.artifacts) || state.artifacts.length !== 10) {
     throw new TypeError('Web IDE candidate state artifact set is incomplete')
   }
@@ -291,7 +295,10 @@ export function validateWebIDECandidateReport(report, configuration) {
     report.candidateState.source.tree,
     'Web IDE candidate verification tree',
   )
-  if (report.candidateState.source.tag !== 'v0.2.0') {
+  if (
+    report.candidateState.source.tag
+      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source')
+  ) {
     throw new TypeError('Web IDE candidate verification tag is wrong')
   }
   assertExactKeys(report.artifact, [
@@ -374,7 +381,7 @@ export async function verifyWebIDECandidateEvidence({
   if (!stateBytes.equals(Buffer.from(canonicalJSONString(state)))) {
     throw new TypeError('Web IDE candidate state is not canonical JSON')
   }
-  validateWebIDECandidateState(state, mode)
+  validateWebIDECandidateState(state, mode, configuration.webIDE.sourceTag)
   const artifactByName = new Map(state.artifacts.map((artifact) => [
     artifact.fileName,
     artifact,

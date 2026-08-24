@@ -50,7 +50,10 @@ import {
   verifyReleaseSourceState,
 } from '../../scripts/release/source-state.mjs'
 import { verifyWebIDECandidateEvidence } from '../../scripts/release/web-ide-candidate-evidence.mjs'
-import { verifyWebIDEEvidence } from '../../scripts/release/web-ide-evidence.mjs'
+import {
+  validateWebIDERuntimeReport,
+  verifyWebIDEEvidence,
+} from '../../scripts/release/web-ide-evidence.mjs'
 import {
   exactPairCompatibilityEvidence,
   formatWebIDECompatibilityReceipt,
@@ -61,6 +64,7 @@ import {
   EXPECTED_VALIDATION_GATES,
   materializeValidationEvidence,
   validateMaterializedValidationEvidence,
+  validateValidationLogBytes,
   validateValidationInput,
 } from '../../scripts/release/validation-evidence.mjs'
 import { VALIDATION_GATE_SPECS } from '../../scripts/release/validation-contract.mjs'
@@ -146,15 +150,16 @@ async function validationInputFixture() {
   for (const [id, command] of EXPECTED_VALIDATION_GATES) {
     const logPath = path.join(directory, `${id}.source.log`)
     const webReceipt = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       receiptKind: 'web-ide-release-validation-gate',
+      mode: 'release-gate',
       package: 'web-ide@0.2.0',
       gateId: 'karel-compatibility',
       sourceCommit: webIDESourceCommit,
       candidateSha256: webIDECandidateSha256,
       command: 'Karel exact-candidate compatibility gate',
       exitCode: 0,
-      emitter: 'karel:release-compatibility-gate@1',
+      emitter: 'karel:release-compatibility-gate@2',
     }
     const logText = id === 'packed-exact-pair'
       ? `${id} captured command output\n@@WEB_IDE_RELEASE_GATE_RECEIPT@@${canonicalJSONString(webReceipt)}`
@@ -241,6 +246,7 @@ function releaseConfiguration() {
       package: 'web-ide@0.2.0',
       peerRange: '>=0.2.0 <0.3.0',
       packageRole: 'web-ide',
+      sourceTag: 'web-ide-v0.2.0-source',
       releaseRepository: 'justinvassantachart/ths-ide',
       releaseTag: 'web-ide-v0.2.0',
       releaseAssetFilename: 'web-ide-0.2.0.tgz',
@@ -250,7 +256,10 @@ function releaseConfiguration() {
   }
 }
 
-async function webEvidenceFixture({ finalManifest = false } = {}) {
+async function webEvidenceFixture({
+  finalCandidate = false,
+  finalManifest = false,
+} = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), 'karel-web-evidence-test-'))
   temporaryDirectories.push(directory)
   const packedManifest = {
@@ -270,6 +279,7 @@ async function webEvidenceFixture({ finalManifest = false } = {}) {
     package: 'web-ide',
     observedDate: '2026-08-24',
     digestRepresentation: 'identity-encoded-response-body',
+    expectedRedirectCount: 0,
     requestTimeoutMs: 1000,
     scope: 'Synthetic release-evidence fixture.',
     limitations: ['Synthetic bytes only.'],
@@ -280,7 +290,7 @@ async function webEvidenceFixture({ finalManifest = false } = {}) {
         id: `fixture.${suffix}`,
         requestedUrl: `https://assets.example.test/runtime-${suffix}.wasm`,
         finalUrl: `https://assets.example.test/runtime-${suffix}.wasm`,
-        redirected: false,
+        redirectCount: 0,
         status: 200,
         contentType: 'application/wasm',
         headers: {
@@ -402,7 +412,7 @@ async function webEvidenceFixture({ finalManifest = false } = {}) {
       commitTimestamp: 1_787_529_600,
       sourceDateEpoch: '1787529600',
       tag: {
-        name: 'v0.2.0',
+        name: 'web-ide-v0.2.0-source',
         objectId: 'd'.repeat(40),
         objectType: 'tag',
         peeledCommit: 'b'.repeat(40),
@@ -465,10 +475,17 @@ async function webEvidenceFixture({ finalManifest = false } = {}) {
         NO_UPDATE_NOTIFIER: '1',
         SOURCE_DATE_EPOCH: '1787529600',
         npm_config_cache: '<isolated-cache>',
+        npm_config_registry: 'https://registry.npmjs.org/',
+        npm_config_globalconfig: '<isolated-build>/global.npmrc',
+        npm_config_strict_ssl: 'true',
+        npm_config_package_lock: 'true',
+        npm_config_offline: 'false',
+        npm_config_prefer_offline: 'false',
+        npm_config_prefer_online: 'false',
         npm_config_ignore_scripts: 'true',
         npm_config_audit: 'false',
         npm_config_fund: 'false',
-        npm_config_userconfig: '<isolated-userconfig>',
+        npm_config_userconfig: '<isolated-build>/user.npmrc',
         WEB_IDE_RELEASE_PROVENANCE_PATH: '<isolated-provenance>',
         WEB_IDE_RELEASE_LICENSE_OUTPUT_DIR: '<isolated-license-output>',
       },
@@ -565,23 +582,27 @@ async function webEvidenceFixture({ finalManifest = false } = {}) {
   const candidateState = {
     schemaVersion: 1,
     package: 'web-ide@0.2.0',
-    result: 'nonrelease-preflight',
-    preflightFixture: {
-      mode: 'disposable-local-remote',
-      remote: '/tmp/synthetic-web-ide-release-preflight.git',
-      finalizable: false,
-    },
+    result: finalCandidate ? 'candidate-generated' : 'nonrelease-preflight',
+    ...(finalCandidate ? {} : {
+      preflightFixture: {
+        mode: 'disposable-local-remote',
+        remote: '/tmp/synthetic-web-ide-release-preflight.git',
+        finalizable: false,
+      },
+    }),
     source: {
       branch: 'main',
       commit: 'b'.repeat(40),
       tree: 'c'.repeat(40),
       tag: {
-        name: 'v0.2.0',
+        name: 'web-ide-v0.2.0-source',
         objectId: 'd'.repeat(40),
         objectType: 'tag',
         peeledCommit: 'b'.repeat(40),
       },
-      remote: '/tmp/synthetic-web-ide-release-preflight.git',
+      remote: finalCandidate
+        ? 'https://github.com/justinvassantachart/web-ide.git'
+        : '/tmp/synthetic-web-ide-release-preflight.git',
       commitTimestamp: 1_787_529_600,
       sourceDateEpoch: '1787529600',
       nodeVersion: '24.11.1',
@@ -949,19 +970,65 @@ describe('safe package tar reading', () => {
 })
 
 describe('exact Web IDE evidence', () => {
+  it('requires the exact numeric zero-redirect runtime report contract', () => {
+    const report = {
+      schemaVersion: 1,
+      package: 'web-ide',
+      observedDate: '2026-08-24',
+      digestRepresentation: 'identity-encoded-response-body',
+      expectedRedirectCount: 0,
+      requestTimeoutMs: 1000,
+      scope: 'Synthetic contract fixture.',
+      limitations: ['Synthetic bytes only.'],
+      result: 'pass',
+      assets: [{
+        id: 'fixture.asset',
+        requestedUrl: 'https://assets.example.test/runtime.wasm',
+        finalUrl: 'https://assets.example.test/runtime.wasm',
+        redirectCount: 0,
+        status: 200,
+        contentType: 'application/wasm',
+        headers: {
+          'access-control-allow-origin': '*',
+          'cross-origin-resource-policy': null,
+        },
+        size: 1,
+        sha256: 'a'.repeat(64),
+      }],
+    }
+    expect(validateWebIDERuntimeReport(report)).toBe(report)
+
+    const legacy = structuredClone(report)
+    legacy.assets[0].redirected = false
+    delete legacy.assets[0].redirectCount
+    expect(() => validateWebIDERuntimeReport(legacy)).toThrow()
+
+    const nonzero = structuredClone(report)
+    nonzero.assets[0].redirectCount = 1
+    expect(() => validateWebIDERuntimeReport(nonzero)).toThrow(/response identity/u)
+
+    const missingPolicy = structuredClone(report)
+    delete missingPolicy.expectedRedirectCount
+    expect(() => validateWebIDERuntimeReport(missingPolicy)).toThrow()
+  })
+
   it('emits the exact Web finalizer compatibility receipt from canonical candidate bytes', async () => {
-    const fixture = await webEvidenceFixture()
+    const fixture = await webEvidenceFixture({ finalCandidate: true })
     const receipt = await webIDECompatibilityReceipt({
       candidateStatePath: fixture.candidateStatePath,
       tarballPath: fixture.tarballPath,
     })
-    expect(receipt).toMatchObject({
+    expect(receipt).toEqual({
+      schemaVersion: 2,
       receiptKind: 'web-ide-release-validation-gate',
+      mode: 'release-gate',
+      package: 'web-ide@0.2.0',
       gateId: 'karel-compatibility',
       sourceCommit: 'b'.repeat(40),
       candidateSha256: sha256Bytes(fixture.tarballBytes),
+      command: 'Karel exact-candidate compatibility gate',
       exitCode: 0,
-      emitter: 'karel:release-compatibility-gate@1',
+      emitter: 'karel:release-compatibility-gate@2',
     })
     const line = formatWebIDECompatibilityReceipt(receipt)
     expect(line.endsWith('\n')).toBe(true)
@@ -975,8 +1042,16 @@ describe('exact Web IDE evidence', () => {
     })).rejects.toThrow(/does not match/u)
   })
 
+  it('rejects a nonrelease Web preflight before emitting a production receipt', async () => {
+    const fixture = await webEvidenceFixture()
+    await expect(webIDECompatibilityReceipt({
+      candidateStatePath: fixture.candidateStatePath,
+      tarballPath: fixture.tarballPath,
+    })).rejects.toThrow(/candidate-generated final state/u)
+  })
+
   it('emits the Web receipt only after binding the exact final Karel candidate', async () => {
-    const webFixture = await webEvidenceFixture()
+    const webFixture = await webEvidenceFixture({ finalCandidate: true })
     const directory = await mkdtemp(path.join(tmpdir(), 'karel-pair-receipt-test-'))
     temporaryDirectories.push(directory)
     const karelBytes = karelTarball()
@@ -1045,6 +1120,30 @@ describe('exact Web IDE evidence', () => {
       karelCandidateStatePath: karelStatePath,
       karelTarballPath,
     })).rejects.toThrow(/does not match candidate state/u)
+
+    await writeFile(karelTarballPath, karelBytes)
+    const preflightState = JSON.parse(await readFile(
+      webFixture.candidateStatePath,
+      'utf8',
+    ))
+    preflightState.result = 'nonrelease-preflight'
+    preflightState.preflightFixture = {
+      mode: 'disposable-local-remote',
+      remote: '/tmp/synthetic-web-ide-release-preflight.git',
+      finalizable: false,
+    }
+    preflightState.source.remote
+      = '/tmp/synthetic-web-ide-release-preflight.git'
+    await writeFile(
+      webFixture.candidateStatePath,
+      canonicalJSONString(preflightState),
+    )
+    await expect(exactPairCompatibilityEvidence({
+      webIDECandidateStatePath: webFixture.candidateStatePath,
+      webIDETarballPath: webFixture.tarballPath,
+      karelCandidateStatePath: karelStatePath,
+      karelTarballPath,
+    })).rejects.toThrow(/candidate-generated final state/u)
   })
 
   it('binds canonical pre-manifest candidate state, tarball SRI, runtime report, and consumer lock', async () => {
@@ -1093,6 +1192,48 @@ describe('exact Web IDE evidence', () => {
       consumerLock: { binding: 'exact' },
       nonFinalTestFixture: true,
     })
+  })
+
+  it('rejects the abandoned Web source tag in candidate and final evidence', async () => {
+    const candidateFixture = await webEvidenceFixture()
+    const candidateState = JSON.parse(await readFile(
+      candidateFixture.candidateStatePath,
+      'utf8',
+    ))
+    candidateState.source.tag.name = 'v0.2.0'
+    await writeFile(
+      candidateFixture.candidateStatePath,
+      canonicalJSONString(candidateState),
+    )
+    await expect(verifyWebIDECandidateEvidence({
+      configuration: releaseConfiguration(),
+      candidateStatePath: candidateFixture.candidateStatePath,
+      tarballPath: candidateFixture.tarballPath,
+      consumerLock: candidateFixture.consumerLock,
+      mode: 'test',
+    })).rejects.toThrow(/exact annotated tag/u)
+
+    const finalFixture = await webEvidenceFixture({ finalManifest: true })
+    const manifest = JSON.parse(await readFile(finalFixture.manifestPath, 'utf8'))
+    manifest.source.tag.name = 'v0.2.0'
+    const manifestInput = structuredClone(manifest)
+    delete manifestInput.manifestId
+    manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
+      canonicalJSONString(manifestInput),
+    ))}`
+    const manifestBytes = Buffer.from(canonicalJSONString(manifest))
+    await writeFile(finalFixture.manifestPath, manifestBytes)
+    await writeFile(
+      path.join(finalFixture.directory, 'artifact-manifest.json.sha256'),
+      `${sha256Bytes(manifestBytes)}  artifact-manifest.json\n`,
+    )
+    await expect(verifyWebIDEEvidence({
+      configuration: releaseConfiguration(),
+      manifestPath: finalFixture.manifestPath,
+      tarballPath: finalFixture.tarballPath,
+      consumerLock: finalFixture.consumerLock,
+      mode: 'final',
+    })).rejects.toThrow(/annotated tag/u)
   })
 
   it('rejects runtime report assets not present in the exact Web manifest set', async () => {
@@ -1179,6 +1320,50 @@ describe('exact Web IDE evidence', () => {
       consumerLock: fixture.consumerLock,
       mode: 'test',
     })).rejects.toThrow(/does not match/u)
+  })
+
+  it('rejects legacy or nonrelease Web compatibility receipt identities', () => {
+    const webIDESourceCommit = 'a'.repeat(40)
+    const webIDECandidateSha256 = 'b'.repeat(64)
+    const receipt = {
+      schemaVersion: 2,
+      receiptKind: 'web-ide-release-validation-gate',
+      mode: 'release-gate',
+      package: 'web-ide@0.2.0',
+      gateId: 'karel-compatibility',
+      sourceCommit: webIDESourceCommit,
+      candidateSha256: webIDECandidateSha256,
+      command: 'Karel exact-candidate compatibility gate',
+      exitCode: 0,
+      emitter: 'karel:release-compatibility-gate@2',
+    }
+    const logBytes = (value) => Buffer.from(
+      `captured output\n${WEB_IDE_GATE_RECEIPT_PREFIX}${canonicalJSONString(value)}`,
+    )
+    expect(() => validateValidationLogBytes(
+      logBytes(receipt),
+      'packed-exact-pair',
+      { webIDECandidateSha256, webIDESourceCommit },
+    )).not.toThrow()
+
+    for (const invalid of [
+      { ...receipt, schemaVersion: 1 },
+      { ...receipt, mode: 'nonrelease-preflight-synthetic' },
+      { ...receipt, emitter: 'karel:release-compatibility-gate@1' },
+    ]) {
+      expect(() => validateValidationLogBytes(
+        logBytes(invalid),
+        'packed-exact-pair',
+        { webIDECandidateSha256, webIDESourceCommit },
+      )).toThrow(/receipt identity/u)
+    }
+    const missingMode = { ...receipt }
+    delete missingMode.mode
+    expect(() => validateValidationLogBytes(
+      logBytes(missingMode),
+      'packed-exact-pair',
+      { webIDECandidateSha256, webIDESourceCommit },
+    )).toThrow(/missing required field mode/u)
   })
 })
 
@@ -1328,7 +1513,7 @@ describe('candidate evidence schemas', () => {
 })
 
 describe('artifact and validation manifests', () => {
-  it('requires a tar-bound manifest ID and Web-owned runtime report', () => {
+  it('requires a canonical slash-free manifest ID and Web-owned runtime report', () => {
     const tarSha = 'a'.repeat(64)
     const webManifestSha = 'b'.repeat(64)
     const runtimeSha = 'c'.repeat(64)
@@ -1371,10 +1556,9 @@ describe('artifact and validation manifests', () => {
       size: 1,
       sha256: 'd'.repeat(64),
     })).sort((left, right) => left.kind.localeCompare(right.kind))
-    const manifest = {
+    const manifestInput = {
       schemaVersion: 1,
       manifestKind: 'hamilton-capability-package-artifact',
-      manifestId: `hamilton.python-karel/1:karel:sha256:${tarSha}`,
       capabilityReleaseId: 'hamilton.python-karel/1',
       packageRole: 'karel',
       package: {
@@ -1458,7 +1642,7 @@ describe('artifact and validation manifests', () => {
             repository: 'https://github.com/justinvassantachart/web-ide.git',
             commit: '1'.repeat(40),
             tree: '2'.repeat(40),
-            tag: 'v0.2.0',
+            tag: 'web-ide-v0.2.0-source',
           },
         },
         artifact: {
@@ -1503,8 +1687,25 @@ describe('artifact and validation manifests', () => {
       },
       reports,
     }
+    const manifest = {
+      ...manifestInput,
+      manifestId: `urn:sha256:${sha256Bytes(Buffer.from(
+        canonicalJSONString(manifestInput),
+      ))}`,
+    }
+    expect(manifest.manifestId).toMatch(/^[a-z0-9][a-z0-9._:-]{0,127}$/u)
     expect(validateArtifactManifest(manifest)).toBe(manifest)
+    manifest.manifestId = `hamilton.python-karel/1:karel:sha256:${tarSha}`
+    expect(() => validateArtifactManifest(manifest)).toThrow(/canonical content/u)
+    manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
+      canonicalJSONString(manifestInput),
+    ))}`
     manifest.runtimeEvidence.ownerPackageRole = 'karel'
+    const mutatedManifestInput = structuredClone(manifest)
+    delete mutatedManifestInput.manifestId
+    manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
+      canonicalJSONString(mutatedManifestInput),
+    ))}`
     expect(() => validateArtifactManifest(manifest)).toThrow(/runtime evidence/u)
   })
 
