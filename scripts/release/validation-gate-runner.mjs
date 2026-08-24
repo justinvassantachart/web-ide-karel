@@ -13,6 +13,7 @@ import {
   VALIDATION_TERMINATION_GRACE_MS,
 } from './validation-contract.mjs'
 import { validateValidationLogBytes } from './validation-evidence.mjs'
+import { normalizeValidationLogBytes } from './validation-log-normalization.mjs'
 
 const MAX_CAPTURE_BYTES = 32 * 1024 * 1024
 const KILL_SETTLEMENT_TIMEOUT_MS = 5 * 1000
@@ -238,6 +239,7 @@ export async function captureValidationGate({
   webIDECandidateSha256,
   webIDESourceCommit,
   cwd,
+  normalizationPaths = [],
   environmentFactory,
   afterRun,
   execute = runCapturedGateProcess,
@@ -260,9 +262,9 @@ export async function captureValidationGate({
         environment,
         inheritedKeys,
       } = await environmentFactory(stage)
-      const result = await execute({
-        executable: spec.executable,
-        argv: spec.argv,
+      const capturedResult = await execute({
+        executable: spec.spawnExecutable,
+        argv: spec.spawnArgv,
         cwd,
         env: {
           ...environment,
@@ -275,17 +277,34 @@ export async function captureValidationGate({
         terminationGraceMs: VALIDATION_TERMINATION_GRACE_MS,
       })
       if (
-        !Buffer.isBuffer(result.logBytes)
-        || result.logBytes.length === 0
-        || result.logBytes.length > MAX_CAPTURE_BYTES
+        !Buffer.isBuffer(capturedResult.logBytes)
+        || capturedResult.logBytes.length === 0
+        || capturedResult.logBytes.length > MAX_CAPTURE_BYTES
       ) {
-        throw new TypeError('Validation gate capture produced an invalid raw log size')
+        throw new TypeError('Validation gate capture produced an invalid log size')
       }
       if (
-        !Number.isSafeInteger(result.exitCode)
-        || result.exitCode < 0
-        || result.exitCode > 255
+        !Number.isSafeInteger(capturedResult.exitCode)
+        || capturedResult.exitCode < 0
+        || capturedResult.exitCode > 255
       ) throw new TypeError('Validation gate capture produced an invalid exit code')
+      const replacements = [
+        ...normalizationPaths,
+        { value: executionRoot, placeholder: '<execution-root>' },
+        { value: stage, placeholder: '<gate-staging-root>' },
+        { value: cwd, placeholder: '<repository-root>' },
+        { value: path.dirname(cwd), placeholder: '<workspace-root>' },
+        ...(environment.HOME
+          ? [{ value: path.resolve(environment.HOME), placeholder: '<home>' }]
+          : []),
+      ]
+      const result = {
+        ...capturedResult,
+        logBytes: normalizeValidationLogBytes(capturedResult.logBytes, replacements),
+      }
+      if (result.logBytes.length > MAX_CAPTURE_BYTES) {
+        throw new TypeError('Normalized validation gate log exceeds the capture limit')
+      }
       validateValidationLogBytes(result.logBytes, gateId, {
         webIDECandidateSha256,
         webIDESourceCommit,
@@ -298,7 +317,7 @@ export async function captureValidationGate({
         sha256: sha256Bytes(result.logBytes),
       }
       const receipt = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         receiptKind: 'karel-release-validation-gate-capture',
         package: '@web-ide/karel@0.2.0',
         sourceCommit,
@@ -308,14 +327,14 @@ export async function captureValidationGate({
         gate: {
           id: gateId,
           command: spec.command,
-          executable: spec.executable,
-          argv: spec.argv,
+          executable: spec.receiptExecutable,
+          argv: spec.receiptArgv,
           exitCode: result.exitCode,
           timeoutMs: spec.timeoutMs,
           terminationGraceMs: VALIDATION_TERMINATION_GRACE_MS,
         },
         environment: {
-          policy: 'scrubbed-release-gate-v1',
+          policy: 'normalized-release-gate-v2',
           inheritedKeys,
         },
         log,

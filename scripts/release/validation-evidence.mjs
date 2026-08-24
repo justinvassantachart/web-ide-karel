@@ -18,6 +18,7 @@ import {
   VALIDATION_INHERITED_ENVIRONMENT_KEYS,
   VALIDATION_TERMINATION_GRACE_MS,
 } from './validation-contract.mjs'
+import { assertNoUnsafeLocalPaths } from './validation-log-normalization.mjs'
 
 export { EXPECTED_VALIDATION_GATES } from './validation-contract.mjs'
 
@@ -42,8 +43,12 @@ function validateIdentity(
     webIDESourceCommit,
   },
   location,
+  schemaVersion = 1,
 ) {
-  if (value.schemaVersion !== 1 || value.package !== '@web-ide/karel@0.2.0') {
+  if (
+    value.schemaVersion !== schemaVersion
+    || value.package !== '@web-ide/karel@0.2.0'
+  ) {
     throw new TypeError(`Unsupported Karel ${location} identity`)
   }
   if (value.sourceCommit !== sourceCommit) {
@@ -123,6 +128,7 @@ function validateReceipt(
       webIDESourceCommit,
     },
     `validation gate ${gateId} capture receipt`,
+    2,
   )
   if (receipt.receiptKind !== 'karel-release-validation-gate-capture') {
     throw new TypeError(`Validation gate ${gateId} receipt kind is wrong`)
@@ -140,8 +146,9 @@ function validateReceipt(
   if (
     receipt.gate.id !== gateId
     || receipt.gate.command !== spec.command
-    || receipt.gate.executable !== spec.executable
-    || canonicalJSONString(receipt.gate.argv) !== canonicalJSONString(spec.argv)
+    || receipt.gate.executable !== spec.receiptExecutable
+    || canonicalJSONString(receipt.gate.argv)
+      !== canonicalJSONString(spec.receiptArgv)
     || receipt.gate.exitCode !== 0
     || receipt.gate.timeoutMs !== spec.timeoutMs
     || receipt.gate.terminationGraceMs !== VALIDATION_TERMINATION_GRACE_MS
@@ -150,7 +157,7 @@ function validateReceipt(
     'policy', 'inheritedKeys',
   ], [], `validation gate ${gateId} receipt environment`)
   if (
-    receipt.environment.policy !== 'scrubbed-release-gate-v1'
+    receipt.environment.policy !== 'normalized-release-gate-v2'
     || !Array.isArray(receipt.environment.inheritedKeys)
     || new Set(receipt.environment.inheritedKeys).size
       !== receipt.environment.inheritedKeys.length
@@ -166,7 +173,9 @@ function validateReceipt(
     `validation gate ${gateId} receipt log`,
   )
   if (canonicalJSONString(receipt.log) !== canonicalJSONString(log)) {
-    throw new TypeError(`Validation gate ${gateId} receipt does not bind its raw log`)
+    throw new TypeError(
+      `Validation gate ${gateId} receipt does not bind its normalized capture log`,
+    )
   }
   return receipt
 }
@@ -248,20 +257,24 @@ export function validateValidationLogBytes(
       cause: error,
     })
   }
+  const inspectableSourceText = assertNoUnsafeLocalPaths(
+    sourceText,
+    `Validation gate ${gateId} log`,
+  )
   if (
-    sourceText.length === 0
-    || sourceText.includes('\0')
-    || /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/u.test(sourceText)
-    || /gh[pousr]_[A-Za-z0-9_]{20,}/u.test(sourceText)
-    || /github_pat_[A-Za-z0-9_]{20,}/u.test(sourceText)
-    || /AKIA[0-9A-Z]{16}/u.test(sourceText)
-    || /npm_[A-Za-z0-9]{20,}/u.test(sourceText)
-    || /xox[baprs]-[A-Za-z0-9-]{10,}/u.test(sourceText)
-    || /AIza[0-9A-Za-z_-]{30,}/u.test(sourceText)
-    || /(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{20,}/u.test(sourceText)
-    || /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/u.test(sourceText)
-    || /(?:authorization|proxy-authorization):\s*(?:bearer|basic)\s+\S+/iu.test(sourceText)
-    || /(?:https?|ssh):\/\/[^\s/:@]+:[^\s/@]+@/u.test(sourceText)
+    inspectableSourceText.length === 0
+    || inspectableSourceText.includes('\0')
+    || /-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/u.test(inspectableSourceText)
+    || /gh[pousr]_[A-Za-z0-9_]{20,}/u.test(inspectableSourceText)
+    || /github_pat_[A-Za-z0-9_]{20,}/u.test(inspectableSourceText)
+    || /AKIA[0-9A-Z]{16}/u.test(inspectableSourceText)
+    || /npm_[A-Za-z0-9]{20,}/u.test(inspectableSourceText)
+    || /xox[baprs]-[A-Za-z0-9-]{10,}/u.test(inspectableSourceText)
+    || /AIza[0-9A-Za-z_-]{30,}/u.test(inspectableSourceText)
+    || /(?:sk|pk)_(?:live|test)_[A-Za-z0-9]{20,}/u.test(inspectableSourceText)
+    || /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/u.test(inspectableSourceText)
+    || /(?:authorization|proxy-authorization):\s*(?:bearer|basic)\s+\S+/iu.test(inspectableSourceText)
+    || /(?:https?|ssh):\/\/[^\s/:@]+:[^\s/@]+@/u.test(inspectableSourceText)
   ) throw new TypeError(`Validation gate ${gateId} log contains unsafe text`)
   if (gateId === 'packed-exact-pair') {
     const prefix = '@@WEB_IDE_RELEASE_GATE_RECEIPT@@'

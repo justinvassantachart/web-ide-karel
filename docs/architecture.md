@@ -204,8 +204,8 @@ the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
 The Web peer source is bound to the annotated
-`web-ide-v0.2.0-source` tag; its separate immutable Hamilton asset release uses
-`web-ide-v0.2.0`.
+`web-ide-v0.2.0-source-r2` tag; its separate immutable Hamilton asset release
+uses `web-ide-v0.2.0`.
 
 Release evidence is external output produced by `scripts/release/`; it is not a
 runtime dependency and is never written inside the repository. Candidate and
@@ -217,8 +217,9 @@ The evidence
 binds package and lockfile digests, source commit/tree/annotated tag, a
 deterministic exact-tag archive, two byte-identical isolated package builds,
 independently parsed npm-tar inventory, per-file licenses, CycloneDX SBOM,
-capture-runner validation logs with actual-exit/source/candidate-pair-bound
-receipts, intended private Hamilton release assets, and an unchanged live
+capture-runner validation logs with deterministic local-path placeholders and
+actual-exit/source/candidate-pair-bound receipts, intended private Hamilton
+release assets, and an unchanged live
 source identity immediately before atomic final publication. The accepted
 composition identity `hamilton.python-karel/1` appears only in release metadata;
 it does not enter Karel's public runtime or world contracts.

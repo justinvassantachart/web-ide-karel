@@ -16,6 +16,7 @@ import {
   validateProductionConsumerLock,
   validateProductionConsumerManifest,
 } from '../../scripts/release/consumer-lock.mjs'
+import { VALIDATION_GATE_SPECS } from '../../scripts/release/validation-contract.mjs'
 import {
   moveDirectoryNoReplace,
   repositoryRoot,
@@ -25,6 +26,9 @@ import {
   runCapturedGateProcess,
   scrubbedValidationEnvironment,
 } from '../../scripts/release/validation-gate-runner.mjs'
+import {
+  normalizeValidationLogBytes,
+} from '../../scripts/release/validation-log-normalization.mjs'
 
 const temporaryDirectories = []
 
@@ -116,7 +120,12 @@ describe('captured validation gate evidence', () => {
       expect(env.npm_config_ignore_scripts).toBe('true')
       expect(timeoutMs).toBe(10 * 60 * 1000)
       expect(terminationGraceMs).toBe(10 * 1000)
-      return { exitCode: 0, logBytes: Buffer.from('actual captured output\n') }
+      return {
+        exitCode: 0,
+        logBytes: Buffer.from(
+          `actual captured output from ${repositoryRoot}\ntemp=${env.TMPDIR}\n`,
+        ),
+      }
     })
     const capture = await captureValidationGate({
       gateId: 'audit-full',
@@ -139,7 +148,10 @@ describe('captured validation gate evidence', () => {
     expect(await readFile(path.join(
       outputDirectory,
       'validation-audit-full.log',
-    ), 'utf8')).toBe('actual captured output\n')
+    ), 'utf8')).toBe(
+      'actual captured output from <repository-root>\n'
+      + 'temp=<execution-root>/tmp\n',
+    )
     const receiptBytes = await readFile(path.join(
       outputDirectory,
       'validation-audit-full.receipt.json',
@@ -147,18 +159,81 @@ describe('captured validation gate evidence', () => {
     const receipt = JSON.parse(receiptBytes.toString('utf8'))
     expect(receiptBytes.equals(Buffer.from(canonicalJSONString(receipt)))).toBe(true)
     expect(receipt).toMatchObject({
+      schemaVersion: 2,
       receiptKind: 'karel-release-validation-gate-capture',
       gate: {
         id: 'audit-full',
+        executable: 'npm',
+        argv: ['audit', '--audit-level=low'],
         exitCode: 0,
         timeoutMs: 10 * 60 * 1000,
         terminationGraceMs: 10 * 1000,
       },
       environment: {
-        policy: 'scrubbed-release-gate-v1',
+        policy: 'normalized-release-gate-v2',
         inheritedKeys: ['PATH'],
       },
     })
+  })
+
+  it('normalizes known local roots after complete capture and rejects residual paths', () => {
+    const repository = '/Users/synthetic/Projects/web-ide-karel'
+    const candidate = '/Users/synthetic/Artifacts/web-ide-karel-0.2.0.tgz'
+    const footer = '@@WEB_IDE_RELEASE_GATE_RECEIPT@@{"synthetic":true}'
+    const captured = Buffer.concat([
+      Buffer.from(`repository=${repository.slice(0, 18)}`),
+      Buffer.from(`${repository.slice(18)}\ncandidate=${candidate}\n`),
+      Buffer.from(`file-url=file://${repository}/src/index.ts\n`),
+      Buffer.from(`token=synthetic-not-a-secret\n${footer}`),
+    ])
+    const normalized = normalizeValidationLogBytes(captured, [
+      { value: repository, placeholder: '<repository-root>' },
+      { value: candidate, placeholder: '<karel-candidate>' },
+    ]).toString('utf8')
+    expect(normalized).toContain('repository=<repository-root>')
+    expect(normalized).toContain('candidate=<karel-candidate>')
+    expect(normalized).toContain(
+      'file-url=file:<repository-root>/src/index.ts',
+    )
+    expect(normalized).toContain('token=synthetic-not-a-secret')
+    expect(normalized.endsWith(footer)).toBe(true)
+    expect(normalized).not.toContain('/Users/')
+
+    expect(() => normalizeValidationLogBytes(
+      Buffer.from('unmapped=file:/Users/other/private/output.log\n'),
+      [],
+    )).toThrow(/unsafe local absolute path/u)
+    expect(() => normalizeValidationLogBytes(
+      Buffer.from('/Users/synthetic-other/private/output.log\n'),
+      [{ value: '/Users/synthetic', placeholder: '<home>' }],
+    )).toThrow(/unsafe local absolute path/u)
+    for (const encodedOrNetworkPath of [
+      'file:%2FUsers%2Fsynthetic%2Fprivate%2Foutput.log',
+      String.raw`\\server\private-share\output.log`,
+      '~/private/output.log',
+      '/private/tmp/private/output.log',
+      '/root/private/output.log',
+      `/Users/unrec\u001b[31mognized/private/output.log`,
+      String.raw`json: \/Users\/synthetic\/private\/output.log`,
+      String.raw`C:\\Users\\synthetic\\private\\output.log`,
+      String.raw`C:\Work\private\output.log`,
+      'file:%2Fopt%2Fdeclared%2Fprivate%2Foutput.log',
+      '%2Fopt%2Fdeclared%2Fprivate%2Foutput.log',
+      'prefix<repository-root>/private/output.log',
+      'file://<unknown-root>/private/output.log',
+    ]) {
+      expect(() => normalizeValidationLogBytes(
+        Buffer.from(`${encodedOrNetworkPath}\n`),
+        [],
+      )).toThrow(/unsafe local absolute path|path placeholder|unknown file-path/u)
+    }
+
+    const peerSpec = VALIDATION_GATE_SPECS.get('web-ide-peer-evidence')
+    expect(peerSpec.receiptExecutable).toBe('node')
+    expect(peerSpec.receiptArgv).toEqual([
+      '<repository-root>/scripts/release/verify-web-ide-final.mjs',
+    ])
+    expect(peerSpec.receiptArgv.join(' ')).not.toMatch(/\/Users\//u)
   })
 
   it('settles a timed-out hung process tree before rejecting', async () => {

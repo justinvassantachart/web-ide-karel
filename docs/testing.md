@@ -252,11 +252,12 @@ KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.2.0.tgz \
 ```
 
 Final mode fails unless local `main` equals both its tracking ref and the live
-remote, the worktree is clean, the pushed annotated `v0.2.0` tag peels to
-`HEAD`, and Node `24.11.1`/npm `11.6.2` are active. The Web candidate state must
-be canonical final evidence, its exact ten-artifact inventory must bind the
-runtime report and tar SHA-256, and the committed packed-consumer lock must bind
-the computed Web and Karel SHA-512 values.
+remote, the worktree is clean, the pushed annotated
+`web-ide-karel-v0.2.0-source-r2` tag peels to `HEAD`, and Node `24.11.1`/npm
+`11.6.2` are active. The Web candidate state must be canonical final evidence,
+its exact ten-artifact inventory must bind the runtime report and tar SHA-256,
+and the committed packed-consumer lock must bind the computed Web and Karel
+SHA-512 values.
 
 For tooling tests before final tags exist, set `KAREL_RELEASE_MODE=test`. This
 mode still requires the exact pushed Karel `main`, exact toolchain, canonical
@@ -269,14 +270,17 @@ For Web IDE finalization, run the exact pair with
 both `KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE` and
 `KAREL_RELEASE_KAREL_CANDIDATE_STATE` set to their canonical candidate states.
 The unfiltered successful run emits exactly one Web IDE compatibility receipt
-as its final stdout line; retain that complete raw log for Web's finalizer.
+as its final stdout line. The capture runner retains the complete output after
+replacing only declared local roots with stable placeholders; retain that exact
+normalized capture log for Web's finalizer.
 
 Capture each gate with the repository runner. It requires the same final
 clean/pushed/tagged source and exact locked candidate pair; the Web manifest is
 additionally required for `web-ide-peer-evidence`. The runner selects the
 predeclared executable and argv, removes inherited Node/npm/test controls,
-captures actual stdout/stderr and exit status, and atomically publishes one raw
-log plus one canonical receipt to a previously absent external directory:
+captures actual stdout/stderr and exit status, normalizes only declared local
+roots, and atomically publishes one exact normalized log plus one canonical
+receipt to a previously absent external directory:
 
 ```sh
 KAREL_RELEASE_GATE_ID=packed-exact-pair \
@@ -301,12 +305,13 @@ Gate capture uses these fixed wall-clock budgets:
 
 The longer budgets cover the multi-build/browser and reproducibility gates;
 the audit and local verification gates retain narrower bounds. Each receipt
-binds its exact timeout and the 10-second termination grace period. On timeout
-or capture-limit overflow, the runner signals the gate's isolated POSIX process
-group with `SIGTERM`, waits the grace period, sends `SIGKILL` if any member
-remains, and verifies that both the direct child and process group have settled
-before the staging directory is discarded. The release machine uses macOS
-process-group semantics; capture fails closed on Windows.
+uses capture schema 2, records stable logical `npm`/`node` invocation values,
+and binds its exact timeout and the 10-second termination grace period. On
+timeout or capture-limit overflow, the runner signals the gate's isolated POSIX
+process group with `SIGTERM`, waits the grace period, sends `SIGKILL` if any
+member remains, and verifies that both the direct child and process group have
+settled before the staging directory is discarded. The release machine uses
+macOS process-group semantics; capture fails closed on Windows.
 
 After the successful compatibility log has finalized Web IDE's manifest,
 capture `web-ide-peer-evidence` with
@@ -331,8 +336,9 @@ into transactional staging, and independently rechecks clean/pushed/tagged
 Karel source, the tag-derived source archive, deterministic-build schema,
 package tar allowlist and inspection, regenerated licenses and SBOM, consumer
 locks, final Web manifest/sidecar/tar/runtime/candidate cross-links, and every
-raw validation log and capture receipt. It copies and rehashes the exact bytes,
-then verifies the predeclared command, scrubbed environment, actual zero exit,
+normalized validation capture log and capture receipt. It copies and rehashes
+the exact bytes, then verifies the predeclared command, normalized-capture
+environment, actual zero exit,
 both source commits, both candidate digests, and the final Web receipt footer.
 Unknown fields, rewritten reports plus rewritten state, symlinks, missing logs,
 peer drift, and late failures all fail closed without publishing a partial
@@ -344,7 +350,8 @@ publish.
 The external candidate directory contains the source archive, package tarball,
 candidate state, safe package inventory, deterministic-build comparison,
 license inventory, `THIRD_PARTY_LICENSES.txt`, CycloneDX 1.6 SBOM, and Web
-candidate verification. Finalization additionally retains the six raw logs and
+candidate verification. Finalization additionally retains the six normalized
+capture logs and
 capture receipts and writes the canonical validation summary, Web
 final-manifest verification, artifact manifest, and sidecar. Runtime assets
 remain represented only by Web IDE's referenced report digest and count.

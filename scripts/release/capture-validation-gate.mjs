@@ -58,6 +58,12 @@ const webStatePath = await assertExternalInputFile(
   webStateInput,
   'Web IDE validation candidate state',
 )
+const webManifestPath = gateId === 'web-ide-peer-evidence'
+  ? await assertExternalInputFile(
+      webManifestInput,
+      'Web IDE validation artifact manifest',
+    )
+  : undefined
 if (
   path.basename(karelTarballPath) !== configuration.releaseAssetFilename
   || path.basename(karelStatePath) !== 'candidate-state.json'
@@ -129,6 +135,18 @@ const result = await captureValidationGate({
   webIDECandidateSha256: webCandidateSha256,
   webIDESourceCommit: webState.source.commit,
   cwd: repositoryRoot,
+  normalizationPaths: [
+    { value: karelTarballPath, placeholder: '<karel-candidate>' },
+    { value: karelStatePath, placeholder: '<karel-candidate-state>' },
+    { value: webTarballPath, placeholder: '<web-candidate>' },
+    { value: webStatePath, placeholder: '<web-candidate-state>' },
+    ...(webManifestPath
+      ? [{
+          value: webManifestPath,
+          placeholder: '<web-artifact-manifest>',
+        }]
+      : []),
+  ],
   environmentFactory: async (stage) => {
     const explicit = {}
     if (['validate-production', 'packed-exact-pair'].includes(gateId)) {
@@ -155,10 +173,7 @@ const result = await captureValidationGate({
     }
     if (gateId === 'web-ide-peer-evidence') {
       Object.assign(explicit, {
-        KAREL_RELEASE_WEB_IDE_MANIFEST: await assertExternalInputFile(
-          webManifestInput,
-          'Web IDE validation artifact manifest',
-        ),
+        KAREL_RELEASE_WEB_IDE_MANIFEST: webManifestPath,
         KAREL_RELEASE_WEB_IDE_TARBALL: webTarballPath,
       })
     }

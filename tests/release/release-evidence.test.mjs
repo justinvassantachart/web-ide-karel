@@ -173,7 +173,7 @@ async function validationInputFixture() {
     }
     const spec = VALIDATION_GATE_SPECS.get(id)
     const receipt = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       receiptKind: 'karel-release-validation-gate-capture',
       package: '@web-ide/karel@0.2.0',
       sourceCommit,
@@ -183,14 +183,14 @@ async function validationInputFixture() {
       gate: {
         id,
         command,
-        executable: spec.executable,
-        argv: spec.argv,
+        executable: spec.receiptExecutable,
+        argv: spec.receiptArgv,
         exitCode: 0,
         timeoutMs: spec.timeoutMs,
         terminationGraceMs: 10 * 1000,
       },
       environment: {
-        policy: 'scrubbed-release-gate-v1',
+        policy: 'normalized-release-gate-v2',
         inheritedKeys: [],
       },
       log,
@@ -240,13 +240,13 @@ function tarball(entries) {
 function releaseConfiguration() {
   return {
     sourceRepository: 'https://github.com/justinvassantachart/web-ide-karel.git',
-    sourceTag: 'v0.2.0',
+    sourceTag: 'web-ide-karel-v0.2.0-source-r2',
     capabilityReleaseId: 'hamilton.python-karel/1',
     webIDE: {
       package: 'web-ide@0.2.0',
       peerRange: '>=0.2.0 <0.3.0',
       packageRole: 'web-ide',
-      sourceTag: 'web-ide-v0.2.0-source',
+      sourceTag: 'web-ide-v0.2.0-source-r2',
       releaseRepository: 'justinvassantachart/ths-ide',
       releaseTag: 'web-ide-v0.2.0',
       releaseAssetFilename: 'web-ide-0.2.0.tgz',
@@ -412,7 +412,7 @@ async function webEvidenceFixture({
       commitTimestamp: 1_787_529_600,
       sourceDateEpoch: '1787529600',
       tag: {
-        name: 'web-ide-v0.2.0-source',
+        name: 'web-ide-v0.2.0-source-r2',
         objectId: 'd'.repeat(40),
         objectType: 'tag',
         peeledCommit: 'b'.repeat(40),
@@ -595,7 +595,7 @@ async function webEvidenceFixture({
       commit: 'b'.repeat(40),
       tree: 'c'.repeat(40),
       tag: {
-        name: 'web-ide-v0.2.0-source',
+        name: 'web-ide-v0.2.0-source-r2',
         objectId: 'd'.repeat(40),
         objectType: 'tag',
         peeledCommit: 'b'.repeat(40),
@@ -1066,9 +1066,9 @@ describe('exact Web IDE evidence', () => {
       npmVersion: '11.6.2',
       sourceEpoch: 1,
       finalEligible: true,
-      sourceReference: 'v0.2.0',
+      sourceReference: 'web-ide-karel-v0.2.0-source-r2',
       tag: {
-        name: 'v0.2.0',
+        name: 'web-ide-karel-v0.2.0-source-r2',
         objectId: '0'.repeat(40),
         objectType: 'tag',
         peeledCommit: 'e'.repeat(40),
@@ -1200,7 +1200,7 @@ describe('exact Web IDE evidence', () => {
       candidateFixture.candidateStatePath,
       'utf8',
     ))
-    candidateState.source.tag.name = 'v0.2.0'
+    candidateState.source.tag.name = 'web-ide-karel-v0.2.0-source-r2'
     await writeFile(
       candidateFixture.candidateStatePath,
       canonicalJSONString(candidateState),
@@ -1215,7 +1215,7 @@ describe('exact Web IDE evidence', () => {
 
     const finalFixture = await webEvidenceFixture({ finalManifest: true })
     const manifest = JSON.parse(await readFile(finalFixture.manifestPath, 'utf8'))
-    manifest.source.tag.name = 'v0.2.0'
+    manifest.source.tag.name = 'web-ide-karel-v0.2.0-source-r2'
     const manifestInput = structuredClone(manifest)
     delete manifestInput.manifestId
     manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
@@ -1345,6 +1345,16 @@ describe('exact Web IDE evidence', () => {
       'packed-exact-pair',
       { webIDECandidateSha256, webIDESourceCommit },
     )).not.toThrow()
+    expect(() => validateValidationLogBytes(
+      Buffer.from('resolved=file:/Users/synthetic/private/package.tgz\n'),
+      'audit-full',
+      { webIDECandidateSha256, webIDESourceCommit },
+    )).toThrow(/unsafe local absolute path/u)
+    expect(() => validateValidationLogBytes(
+      Buffer.from(`token=ghp_\u001b[31m${'a'.repeat(24)}\n`),
+      'audit-full',
+      { webIDECandidateSha256, webIDESourceCommit },
+    )).toThrow(/unsafe text/u)
 
     for (const invalid of [
       { ...receipt, schemaVersion: 1 },
@@ -1591,7 +1601,7 @@ describe('artifact and validation manifests', () => {
         commit: 'e'.repeat(40),
         tree: 'f'.repeat(40),
         tag: {
-          name: 'v0.2.0',
+          name: 'web-ide-karel-v0.2.0-source-r2',
           objectId: '0'.repeat(40),
           objectType: 'tag',
           peeledCommit: 'e'.repeat(40),
@@ -1642,7 +1652,7 @@ describe('artifact and validation manifests', () => {
             repository: 'https://github.com/justinvassantachart/web-ide.git',
             commit: '1'.repeat(40),
             tree: '2'.repeat(40),
-            tag: 'web-ide-v0.2.0-source',
+            tag: 'web-ide-v0.2.0-source-r2',
           },
         },
         artifact: {
@@ -1709,7 +1719,7 @@ describe('artifact and validation manifests', () => {
     expect(() => validateArtifactManifest(manifest)).toThrow(/runtime evidence/u)
   })
 
-  it('copies exact raw logs and produces command/source/candidate-bound receipts', async () => {
+  it('copies exact normalized capture logs and produces command/source/candidate-bound receipts', async () => {
     const fixture = await validationInputFixture()
     const outputDirectory = path.join(fixture.directory, 'staged')
     await mkdir(outputDirectory)
@@ -1744,7 +1754,7 @@ describe('artifact and validation manifests', () => {
     })).rejects.toThrow(/log changed/u)
   })
 
-  it('rejects missing, reused, symlinked, oversized, and hash-swapped raw logs', async () => {
+  it('rejects missing, reused, symlinked, oversized, and hash-swapped capture logs', async () => {
     const fixture = await validationInputFixture()
     const first = fixture.input.gates[0]
     first.log.sha256 = fixture.input.gates[1].log.sha256
@@ -1869,6 +1879,59 @@ describe('artifact and validation manifests', () => {
       webIDECandidateSha256: footerFixture.webIDECandidateSha256,
       webIDESourceCommit: footerFixture.webIDESourceCommit,
     })).rejects.toThrow(/Web IDE receipt identity/u)
+
+    const pathFixture = await validationInputFixture()
+    const pathGate = pathFixture.input.gates.find(
+      (candidate) => candidate.id === 'audit-full',
+    )
+    const pathLog = Buffer.from(
+      'captured output from file:/Users/synthetic/private/package.tgz\n',
+    )
+    await writeFile(pathGate.log.path, pathLog)
+    pathGate.log.size = pathLog.length
+    pathGate.log.sha256 = sha256Bytes(pathLog)
+    const pathReceipt = JSON.parse(await readFile(pathGate.receipt.path, 'utf8'))
+    pathReceipt.log = {
+      fileName: pathGate.log.fileName,
+      size: pathLog.length,
+      sha256: sha256Bytes(pathLog),
+    }
+    const pathReceiptBytes = Buffer.from(canonicalJSONString(pathReceipt))
+    await writeFile(pathGate.receipt.path, pathReceiptBytes)
+    pathGate.receipt.size = pathReceiptBytes.length
+    pathGate.receipt.sha256 = sha256Bytes(pathReceiptBytes)
+    const outputC = path.join(pathFixture.directory, 'semantic-output-c')
+    await mkdir(outputC)
+    await expect(materializeValidationEvidence({
+      input: pathFixture.input,
+      outputDirectory: outputC,
+      sourceCommit: pathFixture.sourceCommit,
+      candidateSha256: pathFixture.candidateSha256,
+      webIDECandidateSha256: pathFixture.webIDECandidateSha256,
+      webIDESourceCommit: pathFixture.webIDESourceCommit,
+    })).rejects.toThrow(/unsafe local absolute path/u)
+
+    const schemaFixture = await validationInputFixture()
+    const schemaGate = schemaFixture.input.gates[0]
+    const schemaReceipt = JSON.parse(await readFile(
+      schemaGate.receipt.path,
+      'utf8',
+    ))
+    schemaReceipt.schemaVersion = 1
+    const schemaReceiptBytes = Buffer.from(canonicalJSONString(schemaReceipt))
+    await writeFile(schemaGate.receipt.path, schemaReceiptBytes)
+    schemaGate.receipt.size = schemaReceiptBytes.length
+    schemaGate.receipt.sha256 = sha256Bytes(schemaReceiptBytes)
+    const outputD = path.join(schemaFixture.directory, 'semantic-output-d')
+    await mkdir(outputD)
+    await expect(materializeValidationEvidence({
+      input: schemaFixture.input,
+      outputDirectory: outputD,
+      sourceCommit: schemaFixture.sourceCommit,
+      candidateSha256: schemaFixture.candidateSha256,
+      webIDECandidateSha256: schemaFixture.webIDECandidateSha256,
+      webIDESourceCommit: schemaFixture.webIDESourceCommit,
+    })).rejects.toThrow(/Unsupported Karel/u)
   })
 })
 
@@ -1898,7 +1961,7 @@ describe('release source state', () => {
       'user.email=release-fixture@example.invalid',
       'tag',
       '-a',
-      'v0.2.0',
+      'web-ide-karel-v0.2.0-source-r2',
       '-m',
       'fixture release',
     ], { cwd: checkout })
@@ -1906,12 +1969,12 @@ describe('release source state', () => {
       'push',
       'origin',
       'main',
-      'refs/tags/v0.2.0',
+      'refs/tags/web-ide-karel-v0.2.0-source-r2',
     ], { cwd: checkout })
     const npmVersion = (await run('npm', ['--version'])).stdout.trim()
     const configuration = {
       sourceRepository: bare,
-      sourceTag: 'v0.2.0',
+      sourceTag: 'web-ide-karel-v0.2.0-source-r2',
       nodeVersion: process.versions.node,
       npmVersion,
     }
@@ -1919,7 +1982,7 @@ describe('release source state', () => {
     expect(source).toMatchObject({
       branch: 'main',
       tag: {
-        name: 'v0.2.0',
+        name: 'web-ide-karel-v0.2.0-source-r2',
         objectType: 'tag',
       },
       finalEligible: true,
@@ -1948,7 +2011,7 @@ describe('release source state', () => {
           'tag',
           '--force',
           '--annotate',
-          'v0.2.0',
+          'web-ide-karel-v0.2.0-source-r2',
           '--message=late tag rewrite',
           'HEAD',
         ], { cwd: checkout })
@@ -1963,7 +2026,7 @@ describe('release source state', () => {
     await expect(lstat(lateMutationTarget)).rejects.toMatchObject({ code: 'ENOENT' })
     await git([
       'update-ref',
-      'refs/tags/v0.2.0',
+      'refs/tags/web-ide-karel-v0.2.0-source-r2',
       source.tag.objectId,
     ], { cwd: checkout })
 
@@ -2057,10 +2120,10 @@ describe('release source state', () => {
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/dirty/u)
     await rm(path.join(checkout, 'dirty.txt'))
-    await git(['tag', '--delete', 'v0.2.0'], { cwd: checkout })
-    await git(['push', '--delete', 'origin', 'v0.2.0'], { cwd: checkout })
-    await git(['tag', 'v0.2.0'], { cwd: checkout })
-    await git(['push', 'origin', 'refs/tags/v0.2.0'], { cwd: checkout })
+    await git(['tag', '--delete', 'web-ide-karel-v0.2.0-source-r2'], { cwd: checkout })
+    await git(['push', '--delete', 'origin', 'web-ide-karel-v0.2.0-source-r2'], { cwd: checkout })
+    await git(['tag', 'web-ide-karel-v0.2.0-source-r2'], { cwd: checkout })
+    await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.2.0-source-r2'], { cwd: checkout })
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/annotated/u)
   })

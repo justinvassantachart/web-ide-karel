@@ -165,7 +165,7 @@ export function validateWebIDEEvidenceReport(report, configuration) {
   assertCommit(report.artifactManifest.source.tree, 'Web IDE peer source tree')
   if (
     report.artifactManifest.source.tag
-      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source')
+      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source-r2')
   ) {
     throw new TypeError('Web IDE peer source tag is wrong')
   }

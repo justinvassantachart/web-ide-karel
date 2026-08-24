@@ -348,6 +348,9 @@ candidate state through `KAREL_RELEASE_KAREL_CANDIDATE_STATE`. After the
 complete, unfiltered exact-pair gate succeeds, the script emits Web IDE's
 required candidate/source-bound receipt as the final stdout line. Receipt mode
 rejects source-built candidates, unbound Karel bytes, and diagnostic filtering.
+The release capture runner later replaces only declared local repository,
+candidate, execution, workspace, and home roots with stable placeholders and
+fails if a personal or temporary absolute path remains.
 
 The source license and package version do not themselves complete a release.
 See [publishing readiness](docs/publishing-readiness.md) for the remaining
@@ -357,14 +360,14 @@ artifact and immutable-release evidence.
 
 `npm run release:candidate` is the Karel candidate builder. In its
 default `final` mode it requires a clean, pushed `main`, the pushed annotated
-`v0.2.0` tag at `HEAD`, the exact Node/npm toolchain, an absent external output
-path, and the exact Web IDE candidate state and tarball. It verifies the
-canonical Web candidate state, runtime-assets report, tar SHA-256, consumer-lock
-SHA-512 integrity, and package identity before running two isolated clean Karel
-installs/builds/packs with fresh npm caches. It then writes a deterministic
-source archive, candidate tarball, safe tar inventory, license inventory,
-deduplicated license text, CycloneDX SBOM, reproducibility report, and candidate
-state outside the repository.
+`web-ide-karel-v0.2.0-source-r2` tag at `HEAD`, the exact Node/npm toolchain, an
+absent external output path, and the exact Web IDE candidate state and tarball.
+It verifies the canonical Web candidate state, runtime-assets report, tar
+SHA-256, consumer-lock SHA-512 integrity, and package identity before running
+two isolated clean Karel installs/builds/packs with fresh npm caches. It then
+writes a deterministic source archive, candidate tarball, safe tar inventory,
+license inventory, deduplicated license text, CycloneDX SBOM, reproducibility
+report, and candidate state outside the repository.
 
 The dependency-ordered release sequence deliberately has two stages. Karel's
 candidate binds Web IDE's pre-manifest candidate evidence so the paired
@@ -372,10 +375,11 @@ compatibility gate can run without a circular manifest dependency. After that
 gate finalizes Web IDE's artifact manifest, `npm run release:finalize` verifies
 the canonical Web manifest, sidecar, exact tarball, and runtime report against
 the peer bytes recorded by Karel and accepts only six outputs from the
-repository's validation-gate capture runner. Each output contains the exact raw
-log plus a canonical receipt recording the predeclared executable/argv, scrubbed
-environment policy, actual exit status, Karel/Web source identities, and exact
-candidate pair. Finalization copies and rehashes those caller-supplied bytes,
+repository's validation-gate capture runner. Each output contains the exact
+normalized capture log plus a canonical receipt recording the stable logical
+executable/argv, normalized environment policy, actual exit status, Karel/Web
+source identities, and exact candidate pair. Finalization copies and rehashes
+those caller-supplied bytes,
 independently validates every receipt and the Web compatibility footer,
 regenerates the source archive, package inspection, license evidence, and SBOM,
 and writes Karel's final manifest and sidecar to a separate atomic output.
