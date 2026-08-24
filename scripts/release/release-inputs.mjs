@@ -27,7 +27,7 @@ export async function loadReleaseConfiguration() {
     'npmVersion',
     'webIDE',
   ], [], 'release input')
-  if (input.schemaVersion !== 1 || input.package !== '@web-ide/karel@0.3.0') {
+  if (input.schemaVersion !== 1 || input.package !== '@web-ide/karel@0.3.1') {
     throw new TypeError('Unsupported Karel release input identity')
   }
   for (const field of Object.keys(input).filter((key) => (
@@ -36,20 +36,20 @@ export async function loadReleaseConfiguration() {
     assertNonEmptyString(input[field], `release input.${field}`)
   }
   if (
-    input.capabilityReleaseId !== 'hamilton.python-karel/2'
+    input.capabilityReleaseId !== 'hamilton.python-karel/3'
     || input.packageRole !== 'karel'
     || input.sourceRepository !== 'https://github.com/justinvassantachart/web-ide-karel.git'
-    || input.sourceTag !== 'web-ide-karel-v0.3.0-source'
+    || input.sourceTag !== 'web-ide-karel-v0.3.1-source'
     || input.releaseRepository !== 'justinvassantachart/ths-ide'
-    || input.releaseTag !== 'web-ide-karel-v0.3.0'
+    || input.releaseTag !== 'web-ide-karel-v0.3.1'
   ) {
     throw new TypeError('Release input does not match the accepted Hamilton Karel identity')
   }
   if (
-    input.releaseAssetFilename !== 'web-ide-karel-0.3.0.tgz'
-    || input.sourceAssetFilename !== 'web-ide-karel-0.3.0-source.tar.gz'
+    input.releaseAssetFilename !== 'web-ide-karel-0.3.1.tgz'
+    || input.sourceAssetFilename !== 'web-ide-karel-0.3.1-source.tar.gz'
   ) {
-    throw new TypeError('Release asset names do not match Karel 0.3.0')
+    throw new TypeError('Release asset names do not match Karel 0.3.1')
   }
   assertExactKeys(input.webIDE, [
     'package',

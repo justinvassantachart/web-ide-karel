@@ -57,7 +57,7 @@ const EXPECTED_WEB_IDE_LOCK_ENTRY = Object.freeze({
 })
 
 const EXPECTED_KAREL_LOCK_ENTRY = Object.freeze({
-  version: '0.3.0',
+  version: '0.3.1',
   resolved: 'file:artifacts/web-ide-karel.tgz',
   license: 'MIT',
   engines: { node: '>=20', python: '>=3.10' },
@@ -77,7 +77,7 @@ const EXPECTED_KAREL_LOCK_ENTRY = Object.freeze({
 const ARTIFACT_INTEGRITY_PLACEHOLDER
   = 'ARTIFACT-INTEGRITY-VALIDATED-SEPARATELY'
 const EXPECTED_NORMALIZED_LOCK_SHA256
-  = 'a7a39b1f0988181fa834e9d8826e0899ee1ce3a1bfe1f6095ade741bccd98e31'
+  = 'd5a4011f149db75a78cb805cd26b4f65713d7eb022dc57625b6410e11d918522'
 
 function assertSha512Integrity(value, location) {
   if (typeof value !== 'string' || !value.startsWith('sha512-')) {

@@ -149,7 +149,7 @@ instead:
 
 ```sh
 WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.3.0.tgz \
-KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.0.tgz \
+KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.1.tgz \
   npm run test:packed-production
 ```
 
@@ -160,7 +160,7 @@ malformed integrity, changed byte, pre-existing artifact, missing file, or
 relative override fails closed. The consumer uses a new disposable npm cache
 and `npm ci --ignore-scripts --strict-peer-deps --engine-strict`; it never
 rewrites the manifest or falls back to `npm install`. It asserts exact Web IDE
-and Karel `0.3.0` package identities, Karel's Web peer range, and one React/
+and Karel `0.3.1` package identities, Karel's Web peer range, and one React/
 React DOM identity before running full and production audits, typechecking, a
 real Vite production build, and one-worker Playwright against a purpose-built
 static SPA server. The fixture imports public package exports only.
@@ -172,11 +172,9 @@ the lock during validation. Release tooling also binds the complete canonical
 transitive lock graph; only the two independently verified private-artifact
 integrities are normalized for that graph check. Added nodes, registry or Git
 URL drift, lifecycle flags, and any other transitive-node change fail closed.
-The Karel entry binds the locally frozen 0.3 package bytes. Until the final Web
-0.3 candidate exists, the Web entry contains a canonical SHA-512 placeholder
-whose decoded bytes say `PROVISIONAL-WEB-IDE-0.3.0-SRI-NOT-FINAL`. It is a setup
-marker, not candidate evidence; the exact-pair verifier must reject it against
-any real Web candidate bytes.
+The Karel entry binds the locally frozen `0.3.1` package bytes. The Web entry
+binds the exact finalized Web IDE `0.3.0` bytes. The verifier rejects any drift
+in either artifact before npm is invoked.
 
 The production browser matrix proves:
 
@@ -266,7 +264,7 @@ KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.3.0.tgz \
 
 Final mode fails unless local `main` equals both its tracking ref and the live
 remote, the worktree is clean, the pushed annotated
-`web-ide-karel-v0.3.0-source` tag peels to `HEAD`, and Node `24.11.1`/npm
+`web-ide-karel-v0.3.1-source` tag peels to `HEAD`, and Node `24.11.1`/npm
 `11.6.2` are active. The Web candidate state must be canonical final evidence,
 its exact ten-artifact inventory must bind the runtime report and tar SHA-256,
 and the committed packed-consumer lock must bind the computed Web and Karel
@@ -298,7 +296,7 @@ receipt to a previously absent external directory:
 ```sh
 KAREL_RELEASE_GATE_ID=packed-exact-pair \
 KAREL_RELEASE_GATE_OUTPUT_DIR=/absolute/external/gates/packed-exact-pair \
-KAREL_RELEASE_KAREL_TARBALL=/absolute/karel-candidate/web-ide-karel-0.3.0.tgz \
+KAREL_RELEASE_KAREL_TARBALL=/absolute/karel-candidate/web-ide-karel-0.3.1.tgz \
 KAREL_RELEASE_KAREL_CANDIDATE_STATE=/absolute/karel-candidate/candidate-state.json \
 KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-candidate/web-ide-0.3.0.tgz \
 KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE=/absolute/web-candidate/candidate-state.json \

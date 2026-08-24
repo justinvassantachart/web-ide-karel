@@ -22,7 +22,10 @@ import {
   formatWebIDECompatibilityReceipt,
 } from './release/web-compatibility-receipt.mjs'
 
-const EXPECTED_VERSION = '0.3.0'
+const EXPECTED_VERSIONS = Object.freeze({
+  '@web-ide/karel': '0.3.1',
+  'web-ide': '0.3.0',
+})
 const EXPECTED_KAREL_PEERS = Object.freeze({
   react: '^18.3.0 || ^19.0.0',
   'react-dom': '^18.3.0 || ^19.0.0',
@@ -77,18 +80,23 @@ function run(command, args, options = {}) {
 }
 
 async function assertPackage(root, expectedName) {
+  const expectedVersion = EXPECTED_VERSIONS[expectedName]
+  if (expectedVersion === undefined) {
+    throw new Error(`Unsupported packed package identity ${expectedName}`)
+  }
   const manifest = JSON.parse(
     await readFile(path.join(root, 'package.json'), 'utf8'),
   )
-  if (manifest.name !== expectedName || manifest.version !== EXPECTED_VERSION) {
+  if (manifest.name !== expectedName || manifest.version !== expectedVersion) {
     throw new Error(
-      `Expected ${expectedName}@${EXPECTED_VERSION} at ${root}, found ${String(manifest.name)}@${String(manifest.version)}`,
+      `Expected ${expectedName}@${expectedVersion} at ${root}, found ${String(manifest.name)}@${String(manifest.version)}`,
     )
   }
+  return expectedVersion
 }
 
 async function packPackage(root, expectedName) {
-  await assertPackage(root, expectedName)
+  const expectedVersion = await assertPackage(root, expectedName)
   run('npm', ['run', 'build:library'], { cwd: root })
   const result = run(
     'npm',
@@ -102,11 +110,11 @@ async function packPackage(root, expectedName) {
   const record = records[0]
   if (
     record.name !== expectedName
-    || record.version !== EXPECTED_VERSION
+    || record.version !== expectedVersion
     || typeof record.filename !== 'string'
   ) {
     throw new Error(
-      `npm pack returned the wrong identity for ${expectedName}@${EXPECTED_VERSION}`,
+      `npm pack returned the wrong identity for ${expectedName}@${expectedVersion}`,
     )
   }
   const tarballPath = path.resolve(packRoot, record.filename)
@@ -207,9 +215,10 @@ async function assertInstalledPackagePair() {
     [webIDE, 'web-ide'],
     [karel, '@web-ide/karel'],
   ]) {
-    if (manifest.name !== expectedName || manifest.version !== EXPECTED_VERSION) {
+    const expectedVersion = EXPECTED_VERSIONS[expectedName]
+    if (manifest.name !== expectedName || manifest.version !== expectedVersion) {
       throw new Error(
-        `Installed packed candidate must be ${expectedName}@${EXPECTED_VERSION}, found ${String(manifest.name)}@${String(manifest.version)}`,
+        `Installed packed candidate must be ${expectedName}@${expectedVersion}, found ${String(manifest.name)}@${String(manifest.version)}`,
       )
     }
   }

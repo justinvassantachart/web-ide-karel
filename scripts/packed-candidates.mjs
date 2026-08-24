@@ -24,7 +24,7 @@ export const PACKED_CANDIDATE_SPECS = Object.freeze([
   }),
   Object.freeze({
     packageName: '@web-ide/karel',
-    expectedVersion: '0.3.0',
+    expectedVersion: '0.3.1',
     expectedWebIDEPeer: '>=0.3.0 <0.4.0',
     reference: 'file:artifacts/web-ide-karel.tgz',
     destination: 'artifacts/web-ide-karel.tgz',

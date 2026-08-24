@@ -175,7 +175,7 @@ async function validationInputFixture() {
     const receipt = {
       schemaVersion: 2,
       receiptKind: 'karel-release-validation-gate-capture',
-      package: '@web-ide/karel@0.3.0',
+      package: '@web-ide/karel@0.3.1',
       sourceCommit,
       candidateSha256,
       webIDECandidateSha256,
@@ -218,7 +218,7 @@ async function validationInputFixture() {
     directory,
     input: {
       schemaVersion: 1,
-      package: '@web-ide/karel@0.3.0',
+      package: '@web-ide/karel@0.3.1',
       sourceCommit,
       candidateSha256,
       webIDECandidateSha256,
@@ -240,8 +240,8 @@ function tarball(entries) {
 function releaseConfiguration() {
   return {
     sourceRepository: 'https://github.com/justinvassantachart/web-ide-karel.git',
-    sourceTag: 'web-ide-karel-v0.3.0-source',
-    capabilityReleaseId: 'hamilton.python-karel/2',
+    sourceTag: 'web-ide-karel-v0.3.1-source',
+    capabilityReleaseId: 'hamilton.python-karel/3',
     webIDE: {
       package: 'web-ide@0.3.0',
       peerRange: '>=0.3.0 <0.4.0',
@@ -1058,7 +1058,7 @@ describe('exact Web IDE evidence', () => {
     const directory = await mkdtemp(path.join(tmpdir(), 'karel-pair-receipt-test-'))
     temporaryDirectories.push(directory)
     const karelBytes = karelTarball()
-    const karelTarballPath = path.join(directory, 'web-ide-karel-0.3.0.tgz')
+    const karelTarballPath = path.join(directory, 'web-ide-karel-0.3.1.tgz')
     await writeFile(karelTarballPath, karelBytes)
     const source = {
       branch: 'main',
@@ -1069,9 +1069,9 @@ describe('exact Web IDE evidence', () => {
       npmVersion: '11.6.2',
       sourceEpoch: 1,
       finalEligible: true,
-      sourceReference: 'web-ide-karel-v0.3.0-source',
+      sourceReference: 'web-ide-karel-v0.3.1-source',
       tag: {
-        name: 'web-ide-karel-v0.3.0-source',
+        name: 'web-ide-karel-v0.3.1-source',
         objectId: '0'.repeat(40),
         objectType: 'tag',
         peeledCommit: 'e'.repeat(40),
@@ -1080,11 +1080,11 @@ describe('exact Web IDE evidence', () => {
     }
     const state = {
       schemaVersion: 1,
-      package: '@web-ide/karel@0.3.0',
+      package: '@web-ide/karel@0.3.1',
       result: 'candidate-generated',
       mode: 'final',
       source,
-      capabilityReleaseId: 'hamilton.python-karel/2',
+      capabilityReleaseId: 'hamilton.python-karel/3',
       packageRole: 'karel',
       sourceFiles: {
         packageManifest: {},
@@ -1096,10 +1096,10 @@ describe('exact Web IDE evidence', () => {
       consumerLockBindings: { webIDE: 'exact', karel: 'exact' },
       artifacts: CANDIDATE_ARTIFACT_FILES.map((fileName) => ({
         fileName,
-        size: fileName === 'web-ide-karel-0.3.0.tgz'
+        size: fileName === 'web-ide-karel-0.3.1.tgz'
           ? karelBytes.length
           : 1,
-        sha256: fileName === 'web-ide-karel-0.3.0.tgz'
+        sha256: fileName === 'web-ide-karel-0.3.1.tgz'
           ? sha256Bytes(karelBytes)
           : 'a'.repeat(64),
       })),
@@ -1203,7 +1203,7 @@ describe('exact Web IDE evidence', () => {
       candidateFixture.candidateStatePath,
       'utf8',
     ))
-    candidateState.source.tag.name = 'web-ide-karel-v0.3.0-source'
+    candidateState.source.tag.name = 'web-ide-karel-v0.3.1-source'
     await writeFile(
       candidateFixture.candidateStatePath,
       canonicalJSONString(candidateState),
@@ -1218,7 +1218,7 @@ describe('exact Web IDE evidence', () => {
 
     const finalFixture = await webEvidenceFixture({ finalManifest: true })
     const manifest = JSON.parse(await readFile(finalFixture.manifestPath, 'utf8'))
-    manifest.source.tag.name = 'web-ide-karel-v0.3.0-source'
+    manifest.source.tag.name = 'web-ide-karel-v0.3.1-source'
     const manifestInput = structuredClone(manifest)
     delete manifestInput.manifestId
     manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
@@ -1408,7 +1408,7 @@ describe('license inventory and CycloneDX', () => {
     }]
     const inspection = {
       tarball: {
-        filename: 'web-ide-karel-0.3.0.tgz',
+        filename: 'web-ide-karel-0.3.1.tgz',
         size: 123,
         sha256: 'd'.repeat(64),
         sha512Integrity: `sha512-${Buffer.alloc(64, 2).toString('base64')}`,
@@ -1463,8 +1463,8 @@ describe('candidate evidence schemas', () => {
   it('requires exact lock bindings, artifact inventory, and deterministic source archive', () => {
     const source = { commit: 'a'.repeat(40) }
     const configuration = {
-      package: '@web-ide/karel@0.3.0',
-      capabilityReleaseId: 'hamilton.python-karel/2',
+      package: '@web-ide/karel@0.3.1',
+      capabilityReleaseId: 'hamilton.python-karel/3',
       packageRole: 'karel',
     }
     const state = {
@@ -1502,7 +1502,7 @@ describe('candidate evidence schemas', () => {
     const sourceArchive = { size: 10, sha256: 'c'.repeat(64) }
     const determinism = {
       schemaVersion: 1,
-      package: '@web-ide/karel@0.3.0',
+      package: '@web-ide/karel@0.3.1',
       result: 'pass',
       isolatedBuildCount: 2,
       exactWebIDEArtifactMaterializedForBothBuilds: true,
@@ -1513,7 +1513,7 @@ describe('candidate evidence schemas', () => {
       exactTagSourceArchivesByteIdentical: true,
       exactPushedCommitSourceArchivesByteIdentical: true,
       sourceArchive: {
-        filename: 'web-ide-karel-0.3.0-source.tar.gz',
+        filename: 'web-ide-karel-0.3.1-source.tar.gz',
         ...sourceArchive,
       },
     }
@@ -1549,7 +1549,7 @@ describe('artifact and validation manifests', () => {
     }))
     const reportNames = {
       'candidate-state': 'candidate-state.json',
-      'cyclonedx-sbom': 'web-ide-karel-0.3.0.cdx.json',
+      'cyclonedx-sbom': 'web-ide-karel-0.3.1.cdx.json',
       'deterministic-builds': 'deterministic-builds.json',
       'license-inventory': 'license-inventory.json',
       'package-inspection': 'package-inspection.json',
@@ -1572,11 +1572,11 @@ describe('artifact and validation manifests', () => {
     const manifestInput = {
       schemaVersion: 2,
       manifestKind: 'hamilton-capability-package-artifact',
-      capabilityReleaseIds: ['hamilton.python-karel/2'],
+      capabilityReleaseIds: ['hamilton.python-karel/3'],
       packageRole: 'karel',
       package: {
         name: '@web-ide/karel',
-        version: '0.3.0',
+        version: '0.3.1',
         private: true,
         license: 'MIT',
         exports: {
@@ -1604,14 +1604,14 @@ describe('artifact and validation manifests', () => {
         commit: 'e'.repeat(40),
         tree: 'f'.repeat(40),
         tag: {
-          name: 'web-ide-karel-v0.3.0-source',
+          name: 'web-ide-karel-v0.3.1-source',
           objectId: '0'.repeat(40),
           objectType: 'tag',
           peeledCommit: 'e'.repeat(40),
         },
         archive: {
           kind: 'source-archive',
-          fileName: 'web-ide-karel-0.3.0-source.tar.gz',
+          fileName: 'web-ide-karel-0.3.1-source.tar.gz',
           size: 1,
           sha256: 'd'.repeat(64),
         },
@@ -1630,7 +1630,7 @@ describe('artifact and validation manifests', () => {
       },
       artifact: {
         kind: 'package-tarball',
-        fileName: 'web-ide-karel-0.3.0.tgz',
+        fileName: 'web-ide-karel-0.3.1.tgz',
         size: 1,
         sha256: tarSha,
         sha512Integrity: sri,
@@ -1689,13 +1689,13 @@ describe('artifact and validation manifests', () => {
         mechanism: 'private-github-release-assets',
         npmPublished: false,
         repository: 'justinvassantachart/ths-ide',
-        intendedTag: 'web-ide-karel-v0.3.0',
+        intendedTag: 'web-ide-karel-v0.3.1',
         intendedAssets: [
           'artifact-manifest.json',
           'artifact-manifest.json.sha256',
           ...Object.values(reportNames),
-          'web-ide-karel-0.3.0-source.tar.gz',
-          'web-ide-karel-0.3.0.tgz',
+          'web-ide-karel-0.3.1-source.tar.gz',
+          'web-ide-karel-0.3.1.tgz',
         ].sort(),
       },
       reports,
@@ -1716,7 +1716,7 @@ describe('artifact and validation manifests', () => {
     extraCapability.capabilityReleaseIds.push('hamilton.python/1')
     expect(() => validateArtifactManifest(extraCapability))
       .toThrow(/composition identity/u)
-    manifest.manifestId = `hamilton.python-karel/2:karel:sha256:${tarSha}`
+    manifest.manifestId = `hamilton.python-karel/3:karel:sha256:${tarSha}`
     expect(() => validateArtifactManifest(manifest)).toThrow(/canonical content/u)
     manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
       canonicalJSONString(manifestInput),
@@ -1972,7 +1972,7 @@ describe('release source state', () => {
       'user.email=release-fixture@example.invalid',
       'tag',
       '-a',
-      'web-ide-karel-v0.3.0-source',
+      'web-ide-karel-v0.3.1-source',
       '-m',
       'fixture release',
     ], { cwd: checkout })
@@ -1980,12 +1980,12 @@ describe('release source state', () => {
       'push',
       'origin',
       'main',
-      'refs/tags/web-ide-karel-v0.3.0-source',
+      'refs/tags/web-ide-karel-v0.3.1-source',
     ], { cwd: checkout })
     const npmVersion = (await run('npm', ['--version'])).stdout.trim()
     const configuration = {
       sourceRepository: bare,
-      sourceTag: 'web-ide-karel-v0.3.0-source',
+      sourceTag: 'web-ide-karel-v0.3.1-source',
       nodeVersion: process.versions.node,
       npmVersion,
     }
@@ -1993,7 +1993,7 @@ describe('release source state', () => {
     expect(source).toMatchObject({
       branch: 'main',
       tag: {
-        name: 'web-ide-karel-v0.3.0-source',
+        name: 'web-ide-karel-v0.3.1-source',
         objectType: 'tag',
       },
       finalEligible: true,
@@ -2022,7 +2022,7 @@ describe('release source state', () => {
           'tag',
           '--force',
           '--annotate',
-          'web-ide-karel-v0.3.0-source',
+          'web-ide-karel-v0.3.1-source',
           '--message=late tag rewrite',
           'HEAD',
         ], { cwd: checkout })
@@ -2037,7 +2037,7 @@ describe('release source state', () => {
     await expect(lstat(lateMutationTarget)).rejects.toMatchObject({ code: 'ENOENT' })
     await git([
       'update-ref',
-      'refs/tags/web-ide-karel-v0.3.0-source',
+      'refs/tags/web-ide-karel-v0.3.1-source',
       source.tag.objectId,
     ], { cwd: checkout })
 
@@ -2131,10 +2131,10 @@ describe('release source state', () => {
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/dirty/u)
     await rm(path.join(checkout, 'dirty.txt'))
-    await git(['tag', '--delete', 'web-ide-karel-v0.3.0-source'], { cwd: checkout })
-    await git(['push', '--delete', 'origin', 'web-ide-karel-v0.3.0-source'], { cwd: checkout })
-    await git(['tag', 'web-ide-karel-v0.3.0-source'], { cwd: checkout })
-    await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.3.0-source'], { cwd: checkout })
+    await git(['tag', '--delete', 'web-ide-karel-v0.3.1-source'], { cwd: checkout })
+    await git(['push', '--delete', 'origin', 'web-ide-karel-v0.3.1-source'], { cwd: checkout })
+    await git(['tag', 'web-ide-karel-v0.3.1-source'], { cwd: checkout })
+    await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.3.1-source'], { cwd: checkout })
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/annotated/u)
   })

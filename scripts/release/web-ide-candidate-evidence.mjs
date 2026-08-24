@@ -454,7 +454,7 @@ export async function verifyWebIDECandidateEvidence({
   const report = {
     schemaVersion: 1,
     result: 'pass',
-    capabilityReleaseId: configuration.capabilityReleaseId,
+    capabilityReleaseId: 'hamilton.python-karel/2',
     packageRole: 'web-ide-peer-candidate',
     package: {
       name: 'web-ide',

@@ -28,7 +28,7 @@ async function verifyKarelCompatibilityCandidate({
   )
   if (
     path.basename(candidateStatePath) !== 'candidate-state.json'
-    || path.basename(tarballPath) !== 'web-ide-karel-0.3.0.tgz'
+    || path.basename(tarballPath) !== 'web-ide-karel-0.3.1.tgz'
   ) throw new TypeError('Karel compatibility inputs have unexpected filenames')
   const stateBytes = await readBoundedFile(
     candidateStatePath,
@@ -66,8 +66,8 @@ async function verifyKarelCompatibilityCandidate({
     || !Number.isSafeInteger(state.source.sourceEpoch)
     || state.source.sourceEpoch <= 0
     || state.source.finalEligible !== true
-    || state.source.sourceReference !== 'web-ide-karel-v0.3.0-source'
-    || state.source.tag.name !== 'web-ide-karel-v0.3.0-source'
+    || state.source.sourceReference !== 'web-ide-karel-v0.3.1-source'
+    || state.source.tag.name !== 'web-ide-karel-v0.3.1-source'
     || state.source.tag.objectType !== 'tag'
     || !/^[a-f0-9]{40}$/u.test(state.source.tag.objectId)
     || state.source.tag.peeledCommit !== state.source.commit
@@ -75,8 +75,8 @@ async function verifyKarelCompatibilityCandidate({
   ) throw new TypeError('Karel compatibility candidate source is not final exact evidence')
   validateCandidateState(state, {
     configuration: {
-      package: '@web-ide/karel@0.3.0',
-      capabilityReleaseId: 'hamilton.python-karel/2',
+      package: '@web-ide/karel@0.3.1',
+      capabilityReleaseId: 'hamilton.python-karel/3',
       packageRole: 'karel',
     },
     source: state.source,
@@ -88,7 +88,7 @@ async function verifyKarelCompatibilityCandidate({
   )
   const candidateSha256 = sha256Bytes(tarballBytes)
   const artifact = state.artifacts.find(
-    (item) => item.fileName === 'web-ide-karel-0.3.0.tgz',
+    (item) => item.fileName === 'web-ide-karel-0.3.1.tgz',
   )
   if (
     artifact?.size !== tarballBytes.length

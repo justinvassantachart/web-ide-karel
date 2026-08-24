@@ -28,12 +28,12 @@ const EXPECTED_PEERS = {
 }
 
 const EXPECTED_CAPABILITY_RELEASE_IDS = Object.freeze([
-  'hamilton.python-karel/2',
+  'hamilton.python-karel/3',
 ])
 
 const EXPECTED_REPORTS = new Map([
   ['candidate-state', 'candidate-state.json'],
-  ['cyclonedx-sbom', 'web-ide-karel-0.3.0.cdx.json'],
+  ['cyclonedx-sbom', 'web-ide-karel-0.3.1.cdx.json'],
   ['deterministic-builds', 'deterministic-builds.json'],
   ['license-inventory', 'license-inventory.json'],
   ['package-inspection', 'package-inspection.json'],
@@ -140,7 +140,7 @@ export function validateArtifactManifest(manifest) {
   ], [], 'Karel artifact manifest package')
   if (
     manifest.package.name !== '@web-ide/karel'
-    || manifest.package.version !== '0.3.0'
+    || manifest.package.version !== '0.3.1'
     || manifest.package.private !== true
     || manifest.package.license !== 'MIT'
     || canonicalJSONString(manifest.package.exports)
@@ -220,14 +220,14 @@ export function validateArtifactManifest(manifest) {
     'Karel artifact manifest source tag object',
   )
   if (
-    manifest.source.tag.name !== 'web-ide-karel-v0.3.0-source'
+    manifest.source.tag.name !== 'web-ide-karel-v0.3.1-source'
     || manifest.source.tag.objectType !== 'tag'
     || manifest.source.tag.peeledCommit !== manifest.source.commit
   ) throw new TypeError('Karel artifact manifest annotated source tag is wrong')
   assertFileEvidence(
     manifest.source.archive,
     'source-archive',
-    'web-ide-karel-0.3.0-source.tar.gz',
+    'web-ide-karel-0.3.1-source.tar.gz',
     'Karel artifact manifest source archive',
   )
   assertExactKeys(manifest.build, [
@@ -270,7 +270,7 @@ export function validateArtifactManifest(manifest) {
   ], [], 'Karel artifact manifest artifact')
   if (
     manifest.artifact.kind !== 'package-tarball'
-    || manifest.artifact.fileName !== 'web-ide-karel-0.3.0.tgz'
+    || manifest.artifact.fileName !== 'web-ide-karel-0.3.1.tgz'
   ) throw new TypeError('Karel artifact manifest tarball identity is wrong')
   assertPositiveInteger(manifest.artifact.size, 'Karel artifact manifest tarball size')
   assertSha256(manifest.artifact.sha256, 'Karel artifact manifest tar SHA-256')
@@ -305,8 +305,8 @@ export function validateArtifactManifest(manifest) {
     'intendedAssets',
   ], [], 'Karel artifact manifest distribution')
   const expectedAssets = sortStrings([
-    'web-ide-karel-0.3.0.tgz',
-    'web-ide-karel-0.3.0-source.tar.gz',
+    'web-ide-karel-0.3.1.tgz',
+    'web-ide-karel-0.3.1-source.tar.gz',
     'artifact-manifest.json',
     'artifact-manifest.json.sha256',
     ...[...EXPECTED_REPORTS.values()],
@@ -315,7 +315,7 @@ export function validateArtifactManifest(manifest) {
     manifest.distribution.mechanism !== 'private-github-release-assets'
     || manifest.distribution.npmPublished !== false
     || manifest.distribution.repository !== 'justinvassantachart/ths-ide'
-    || manifest.distribution.intendedTag !== 'web-ide-karel-v0.3.0'
+    || manifest.distribution.intendedTag !== 'web-ide-karel-v0.3.1'
     || JSON.stringify(manifest.distribution.intendedAssets)
       !== JSON.stringify(expectedAssets)
   ) throw new TypeError('Karel artifact manifest distribution identity is wrong')
@@ -365,7 +365,7 @@ export async function createArtifactManifest({
 }) {
   const evidenceNames = {
     'candidate-state': 'candidate-state.json',
-    'cyclonedx-sbom': 'web-ide-karel-0.3.0.cdx.json',
+    'cyclonedx-sbom': 'web-ide-karel-0.3.1.cdx.json',
     'deterministic-builds': 'deterministic-builds.json',
     'license-inventory': 'license-inventory.json',
     'package-inspection': 'package-inspection.json',
@@ -423,7 +423,7 @@ export async function createArtifactManifest({
     'license-inventory.json',
     'package-inspection.json',
     'validation-summary.json',
-    'web-ide-karel-0.3.0.cdx.json',
+    'web-ide-karel-0.3.1.cdx.json',
     'web-ide-candidate-verification.json',
     'web-ide-final-verification.json',
     ...[...EXPECTED_VALIDATION_GATES.keys()].flatMap((gateId) => [

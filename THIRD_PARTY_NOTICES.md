@@ -29,8 +29,8 @@ Web IDE is a separate MIT-licensed peer package. React and React DOM are
 separate peer dependencies under their own licenses. Development and consumer
 dependencies retain their own licenses and notices and are not package files.
 
-The deterministic release-evidence workflow generated a per-file machine
-license inventory, deduplicated `THIRD_PARTY_LICENSES.txt`, and CycloneDX 1.6
-SBOM for the immutable `0.2.0` r6 artifact. The `0.3.0` presentation successor
-changes packaged bytes and therefore requires its own complete evidence; it
-does not alter or reuse that historical artifact identity.
+The deterministic release-evidence workflow generated per-file machine license
+inventories, deduplicated `THIRD_PARTY_LICENSES.txt` files, and CycloneDX 1.6
+SBOMs for the immutable `0.2.0` r6 and `0.3.0` artifacts. The compact `0.3.1`
+presentation successor changes packaged bytes and therefore requires its own
+complete evidence; it does not alter or reuse either historical identity.

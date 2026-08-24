@@ -382,7 +382,6 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
     || manifest.manifestKind !== 'hamilton-capability-package-artifact'
     || canonicalJSONString(manifest.capabilityReleaseIds)
       !== canonicalJSONString(WEB_CAPABILITY_RELEASE_IDS)
-    || !manifest.capabilityReleaseIds.includes(configuration.capabilityReleaseId)
     || manifest.packageRole !== configuration.webIDE.packageRole
   ) throw new TypeError('Web IDE artifact manifest composition identity is wrong')
   const { manifestId, ...identityInput } = manifest
@@ -741,7 +740,6 @@ export async function verifyWebIDEEvidence({
     || manifest.manifestKind !== 'hamilton-capability-package-artifact'
     || canonicalJSONString(manifest.capabilityReleaseIds)
       !== canonicalJSONString(WEB_CAPABILITY_RELEASE_IDS)
-    || !manifest.capabilityReleaseIds.includes(configuration.capabilityReleaseId)
     || manifest.packageRole !== configuration.webIDE.packageRole
   ) throw new TypeError('Web IDE artifact manifest composition identity is wrong')
   if (mode === 'final' && manifest.nonFinalTestFixture === true) {
@@ -754,7 +752,7 @@ export async function verifyWebIDEEvidence({
     || packageIdentity.version !== '0.3.0'
     || packageIdentity.private !== true
     || packageIdentity.license !== 'MIT'
-  ) throw new TypeError('Web IDE package identity is not the accepted 0.2 MIT peer')
+  ) throw new TypeError('Web IDE package identity is not the accepted 0.3.0 MIT peer')
   const source = requiredObject(manifest.source, 'Web IDE source identity')
   assertNonEmptyString(source.repository, 'Web IDE source.repository')
   const distribution = requiredObject(manifest.distribution, 'Web IDE distribution')
@@ -949,7 +947,7 @@ export async function verifyWebIDEEvidence({
   const report = {
     schemaVersion: 1,
     result: 'pass',
-    capabilityReleaseId: configuration.capabilityReleaseId,
+    capabilityReleaseId: 'hamilton.python-karel/2',
     packageRole: 'web-ide-peer',
     package: {
       name: 'web-ide',

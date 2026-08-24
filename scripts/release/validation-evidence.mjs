@@ -47,7 +47,7 @@ function validateIdentity(
 ) {
   if (
     value.schemaVersion !== schemaVersion
-    || value.package !== '@web-ide/karel@0.3.0'
+    || value.package !== '@web-ide/karel@0.3.1'
   ) {
     throw new TypeError(`Unsupported Karel ${location} identity`)
   }
@@ -428,7 +428,7 @@ export async function materializeValidationEvidence({
   }
   const summary = {
     schemaVersion: 1,
-    package: '@web-ide/karel@0.3.0',
+    package: '@web-ide/karel@0.3.1',
     sourceCommit,
     candidateSha256,
     webIDECandidateSha256,

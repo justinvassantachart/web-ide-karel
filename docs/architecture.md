@@ -200,7 +200,7 @@ authorization, or trusted-execution boundary.
 
 ## Package and distribution boundary
 
-The source package is MIT-licensed `@web-ide/karel@0.3.0`, remains
+The source package is MIT-licensed `@web-ide/karel@0.3.1`, remains
 `private: true`, and declares Web IDE `>=0.3.0 <0.4.0` as a peer. React, React
 DOM, and Web IDE are external to the library bundle. The sibling
 `file:../web-ide` development dependency exists only to build and test paired
@@ -215,8 +215,10 @@ absolute paths, while default source validation packs temporary artifacts from
 the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
-The Web peer source is bound to the annotated `web-ide-v0.3.0-source` tag; its
-separate immutable Hamilton asset release uses `web-ide-v0.3.0`.
+The Web peer source remains bound to the annotated `web-ide-v0.3.0-source` tag;
+its immutable Hamilton asset release remains `web-ide-v0.3.0`. Those source and
+artifact identities are verified and referenced, never moved or rebound for
+this Karel-only successor.
 
 Release evidence is external output produced by `scripts/release/`; it is not a
 runtime dependency and is never written inside the repository. Candidate and
@@ -232,12 +234,12 @@ capture-runner validation logs with deterministic local-path placeholders and
 actual-exit/source/candidate-pair-bound receipts, intended private Hamilton
 release assets, and an unchanged live
 source identity immediately before atomic final publication. The accepted
-composition identity `hamilton.python-karel/2` appears only in release
+composition identity `hamilton.python-karel/3` appears only in release
 metadata; it does not enter Karel's public runtime or world contracts. The
 schema-2 Karel artifact manifest binds the exact sorted singleton
-`capabilityReleaseIds` list `['hamilton.python-karel/2']`; Web IDE's separately
-owned schema-2 manifest binds both fixed Hamilton releases supported by its
-identical bytes.
+`capabilityReleaseIds` list `['hamilton.python-karel/3']`; Web IDE's separately
+owned immutable schema-2 manifest retains its historical
+`hamilton.python-karel/2` and `hamilton.python/1` bindings.
 The final artifact manifest uses the slash-free
 `urn:sha256:<canonical-manifest-input>` content identity also used by Web IDE.
 That digest covers every manifest field except `manifestId` itself, binding the

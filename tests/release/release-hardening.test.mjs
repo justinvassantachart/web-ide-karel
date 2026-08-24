@@ -178,7 +178,7 @@ describe('captured validation gate evidence', () => {
 
   it('normalizes known local roots after complete capture and rejects residual paths', () => {
     const repository = '/Users/synthetic/Projects/web-ide-karel'
-    const candidate = '/Users/synthetic/Artifacts/web-ide-karel-0.3.0.tgz'
+    const candidate = '/Users/synthetic/Artifacts/web-ide-karel-0.3.1.tgz'
     const footer = '@@WEB_IDE_RELEASE_GATE_RECEIPT@@{"synthetic":true}'
     const captured = Buffer.concat([
       Buffer.from(`repository=${repository.slice(0, 18)}`),

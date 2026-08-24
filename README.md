@@ -5,13 +5,13 @@ owns Karel's world contract, Python teaching library, protocol, playback,
 renderer, and panel. It does not provide a Python interpreter, persist host
 data, or add Karel behavior to Web IDE core.
 
-The MIT-licensed `0.2.0` r6 artifact remains an immutable historical private
-release. This source is the forward-only `0.3.0` successor for Hamilton's exact
-`hamilton.python-karel/2` composition and remains `private: true`; it is not
-published to npm and no 0.3 artifact is claimed published yet. It consumes the
-exact Web IDE 0.3 release line through peer range `>=0.3.0 <0.4.0`. Release
-consumers install one exact reviewed Web IDE/Karel artifact pair rather than
-selecting arbitrary versions from that range.
+The MIT-licensed `0.2.0` r6 and `0.3.0` artifacts remain immutable historical
+private releases. This source is the forward-only compact `0.3.1` successor for
+Hamilton's exact `hamilton.python-karel/3` composition and remains
+`private: true`; it is not published to npm and no `0.3.1` artifact is claimed
+published yet. It consumes the immutable Web IDE `0.3.0` artifact through peer
+range `>=0.3.0 <0.4.0`. Release consumers install one exact reviewed Web IDE/Karel
+artifact pair rather than selecting arbitrary versions from that range.
 
 The package composes only through public Web IDE contributions and panel
 services. A host selects a generic runtime that advertises Python and, for line
@@ -353,7 +353,7 @@ lock before npm is invoked:
 
 ```sh
 WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.3.0.tgz \
-KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.0.tgz \
+KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.1.tgz \
   npm run test:packed-production
 ```
 
@@ -369,16 +369,16 @@ candidate, execution, workspace, and home roots with stable placeholders and
 fails if a personal or temporary absolute path remains.
 
 The source license and package version do not themselves complete a release.
-See [publishing readiness](docs/publishing-readiness.md) for the immutable r6
-record and the remaining 0.3 candidate/finalization boundary.
+See [publishing readiness](docs/publishing-readiness.md) for the immutable
+historical records and the remaining `0.3.1` candidate/finalization boundary.
 
 ### Deterministic release evidence
 
-The checked-in release tooling targets the forward-only `0.3.0` successor.
+The checked-in release tooling targets the forward-only `0.3.1` successor.
 `npm run release:candidate` in its default `final` mode requires a clean,
-pushed `main`, the pushed annotated `web-ide-karel-v0.3.0-source` tag at
+pushed `main`, the pushed annotated `web-ide-karel-v0.3.1-source` tag at
 `HEAD`, the exact Node/npm toolchain, an absent external output path, and the
-exact Web IDE 0.3 candidate state and tarball.
+exact finalized Web IDE `0.3.0` candidate state and tarball.
 It verifies the canonical Web candidate state, runtime-assets report, tar
 SHA-256, consumer-lock SHA-512 integrity, and package identity before running
 two isolated clean Karel installs/builds/packs with fresh npm caches. It then
@@ -404,9 +404,10 @@ Karel references Web IDE's runtime evidence by digest and never claims or
 duplicates Web-owned runtime assets.
 
 The final Karel artifact manifest is schema 2 and binds exactly
-`capabilityReleaseIds: ["hamilton.python-karel/2"]`. The Web 0.3 manifest is
-also schema 2 and must bind the sorted shared-byte list
-`["hamilton.python-karel/2", "hamilton.python/1"]` before Karel finalization.
+`capabilityReleaseIds: ["hamilton.python-karel/3"]`. The immutable Web `0.3.0`
+manifest remains schema 2 with its historical sorted shared-byte list
+`["hamilton.python-karel/2", "hamilton.python/1"]`; Karel finalization verifies
+and references that exact existing peer evidence without rebinding it.
 
 The scripts require absolute external input/output paths; see
 [docs/testing.md](docs/testing.md) for exact variables and the explicitly

@@ -1,16 +1,18 @@
 # Publishing readiness
 
-`@web-ide/karel@0.2.0` r6 is an MIT-licensed immutable private release. Its
-license/SBOM, reproducibility, production validation, publication, independent
-download, and downstream retention evidence completed P2.5. It remains
-`private: true` and is not published to npm.
+`@web-ide/karel@0.2.0` r6 and `0.3.0` are MIT-licensed immutable private
+releases. Their exact release evidence, source tags, Hamilton release tags, and
+capability bindings remain unchanged. Both packages remain `private: true` and
+are not published to npm; the `0.3.0` artifact stays bound only to
+`hamilton.python-karel/2`.
 
-The presentation redesign changes packaged bytes and remains unpublished. The
-forward-only release mechanics now name package `0.3.0`, annotated source tag
-`web-ide-karel-v0.3.0-source`, Hamilton release tag
-`web-ide-karel-v0.3.0`, and exact capability release
-`hamilton.python-karel/2`. They do not reuse or move the `0.2.0` artifact, r6
-source tag, or immutable `hamilton.python-karel/1` binding.
+The compact presentation changes packaged bytes and remains unpublished. The
+forward-only release mechanics now name package `0.3.1`, annotated source tag
+`web-ide-karel-v0.3.1-source`, Hamilton release tag
+`web-ide-karel-v0.3.1`, and exact capability release
+`hamilton.python-karel/3`. They do not reuse or move the `0.2.0` r6 or `0.3.0`
+source/artifact tags, nor the immutable `hamilton.python-karel/1` and
+`hamilton.python-karel/2` bindings.
 
 The packed-production consumer commits one npm v3 lock for the stable local
 references `artifacts/web-ide.tgz` and `artifacts/web-ide-karel.tgz`. Validation
@@ -22,12 +24,12 @@ without rebuilding it:
 
 ```sh
 WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.3.0.tgz \
-KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.0.tgz \
+KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.1.tgz \
   npm run test:packed-production
 ```
 
-The 0.3 artifact must independently produce all of the following evidence for
-its exact digest:
+The `0.3.1` artifact must independently produce all of the following evidence
+for its exact digest:
 
 - a reviewed per-file license/provenance inventory and production SBOM;
 - two clean, reproducible package builds with identical artifact bytes;
@@ -47,17 +49,18 @@ The completed forward-only evidence run used
 `web-ide-karel-v0.2.0-source-r6`; that tag and every earlier checkpoint remain
 immutable.
 
-The historical `hamilton.python-karel/1` identifier remains recorded only in
-the immutable r6 evidence, not in package runtime contracts. The 0.3 Karel
-artifact manifest uses schema 2 and the exact sorted singleton
-`capabilityReleaseIds` list `["hamilton.python-karel/2"]`. Published URLs,
+The historical `hamilton.python-karel/1` and `hamilton.python-karel/2`
+identifiers remain recorded only in their immutable evidence, not in package
+runtime contracts. The `0.3.1` Karel artifact manifest uses schema 2 and the
+exact sorted singleton
+`capabilityReleaseIds` list `["hamilton.python-karel/3"]`. Published URLs,
 credentials, and host cache state remain distribution-owned records and are
 not embedded in the package.
 
 ## Deterministic evidence and dependency order
 
 The checked-in `release/` inputs and `scripts/release/` tooling define the
-forward-only `0.3.0` fail-closed workflow. Candidate generation binds
+forward-only `0.3.1` fail-closed workflow. Candidate generation binds
 the canonical Web IDE candidate state, exact Web tarball, Web-owned runtime
 verification report, committed consumer lock, exact pushed/tagged Karel source,
 two isolated byte-identical Karel packs, independent safe tar inventory,
@@ -90,11 +93,10 @@ runtime-reference, and intended-distribution record is content-bound without
 placing the slash-bearing capability release ID in Hamilton's artifact-ID
 namespace.
 
-The committed packed-consumer lock binds the locally frozen 0.3 Karel package
-bytes. Its Web IDE SHA-512 is an unmistakable provisional value because the
-final Web candidate does not yet exist. This intentionally blocks an exact-pair
-gate until that Web entry is replaced and the unchanged normalized transitive-
-graph digest is rechecked.
+The committed packed-consumer lock binds the locally frozen `0.3.1` Karel
+package bytes and the already finalized Web IDE `0.3.0` bytes. Both entries use
+their exact SHA-512 values; the unchanged Web artifact and manifest are
+verified as peer evidence without being moved or rebound.
 
 ## Lock regeneration boundary
 
@@ -106,5 +108,5 @@ commit, digest, or integrity printed in prose is release evidence. The actual
 source identities, candidate digests, lock bindings, and receipts belong only
 in the external canonical evidence directory and the downstream release
 ledger. Test-mode generation is disposable and cannot close this boundary.
-Rebinding the consumer lock to exact 0.3 candidate bytes proves compatibility
-only; it is not publication evidence.
+Rebinding the consumer lock to exact `0.3.1` candidate bytes proves
+compatibility only; it is not publication evidence.
