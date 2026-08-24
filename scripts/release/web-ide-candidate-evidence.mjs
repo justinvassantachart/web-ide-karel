@@ -88,7 +88,7 @@ function validateSource(source, sourceTag) {
 export function validateWebIDECandidateState(
   state,
   mode,
-  sourceTag = 'web-ide-v0.2.0-source-r3',
+  sourceTag = 'web-ide-v0.2.0-source-r4',
 ) {
   assertExactKeys(state, [
     'schemaVersion',
@@ -297,7 +297,7 @@ export function validateWebIDECandidateReport(report, configuration) {
   )
   if (
     report.candidateState.source.tag
-      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source-r3')
+      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source-r4')
   ) {
     throw new TypeError('Web IDE candidate verification tag is wrong')
   }

@@ -30,11 +30,12 @@ following recorded evidence:
   downstream receipt; and
 - downstream cache seeding and retention under the consuming host's policy.
 
-The earlier annotated `v0.2.0` and `web-ide-karel-v0.2.0-source-r2` source tags
-are retained unchanged as abandoned prepublication checkpoints: no Hamilton
-release or uploaded asset was created from either. The r2 Karel candidate was
-superseded when Web's real receipt capture failed closed before publication.
-The forward-only evidence run uses `web-ide-karel-v0.2.0-source-r3`; none of
+The earlier annotated `v0.2.0`, `web-ide-karel-v0.2.0-source-r2`, and
+`web-ide-karel-v0.2.0-source-r3` source tags are retained unchanged as abandoned
+prepublication checkpoints: no Hamilton release or uploaded asset was created
+from them. The r2 and r3 Karel candidates were superseded when their paired
+Web receipt captures failed closed before publication.
+The forward-only evidence run uses `web-ide-karel-v0.2.0-source-r4`; none of
 these tags may be moved or rewritten.
 
 The package remains `private: true` and is not published to npm. The accepted
@@ -56,7 +57,7 @@ outputs are external and it performs no tag, release, or upload mutation.
 The sequence is intentionally:
 
 1. generate Web IDE's final candidate state, tarball, and runtime report from
-   its exact annotated `web-ide-v0.2.0-source-r3` tag;
+   its exact annotated `web-ide-v0.2.0-source-r4` tag;
 2. commit the exact Web candidate into Karel's packed-consumer lock and generate
    the exact Karel candidate;
 3. run the unfiltered exact-pair compatibility gate through the isolated capture

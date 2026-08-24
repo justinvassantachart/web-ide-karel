@@ -360,7 +360,7 @@ artifact and immutable-release evidence.
 
 `npm run release:candidate` is the Karel candidate builder. In its
 default `final` mode it requires a clean, pushed `main`, the pushed annotated
-`web-ide-karel-v0.2.0-source-r3` tag at `HEAD`, the exact Node/npm toolchain, an
+`web-ide-karel-v0.2.0-source-r4` tag at `HEAD`, the exact Node/npm toolchain, an
 absent external output path, and the exact Web IDE candidate state and tarball.
 It verifies the canonical Web candidate state, runtime-assets report, tar
 SHA-256, consumer-lock SHA-512 integrity, and package identity before running

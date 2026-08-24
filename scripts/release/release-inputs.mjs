@@ -38,7 +38,7 @@ export async function loadReleaseConfiguration() {
   if (
     input.capabilityReleaseId !== 'hamilton.python-karel/1'
     || input.packageRole !== 'karel'
-    || input.sourceTag !== 'web-ide-karel-v0.2.0-source-r3'
+    || input.sourceTag !== 'web-ide-karel-v0.2.0-source-r4'
   ) {
     throw new TypeError('Release input does not match the accepted Hamilton Karel identity')
   }
@@ -66,7 +66,7 @@ export async function loadReleaseConfiguration() {
     input.webIDE.package !== 'web-ide@0.2.0'
     || input.webIDE.peerRange !== '>=0.2.0 <0.3.0'
     || input.webIDE.packageRole !== 'web-ide'
-    || input.webIDE.sourceTag !== 'web-ide-v0.2.0-source-r3'
+    || input.webIDE.sourceTag !== 'web-ide-v0.2.0-source-r4'
     || input.webIDE.releaseAssetFilename !== 'web-ide-0.2.0.tgz'
     || input.webIDE.artifactManifestFilename !== 'artifact-manifest.json'
     || input.webIDE.runtimeEvidenceFilename !== 'runtime-assets-verification.json'
