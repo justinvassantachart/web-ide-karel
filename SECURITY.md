@@ -127,6 +127,20 @@ Python contract suite begins. Record exact source, lockfile, artifact, runtime,
 browser, screenshot, and evidence hashes. Do not publish on the strength of a
 development fixture alone.
 
+The production consumer uses committed file-tarball resolutions and SHA-512
+integrities for one exact Web IDE/Karel pair. Its verifier copies both
+candidates to stable fixture names, hashes those destinations before npm is
+allowed to run, and rejects path or byte drift. Installation uses `npm ci`, a
+new disposable cache, strict engine/peer checks, and disabled lifecycle scripts.
+An existing global npm cache, sibling checkout, mutable manifest rewrite, or
+SemVer-compatible substitute cannot satisfy that gate. Release-candidate
+overrides must be absolute paths; a missing, non-file, or integrity-mismatched
+candidate fails closed.
+
+The package remains `private: true`; MIT licensing does not authorize an npm
+publication. Immutable release publication, receipts, and downstream cache
+seeding remain separate host-owned distribution steps.
+
 Raw protocol events, source paths, stdout/stderr, world names, and error text may
 contain user-authored data. Avoid persistent logging by default, apply host
 retention policy, and use synthetic data in test evidence.

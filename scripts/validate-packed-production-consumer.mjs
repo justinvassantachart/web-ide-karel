@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import {
   cp,
   mkdir,
@@ -8,12 +8,23 @@ import {
   readdir,
   rename,
   rm,
-  writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  isolatedNpmEnvironment,
+  reportAndCleanupPackedConsumer,
+  withVerifiedPackedCandidates,
+} from './packed-candidates.mjs'
 
+const EXPECTED_VERSION = '0.2.0'
+const EXPECTED_KAREL_PEERS = Object.freeze({
+  react: '^18.3.0 || ^19.0.0',
+  'react-dom': '^18.3.0 || ^19.0.0',
+  'web-ide': '>=0.2.0 <0.3.0',
+})
+const EXPECTED_REACT_VERSION = '19.2.8'
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = path.resolve(scriptRoot, '..')
 const projectsRoot = path.dirname(repositoryRoot)
@@ -24,23 +35,15 @@ const temporaryRoot = await mkdtemp(
 )
 const packRoot = path.join(temporaryRoot, 'packed')
 const consumerRoot = path.join(temporaryRoot, 'consumer')
+const npmCacheRoot = path.join(temporaryRoot, 'npm-cache')
 const keepTemporary = process.env.KEEP_KAREL_PRODUCTION_CONSUMER === '1'
 const diagnosticGrep = process.env.KAREL_PRODUCTION_DIAGNOSTIC_GREP
 const requestedArtifactParent = process.env.KAREL_PRODUCTION_ARTIFACT_DIR
 const artifactParent = requestedArtifactParent === undefined
   ? tmpdir()
   : path.resolve(requestedArtifactParent)
-await mkdir(artifactParent, { recursive: true })
-const artifactRoot = await mkdtemp(
-  path.join(artifactParent, 'web-ide-karel-production-evidence-'),
-)
-
-const strictInstallEnvironment = {
-  ...process.env,
-  KAREL_PRODUCTION_ARTIFACT_DIR: artifactRoot,
-  npm_config_engine_strict: 'true',
-  npm_config_strict_peer_deps: 'true',
-}
+let artifactRoot
+let strictInstallEnvironment
 
 function run(command, args, options = {}) {
   const cwd = options.cwd ?? consumerRoot
@@ -67,9 +70,9 @@ async function assertPackage(root, expectedName) {
   const manifest = JSON.parse(
     await readFile(path.join(root, 'package.json'), 'utf8'),
   )
-  if (manifest.name !== expectedName) {
+  if (manifest.name !== expectedName || manifest.version !== EXPECTED_VERSION) {
     throw new Error(
-      `Expected ${expectedName} at ${root}, found ${String(manifest.name)}`,
+      `Expected ${expectedName}@${EXPECTED_VERSION} at ${root}, found ${String(manifest.name)}@${String(manifest.version)}`,
     )
   }
 }
@@ -87,14 +90,42 @@ async function packPackage(root, expectedName) {
     throw new Error(`npm pack returned an unexpected result for ${expectedName}`)
   }
   const record = records[0]
-  const tarballPath = path.join(packRoot, record.filename)
-  const sha256 = createHash('sha256')
-    .update(await readFile(tarballPath))
-    .digest('hex')
-  process.stdout.write(
-    `${expectedName}@${record.version}: ${record.filename} sha256=${sha256}\n`,
-  )
-  return { filename: record.filename, path: tarballPath, sha256 }
+  if (
+    record.name !== expectedName
+    || record.version !== EXPECTED_VERSION
+    || typeof record.filename !== 'string'
+  ) {
+    throw new Error(
+      `npm pack returned the wrong identity for ${expectedName}@${EXPECTED_VERSION}`,
+    )
+  }
+  const tarballPath = path.resolve(packRoot, record.filename)
+  if (path.dirname(tarballPath) !== packRoot) {
+    throw new Error(`npm pack returned an unsafe filename for ${expectedName}`)
+  }
+  return tarballPath
+}
+
+async function resolveCandidates() {
+  const webIDEOverride = process.env.WEB_IDE_CANDIDATE_TARBALL
+  const karelOverride = process.env.KAREL_CANDIDATE_TARBALL
+  if ((webIDEOverride === undefined) !== (karelOverride === undefined)) {
+    throw new Error(
+      'WEB_IDE_CANDIDATE_TARBALL and KAREL_CANDIDATE_TARBALL must be supplied together',
+    )
+  }
+  if (webIDEOverride !== undefined && karelOverride !== undefined) {
+    return {
+      '@web-ide/karel': karelOverride,
+      'web-ide': webIDEOverride,
+    }
+  }
+
+  await mkdir(packRoot, { recursive: true })
+  return {
+    '@web-ide/karel': await packPackage(repositoryRoot, '@web-ide/karel'),
+    'web-ide': await packPackage(webIDERoot, 'web-ide'),
+  }
 }
 
 async function copyFixture() {
@@ -128,20 +159,6 @@ async function materializeTemplates(root) {
   }
 }
 
-async function installPackedArtifacts(webIDE, karel) {
-  const artifactRoot = path.join(consumerRoot, 'artifacts')
-  await mkdir(artifactRoot, { recursive: true })
-  await cp(webIDE.path, path.join(artifactRoot, webIDE.filename))
-  await cp(karel.path, path.join(artifactRoot, karel.filename))
-
-  const manifestPath = path.join(consumerRoot, 'package.json')
-  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
-  manifest.dependencies['web-ide'] = `file:./artifacts/${webIDE.filename}`
-  manifest.dependencies['@web-ide/karel'] =
-    `file:./artifacts/${karel.filename}`
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
-}
-
 async function assertFixtureUsesPublicExportsOnly() {
   const prohibited = [
     /(?:from|import)\s*['"][^'"]*\/src(?:\/|['"])/u,
@@ -156,6 +173,37 @@ async function assertFixtureUsesPublicExportsOnly() {
       )
     }
   }
+}
+
+async function assertInstalledPackagePair() {
+  const webIDE = JSON.parse(await readFile(path.join(
+    consumerRoot,
+    'node_modules/web-ide/package.json',
+  ), 'utf8'))
+  const karel = JSON.parse(await readFile(path.join(
+    consumerRoot,
+    'node_modules/@web-ide/karel/package.json',
+  ), 'utf8'))
+  for (const [manifest, expectedName] of [
+    [webIDE, 'web-ide'],
+    [karel, '@web-ide/karel'],
+  ]) {
+    if (manifest.name !== expectedName || manifest.version !== EXPECTED_VERSION) {
+      throw new Error(
+        `Installed packed candidate must be ${expectedName}@${EXPECTED_VERSION}, found ${String(manifest.name)}@${String(manifest.version)}`,
+      )
+    }
+  }
+  for (const [peer, expectedRange] of Object.entries(EXPECTED_KAREL_PEERS)) {
+    if (karel.peerDependencies?.[peer] !== expectedRange) {
+      throw new Error(
+        `Installed @web-ide/karel peer ${peer} must be ${expectedRange}, found ${String(karel.peerDependencies?.[peer])}`,
+      )
+    }
+  }
+  process.stdout.write(
+    `Installed exact pair: web-ide@${webIDE.version} + @web-ide/karel@${karel.version}\n`,
+  )
 }
 
 function assertSingleReactIdentity() {
@@ -181,13 +229,16 @@ function assertSingleReactIdentity() {
   }
   visit(tree)
   for (const [name, resolvedVersions] of versions) {
-    if (resolvedVersions.size !== 1) {
+    if (
+      resolvedVersions.size !== 1
+      || !resolvedVersions.has(EXPECTED_REACT_VERSION)
+    ) {
       throw new Error(
-        `Expected one resolved ${name} identity, found: ${[...resolvedVersions].join(', ') || 'none'}`,
+        `Expected one exact ${name}@${EXPECTED_REACT_VERSION} identity, found: ${[...resolvedVersions].join(', ') || 'none'}`,
       )
     }
     process.stdout.write(
-      `Packed consumer ${name} identity: ${name}@${[...resolvedVersions][0]}\n`,
+      `Packed consumer ${name} identity: ${name}@${EXPECTED_REACT_VERSION}\n`,
     )
   }
 }
@@ -219,47 +270,70 @@ async function reportArtifacts() {
 }
 
 try {
-  await mkdir(packRoot, { recursive: true })
-  await assertFixtureUsesPublicExportsOnly()
-  const webIDE = await packPackage(webIDERoot, 'web-ide')
-  const karel = await packPackage(repositoryRoot, '@web-ide/karel')
-
-  await copyFixture()
-  await installPackedArtifacts(webIDE, karel)
-
-  run('npm', [
-    'install',
-    '--strict-peer-deps',
-    '--engine-strict',
-    '--no-fund',
-    '--no-audit',
-  ])
-  assertSingleReactIdentity()
-  run('npm', ['audit', '--audit-level=low'])
-  run('npm', ['audit', '--omit=dev', '--audit-level=low'])
-  run('npm', ['run', 'typecheck'])
-  run('npm', ['run', 'build'])
-  if (diagnosticGrep) {
-    process.stdout.write(
-      `DIAGNOSTIC ONLY: running packed production tests matching ${JSON.stringify(diagnosticGrep)}\n`,
-    )
-    run('npm', ['run', 'test:production', '--', '--grep', diagnosticGrep])
-  } else {
-    run('npm', ['run', 'test:production'])
+  await mkdir(artifactParent, { recursive: true })
+  artifactRoot = await mkdtemp(
+    path.join(artifactParent, 'web-ide-karel-production-evidence-'),
+  )
+  await mkdir(npmCacheRoot, { recursive: true })
+  strictInstallEnvironment = {
+    ...isolatedNpmEnvironment(process.env, npmCacheRoot),
+    KAREL_PRODUCTION_ARTIFACT_DIR: artifactRoot,
   }
 
-  const outputFiles = await readdir(path.join(consumerRoot, 'dist'))
-  process.stdout.write(
-    `${diagnosticGrep ? 'Targeted packed production diagnostic passed' : 'Packed production consumer passed'}; dist entries: ${outputFiles.sort().join(', ')}\n`,
-  )
+  await assertFixtureUsesPublicExportsOnly()
+  const candidates = await resolveCandidates()
+  await copyFixture()
+
+  await withVerifiedPackedCandidates({
+    consumerRoot,
+    candidates,
+    consume: async (verified) => {
+      for (const candidate of verified) {
+        process.stdout.write(
+          `${candidate.packageName}@${candidate.expectedVersion}: ${candidate.sourcePath} sha256=${candidate.sha256} sha512=${candidate.integrity} bytes=${candidate.bytes}\n`,
+        )
+      }
+      run('npm', [
+        'ci',
+        '--ignore-scripts',
+        '--strict-peer-deps',
+        '--engine-strict',
+        '--no-fund',
+        '--no-audit',
+      ])
+      await assertInstalledPackagePair()
+      assertSingleReactIdentity()
+      run('npm', ['audit', '--audit-level=low'])
+      run('npm', ['audit', '--omit=dev', '--audit-level=low'])
+      run('npm', ['run', 'typecheck'])
+      run('npm', ['run', 'build'])
+      if (diagnosticGrep) {
+        process.stdout.write(
+          `DIAGNOSTIC ONLY: running packed production tests matching ${JSON.stringify(diagnosticGrep)}\n`,
+        )
+        run('npm', ['run', 'test:production', '--', '--grep', diagnosticGrep])
+      } else {
+        run('npm', ['run', 'test:production'])
+      }
+
+      const outputFiles = await readdir(path.join(consumerRoot, 'dist'))
+      process.stdout.write(
+        `${diagnosticGrep ? 'Targeted packed production diagnostic passed' : 'Packed production consumer passed'}; dist entries: ${outputFiles.sort().join(', ')}\n`,
+      )
+    },
+  })
 } catch (error) {
   process.exitCode = 1
   process.stderr.write(`${error instanceof Error ? error.stack : String(error)}\n`)
 } finally {
-  await reportArtifacts()
-  if (keepTemporary) {
-    process.stdout.write(`Retained production consumer: ${temporaryRoot}\n`)
-  } else {
-    await rm(temporaryRoot, { recursive: true, force: true })
-  }
+  await reportAndCleanupPackedConsumer({
+    keepTemporary,
+    report: async () => {
+      if (artifactRoot !== undefined) await reportArtifacts()
+    },
+    cleanup: () => rm(temporaryRoot, { recursive: true, force: true }),
+    onRetained: () => {
+      process.stdout.write(`Retained production consumer: ${temporaryRoot}\n`)
+    },
+  })
 }

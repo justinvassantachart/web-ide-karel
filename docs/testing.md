@@ -39,7 +39,7 @@ Use narrower scripts while iterating:
 | `npm run build:example` | Typecheck and production-build `examples/basic` against `dist` |
 | `npm run test:browser` | Playwright browser suite against the port-4178 fixture |
 | `npm run audit:full` / `npm run audit:production` | Fail at any known vulnerability in the full or production dependency tree. |
-| `npm run test:packed-production` | Pack both sibling packages, strictly install them in a fresh consumer, audit/typecheck/build, then run the production-server browser matrix. |
+| `npm run test:packed-production` | Verify an exact locked Web IDE/Karel tarball pair, install it with lifecycle scripts disabled in a fresh consumer/cache, audit/typecheck/build, then run the production-server browser matrix. |
 | `npm run pack:check` | Inspect the npm tarball contents without publishing |
 | `npm run validate:production` | Run `validate`, the development browser suite, both audits, and the packed-production consumer gate. |
 
@@ -130,12 +130,35 @@ separate release gates and must not be inferred from a green browser run here.
 ## Packed-production workflow
 
 `npm run test:packed-production` runs
-`scripts/validate-packed-production-consumer.mjs`. It builds and packs the
-adjacent `web-ide` checkout and this package, records both SHA-256 values,
-copies only the tarballs into a fresh temporary project, and installs with
-strict peer and engine checks. The fixture imports public package exports only;
-it then runs full and production audits, typechecking, a real Vite production
-build, and one-worker Playwright against a purpose-built static SPA server.
+`scripts/validate-packed-production-consumer.mjs`. Its committed fixture lock
+resolves only the stable local names `artifacts/web-ide.tgz` and
+`artifacts/web-ide-karel.tgz`, including exact SHA-512 integrity for both.
+The default workflow builds and packs the adjacent `web-ide` checkout and this
+package into an OS temporary directory. An exact release pair can be supplied
+instead:
+
+```sh
+WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.2.0.tgz \
+KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.2.0.tgz \
+  npm run test:packed-production
+```
+
+Overrides must be absolute regular-file paths. The verifier copies both inputs
+to the stable names, hashes the copied destinations, and compares them with the
+committed lock before npm is invoked. A wrong manifest/lock reference,
+malformed integrity, changed byte, pre-existing artifact, missing file, or
+relative override fails closed. The consumer uses a new disposable npm cache
+and `npm ci --ignore-scripts --strict-peer-deps --engine-strict`; it never
+rewrites the manifest or falls back to `npm install`. It asserts exact Web IDE
+and Karel `0.2.0` package identities, Karel's Web peer range, and one React/
+React DOM identity before running full and production audits, typechecking, a
+real Vite production build, and one-worker Playwright against a purpose-built
+static SPA server. The fixture imports public package exports only.
+
+The fixture lock is coupled to the exact package bytes. Regenerate and review
+it after any included package file, manifest, dependency, or build output
+changes; an integrity mismatch is evidence of drift, not permission to update
+the lock during validation.
 
 The production browser matrix proves:
 

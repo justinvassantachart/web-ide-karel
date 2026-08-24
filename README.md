@@ -5,6 +5,13 @@ owns Karel's world contract, Python teaching library, protocol, playback,
 renderer, and panel. It does not provide a Python interpreter, persist host
 data, or add Karel behavior to Web IDE core.
 
+The private source repository is preparing the MIT-licensed `0.2.0` candidate.
+The package remains `private: true` and is not published to npm. Its supported
+Web IDE peer line is `>=0.2.0 <0.3.0`; release consumers still install one exact
+reviewed Web IDE/Karel artifact pair rather than choosing a version from that
+range. P2.5 remains open until the candidate also has complete license, SBOM,
+reproducibility, immutable-release, and independent-download evidence.
+
 The package composes only through public Web IDE contributions and panel
 services. A host selects a generic runtime that advertises Python and, for line
 playback, debugger support plus the optional owner-scoped transient-breakpoint
@@ -318,9 +325,25 @@ npm run validate:production
 Python tests, typechecking, the library and basic-example builds, and
 `npm pack --dry-run`. `test:python` runs the version checker first and fails
 closed below Python 3.10. `validate:production` adds the development browser
-suite, full and production dependency audits, and a strict fresh consumer that
-installs packed Web IDE and Karel artifacts, builds them for production, serves
-the nested SPA with production headers, and runs the release browser matrix.
+suite, full and production dependency audits, and a locked fresh consumer that
+installs exact packed Web IDE and Karel artifacts with lifecycle scripts
+disabled and a disposable npm cache, builds them for production, serves the
+nested SPA with production headers, and runs the release browser matrix.
+
+The packed matrix builds temporary candidates from the adjacent Web IDE and
+current Karel source by default. To validate already-built release candidates,
+provide both absolute paths. Their bytes must match the committed consumer
+lock before npm is invoked:
+
+```sh
+WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.2.0.tgz \
+KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.2.0.tgz \
+  npm run test:packed-production
+```
+
+The source license and package version do not themselves complete a release.
+See [publishing readiness](docs/publishing-readiness.md) for the remaining
+artifact and immutable-release evidence.
 
 `npm run test:browser` alone still uses a cross-origin-isolated Vite development
 fixture and is not production proof. See [docs/testing.md](docs/testing.md) for

@@ -29,7 +29,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['tests/**/*.test.{ts,tsx}'],
+    include: ['tests/**/*.test.{ts,tsx,mjs}'],
     coverage: {
       include: ['src/**/*.{ts,tsx}'],
     },

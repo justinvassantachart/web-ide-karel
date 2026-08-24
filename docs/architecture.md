@@ -186,6 +186,28 @@ supply both expected and actual facts.
 Every result is labeled `formative-only`; this package has no scoring, grading,
 authorization, or trusted-execution boundary.
 
+## Package and distribution boundary
+
+The source package is MIT-licensed `@web-ide/karel@0.2.0`, remains
+`private: true`, and declares Web IDE `>=0.2.0 <0.3.0` as a peer. React, React
+DOM, and Web IDE are external to the library bundle. The sibling
+`file:../web-ide` development dependency exists only to build and test paired
+source checkouts; it is not a release or host dependency path.
+
+Release compatibility is narrower than the peer range. The packed-production
+consumer commits one lock for stable `web-ide.tgz` and `web-ide-karel.tgz`
+references and verifies both candidates' SHA-512 values before a strict,
+script-disabled `npm ci` in a disposable cache. Candidate overrides are
+absolute paths, while default source validation packs temporary artifacts from
+the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
+runtime and no cache, sibling package, compatible range, or npm publication can
+substitute different bytes.
+
+This repository produces package-generic source and compatibility evidence.
+Application capability IDs, immutable release identities, downstream artifact
+URLs, cache seeding, and retention policy remain host/distribution concerns;
+they do not enter Karel runtime contracts or package source.
+
 ## Limits and deployment boundary
 
 Default retained-history, playback, and protocol limits are exported from the
