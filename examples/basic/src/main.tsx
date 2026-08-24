@@ -59,6 +59,11 @@ const configuration: WebIDEConfiguration = {
   runtimeProvider: 'web-ide.runtime.python',
   brand: 'KAREL',
   terminalName: 'Karel Python',
+  initialLayout: {
+    selectedPanelId: 'web-ide-karel.world',
+    panelColumnPercent: 50,
+    panelContentPercent: 85,
+  },
   plugins: [pythonRuntimePlugin, coreWorkbenchPlugin, karelPlugin],
 }
 

@@ -27,9 +27,9 @@ const WEB_CANDIDATE_ARTIFACTS = [
   'runtime-assets-verification.json',
   'runtime-source-provenance.json',
   'third-party-licenses.json',
-  'web-ide-0.2.0-source.tar.gz',
-  'web-ide-0.2.0.cdx.json',
-  'web-ide-0.2.0.tgz',
+  'web-ide-0.3.0-source.tar.gz',
+  'web-ide-0.3.0.cdx.json',
+  'web-ide-0.3.0.tgz',
 ]
 
 function assertPositiveSafeInteger(value, location) {
@@ -88,7 +88,7 @@ function validateSource(source, sourceTag) {
 export function validateWebIDECandidateState(
   state,
   mode,
-  sourceTag = 'web-ide-v0.2.0-source-r4',
+  sourceTag = 'web-ide-v0.3.0-source',
 ) {
   assertExactKeys(state, [
     'schemaVersion',
@@ -107,9 +107,9 @@ export function validateWebIDECandidateState(
     : state.result === permittedResult
   if (
     state.schemaVersion !== 1
-    || state.package !== 'web-ide@0.2.0'
+    || state.package !== 'web-ide@0.3.0'
     || !resultMatches
-    || state.capabilityReleaseId !== 'hamilton.python-karel/1'
+    || state.capabilityReleaseId !== 'hamilton.python-karel/2'
     || state.packageRole !== 'web-ide'
   ) throw new TypeError('Web IDE candidate state identity is not eligible')
   if (state.result === 'nonrelease-preflight') {
@@ -171,7 +171,7 @@ function inspectWebIDETarball(bytes) {
   const manifest = JSON.parse(files.get('package.json')?.bytes.toString('utf8') ?? 'null')
   if (
     manifest?.name !== 'web-ide'
-    || manifest.version !== '0.2.0'
+    || manifest.version !== '0.3.0'
     || manifest.private !== true
     || manifest.license !== 'MIT'
     || !files.has('LICENSE.md')
@@ -198,10 +198,10 @@ function validateWebIDEPackageInspection(report, tarballBytes, entries) {
   ], [], 'Web IDE package inspection checks')
   if (
     report.schemaVersion !== 1
-    || report.package !== 'web-ide@0.2.0'
+    || report.package !== 'web-ide@0.3.0'
     || report.result !== 'pass'
     || Object.values(report.checks).some((value) => value !== true)
-    || report.tarball.filename !== 'web-ide-0.2.0.tgz'
+    || report.tarball.filename !== 'web-ide-0.3.0.tgz'
     || report.tarball.size !== tarballBytes.length
     || report.tarball.sha256 !== sha256Bytes(tarballBytes)
     || report.tarball.sha512Integrity !== sha512IntegrityBytes(tarballBytes)
@@ -239,7 +239,7 @@ export function validateWebIDECandidateReport(report, configuration) {
   if (
     report.schemaVersion !== 1
     || report.result !== 'pass'
-    || report.capabilityReleaseId !== 'hamilton.python-karel/1'
+    || report.capabilityReleaseId !== 'hamilton.python-karel/2'
     || report.packageRole !== 'web-ide-peer-candidate'
     || typeof report.nonFinalTestFixture !== 'boolean'
   ) throw new TypeError('Web IDE candidate verification report identity is wrong')
@@ -251,9 +251,9 @@ export function validateWebIDECandidateReport(report, configuration) {
   ], [], 'Web IDE candidate verification package')
   if (
     report.package.name !== 'web-ide'
-    || report.package.version !== '0.2.0'
+    || report.package.version !== '0.3.0'
     || report.package.peerRange
-      !== (configuration?.webIDE.peerRange ?? '>=0.2.0 <0.3.0')
+      !== (configuration?.webIDE.peerRange ?? '>=0.3.0 <0.4.0')
     || report.package.license !== 'MIT'
   ) throw new TypeError('Web IDE candidate verification package is wrong')
   assertExactKeys(report.candidateState, [
@@ -297,7 +297,7 @@ export function validateWebIDECandidateReport(report, configuration) {
   )
   if (
     report.candidateState.source.tag
-      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source-r4')
+      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.3.0-source')
   ) {
     throw new TypeError('Web IDE candidate verification tag is wrong')
   }
@@ -307,7 +307,7 @@ export function validateWebIDECandidateReport(report, configuration) {
     'sha256',
     'sha512Integrity',
   ], [], 'Web IDE candidate verification artifact')
-  if (report.artifact.fileName !== 'web-ide-0.2.0.tgz') {
+  if (report.artifact.fileName !== 'web-ide-0.3.0.tgz') {
     throw new TypeError('Web IDE candidate verification artifact filename is wrong')
   }
   assertPositiveSafeInteger(
@@ -458,7 +458,7 @@ export async function verifyWebIDECandidateEvidence({
     packageRole: 'web-ide-peer-candidate',
     package: {
       name: 'web-ide',
-      version: '0.2.0',
+      version: '0.3.0',
       peerRange: configuration.webIDE.peerRange,
       license: 'MIT',
     },

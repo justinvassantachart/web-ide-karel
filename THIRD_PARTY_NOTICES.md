@@ -31,6 +31,6 @@ dependencies retain their own licenses and notices and are not package files.
 
 The deterministic release-evidence workflow generated a per-file machine
 license inventory, deduplicated `THIRD_PARTY_LICENSES.txt`, and CycloneDX 1.6
-SBOM for the immutable `0.2.0` r6 artifact. This redesigned presentation changes
-packaged bytes and therefore requires new successor evidence; it does not alter
-or reuse that historical artifact identity.
+SBOM for the immutable `0.2.0` r6 artifact. The `0.3.0` presentation successor
+changes packaged bytes and therefore requires its own complete evidence; it
+does not alter or reuse that historical artifact identity.

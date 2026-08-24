@@ -28,7 +28,7 @@ async function verifyKarelCompatibilityCandidate({
   )
   if (
     path.basename(candidateStatePath) !== 'candidate-state.json'
-    || path.basename(tarballPath) !== 'web-ide-karel-0.2.0.tgz'
+    || path.basename(tarballPath) !== 'web-ide-karel-0.3.0.tgz'
   ) throw new TypeError('Karel compatibility inputs have unexpected filenames')
   const stateBytes = await readBoundedFile(
     candidateStatePath,
@@ -66,8 +66,8 @@ async function verifyKarelCompatibilityCandidate({
     || !Number.isSafeInteger(state.source.sourceEpoch)
     || state.source.sourceEpoch <= 0
     || state.source.finalEligible !== true
-    || state.source.sourceReference !== 'web-ide-karel-v0.2.0-source-r6'
-    || state.source.tag.name !== 'web-ide-karel-v0.2.0-source-r6'
+    || state.source.sourceReference !== 'web-ide-karel-v0.3.0-source'
+    || state.source.tag.name !== 'web-ide-karel-v0.3.0-source'
     || state.source.tag.objectType !== 'tag'
     || !/^[a-f0-9]{40}$/u.test(state.source.tag.objectId)
     || state.source.tag.peeledCommit !== state.source.commit
@@ -75,8 +75,8 @@ async function verifyKarelCompatibilityCandidate({
   ) throw new TypeError('Karel compatibility candidate source is not final exact evidence')
   validateCandidateState(state, {
     configuration: {
-      package: '@web-ide/karel@0.2.0',
-      capabilityReleaseId: 'hamilton.python-karel/1',
+      package: '@web-ide/karel@0.3.0',
+      capabilityReleaseId: 'hamilton.python-karel/2',
       packageRole: 'karel',
     },
     source: state.source,
@@ -88,7 +88,7 @@ async function verifyKarelCompatibilityCandidate({
   )
   const candidateSha256 = sha256Bytes(tarballBytes)
   const artifact = state.artifacts.find(
-    (item) => item.fileName === 'web-ide-karel-0.2.0.tgz',
+    (item) => item.fileName === 'web-ide-karel-0.3.0.tgz',
   )
   if (
     artifact?.size !== tarballBytes.length
@@ -111,7 +111,7 @@ export async function webIDECompatibilityReceipt({
   )
   if (
     path.basename(candidateStatePath) !== 'candidate-state.json'
-    || path.basename(tarballPath) !== 'web-ide-0.2.0.tgz'
+    || path.basename(tarballPath) !== 'web-ide-0.3.0.tgz'
   ) throw new TypeError('Web IDE compatibility inputs have unexpected filenames')
   const stateBytes = await readBoundedFile(
     candidateStatePath,
@@ -139,9 +139,9 @@ export async function webIDECompatibilityReceipt({
   ], [], 'Web IDE candidate state')
   if (
     state.schemaVersion !== 1
-    || state.package !== 'web-ide@0.2.0'
+    || state.package !== 'web-ide@0.3.0'
     || state.result !== 'candidate-generated'
-    || state.capabilityReleaseId !== 'hamilton.python-karel/1'
+    || state.capabilityReleaseId !== 'hamilton.python-karel/2'
     || state.packageRole !== 'web-ide'
   ) throw new TypeError('Web IDE compatibility candidate identity is wrong')
   assertExactKeys(state.source, [
@@ -163,7 +163,7 @@ export async function webIDECompatibilityReceipt({
     'name', 'objectId', 'objectType', 'peeledCommit',
   ], [], 'Web IDE compatibility candidate tag')
   if (
-    state.source.tag.name !== 'web-ide-v0.2.0-source-r4'
+    state.source.tag.name !== 'web-ide-v0.3.0-source'
     || state.source.tag.objectType !== 'tag'
     || state.source.tag.peeledCommit !== state.source.commit
   ) throw new TypeError('Web IDE compatibility candidate tag is invalid')
@@ -171,7 +171,7 @@ export async function webIDECompatibilityReceipt({
     throw new TypeError('Web IDE compatibility candidate artifacts must be an array')
   }
   const matches = state.artifacts.filter(
-    (artifact) => artifact.fileName === 'web-ide-0.2.0.tgz',
+    (artifact) => artifact.fileName === 'web-ide-0.3.0.tgz',
   )
   if (matches.length !== 1) {
     throw new TypeError('Web IDE compatibility candidate has no unique package artifact')
@@ -192,7 +192,7 @@ export async function webIDECompatibilityReceipt({
     schemaVersion: 2,
     receiptKind: 'web-ide-release-validation-gate',
     mode: 'release-gate',
-    package: 'web-ide@0.2.0',
+    package: 'web-ide@0.3.0',
     gateId: 'karel-compatibility',
     sourceCommit: state.source.commit,
     candidateSha256,

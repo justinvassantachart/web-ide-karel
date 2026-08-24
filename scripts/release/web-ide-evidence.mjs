@@ -61,6 +61,11 @@ const WEB_VALIDATION_LOG_KINDS = [
   'validation-log:validate-production:0',
 ]
 
+const WEB_CAPABILITY_RELEASE_IDS = Object.freeze([
+  'hamilton.python-karel/2',
+  'hamilton.python/1',
+])
+
 function assertFileRecord(record, location) {
   assertExactKeys(record, ['kind', 'fileName', 'size', 'sha256'], [], location)
   assertNonEmptyString(record.kind, `${location}.kind`)
@@ -112,7 +117,7 @@ export function validateWebIDEEvidenceReport(report, configuration) {
   if (
     report.schemaVersion !== 1
     || report.result !== 'pass'
-    || report.capabilityReleaseId !== 'hamilton.python-karel/1'
+    || report.capabilityReleaseId !== 'hamilton.python-karel/2'
     || report.packageRole !== 'web-ide-peer'
     || typeof report.nonFinalTestFixture !== 'boolean'
   ) throw new TypeError('Web IDE peer evidence report identity is wrong')
@@ -122,10 +127,10 @@ export function validateWebIDEEvidenceReport(report, configuration) {
     'peerRange',
     'license',
   ], [], 'Web IDE peer evidence package')
-  const expectedRange = configuration?.webIDE.peerRange ?? '>=0.2.0 <0.3.0'
+  const expectedRange = configuration?.webIDE.peerRange ?? '>=0.3.0 <0.4.0'
   if (
     report.package.name !== 'web-ide'
-    || report.package.version !== '0.2.0'
+    || report.package.version !== '0.3.0'
     || report.package.peerRange !== expectedRange
     || report.package.license !== 'MIT'
   ) throw new TypeError('Web IDE peer evidence package identity is wrong')
@@ -165,7 +170,7 @@ export function validateWebIDEEvidenceReport(report, configuration) {
   assertCommit(report.artifactManifest.source.tree, 'Web IDE peer source tree')
   if (
     report.artifactManifest.source.tag
-      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.2.0-source-r4')
+      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.3.0-source')
   ) {
     throw new TypeError('Web IDE peer source tag is wrong')
   }
@@ -175,7 +180,7 @@ export function validateWebIDEEvidenceReport(report, configuration) {
     'sha256',
     'sha512Integrity',
   ], [], 'Web IDE peer artifact')
-  if (report.artifact.fileName !== 'web-ide-0.2.0.tgz') {
+  if (report.artifact.fileName !== 'web-ide-0.3.0.tgz') {
     throw new TypeError('Web IDE peer artifact filename is wrong')
   }
   assertPositiveSafeInteger(report.artifact.size, 'Web IDE peer artifact size')
@@ -361,7 +366,7 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
     'schemaVersion',
     'manifestKind',
     'manifestId',
-    'capabilityReleaseId',
+    'capabilityReleaseIds',
     'packageRole',
     'package',
     'source',
@@ -373,9 +378,11 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
     'evidence',
   ], synthetic ? ['nonFinalTestFixture'] : [], 'Web IDE artifact manifest')
   if (
-    manifest.schemaVersion !== 1
+    manifest.schemaVersion !== 2
     || manifest.manifestKind !== 'hamilton-capability-package-artifact'
-    || manifest.capabilityReleaseId !== configuration.capabilityReleaseId
+    || canonicalJSONString(manifest.capabilityReleaseIds)
+      !== canonicalJSONString(WEB_CAPABILITY_RELEASE_IDS)
+    || !manifest.capabilityReleaseIds.includes(configuration.capabilityReleaseId)
     || manifest.packageRole !== configuration.webIDE.packageRole
   ) throw new TypeError('Web IDE artifact manifest composition identity is wrong')
   const { manifestId, ...identityInput } = manifest
@@ -397,7 +404,7 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
   ], [], 'Web IDE artifact manifest package')
   if (
     manifest.package.name !== 'web-ide'
-    || manifest.package.version !== '0.2.0'
+    || manifest.package.version !== '0.3.0'
     || manifest.package.private !== true
     || manifest.package.license !== 'MIT'
   ) throw new TypeError('Web IDE artifact manifest package identity is wrong')
@@ -462,7 +469,7 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode) {
   validateWebSourceFile(
     manifest.source.archive,
     'source-archive',
-    'web-ide-0.2.0-source.tar.gz',
+    'web-ide-0.3.0-source.tar.gz',
     'Web IDE artifact manifest source archive',
   )
   assertExactKeys(manifest.toolchain, [
@@ -718,7 +725,7 @@ export async function verifyWebIDEEvidence({
   for (const field of [
     'schemaVersion',
     'manifestKind',
-    'capabilityReleaseId',
+    'capabilityReleaseIds',
     'packageRole',
     'package',
     'source',
@@ -730,9 +737,11 @@ export async function verifyWebIDEEvidence({
     }
   }
   if (
-    manifest.schemaVersion !== 1
+    manifest.schemaVersion !== 2
     || manifest.manifestKind !== 'hamilton-capability-package-artifact'
-    || manifest.capabilityReleaseId !== configuration.capabilityReleaseId
+    || canonicalJSONString(manifest.capabilityReleaseIds)
+      !== canonicalJSONString(WEB_CAPABILITY_RELEASE_IDS)
+    || !manifest.capabilityReleaseIds.includes(configuration.capabilityReleaseId)
     || manifest.packageRole !== configuration.webIDE.packageRole
   ) throw new TypeError('Web IDE artifact manifest composition identity is wrong')
   if (mode === 'final' && manifest.nonFinalTestFixture === true) {
@@ -742,7 +751,7 @@ export async function verifyWebIDEEvidence({
   const packageIdentity = requiredObject(manifest.package, 'Web IDE package identity')
   if (
     packageIdentity.name !== 'web-ide'
-    || packageIdentity.version !== '0.2.0'
+    || packageIdentity.version !== '0.3.0'
     || packageIdentity.private !== true
     || packageIdentity.license !== 'MIT'
   ) throw new TypeError('Web IDE package identity is not the accepted 0.2 MIT peer')
@@ -847,7 +856,7 @@ export async function verifyWebIDEEvidence({
   const packedManifest = JSON.parse(byPath.get('package.json')?.bytes.toString('utf8') ?? 'null')
   if (
     packedManifest?.name !== 'web-ide'
-    || packedManifest.version !== '0.2.0'
+    || packedManifest.version !== '0.3.0'
     || packedManifest.private !== true
     || packedManifest.license !== 'MIT'
     || !byPath.has('LICENSE.md')
@@ -944,7 +953,7 @@ export async function verifyWebIDEEvidence({
     packageRole: 'web-ide-peer',
     package: {
       name: 'web-ide',
-      version: '0.2.0',
+      version: '0.3.0',
       peerRange: configuration.webIDE.peerRange,
       license: 'MIT',
     },

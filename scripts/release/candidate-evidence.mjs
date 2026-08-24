@@ -13,9 +13,9 @@ export const CANDIDATE_ARTIFACT_FILES = Object.freeze([
   'license-inventory.json',
   'package-inspection.json',
   'web-ide-candidate-verification.json',
-  'web-ide-karel-0.2.0-source.tar.gz',
-  'web-ide-karel-0.2.0.cdx.json',
-  'web-ide-karel-0.2.0.tgz',
+  'web-ide-karel-0.3.0-source.tar.gz',
+  'web-ide-karel-0.3.0.cdx.json',
+  'web-ide-karel-0.3.0.tgz',
 ])
 
 const CANDIDATE_ARTIFACT_MAX_BYTES = new Map([
@@ -24,9 +24,9 @@ const CANDIDATE_ARTIFACT_MAX_BYTES = new Map([
   ['license-inventory.json', 32 * 1024 * 1024],
   ['package-inspection.json', 32 * 1024 * 1024],
   ['web-ide-candidate-verification.json', 4 * 1024 * 1024],
-  ['web-ide-karel-0.2.0-source.tar.gz', 128 * 1024 * 1024],
-  ['web-ide-karel-0.2.0.cdx.json', 32 * 1024 * 1024],
-  ['web-ide-karel-0.2.0.tgz', 64 * 1024 * 1024],
+  ['web-ide-karel-0.3.0-source.tar.gz', 128 * 1024 * 1024],
+  ['web-ide-karel-0.3.0.cdx.json', 32 * 1024 * 1024],
+  ['web-ide-karel-0.3.0.tgz', 64 * 1024 * 1024],
 ])
 
 function assertPositiveSafeInteger(value, location) {
@@ -119,13 +119,13 @@ export function validateDeterminismReport(report, { sourceArchive }) {
     'sha256',
   ], [], 'deterministic builds source archive')
   const expectedArchive = {
-    filename: 'web-ide-karel-0.2.0-source.tar.gz',
+    filename: 'web-ide-karel-0.3.0-source.tar.gz',
     size: sourceArchive.size,
     sha256: sourceArchive.sha256,
   }
   if (
     report.schemaVersion !== 1
-    || report.package !== '@web-ide/karel@0.2.0'
+    || report.package !== '@web-ide/karel@0.3.0'
     || report.result !== 'pass'
     || report.isolatedBuildCount !== 2
     || report.exactWebIDEArtifactMaterializedForBothBuilds !== true

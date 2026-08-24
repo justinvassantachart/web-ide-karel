@@ -47,7 +47,7 @@ function validateIdentity(
 ) {
   if (
     value.schemaVersion !== schemaVersion
-    || value.package !== '@web-ide/karel@0.2.0'
+    || value.package !== '@web-ide/karel@0.3.0'
   ) {
     throw new TypeError(`Unsupported Karel ${location} identity`)
   }
@@ -305,7 +305,7 @@ export function validateValidationLogBytes(
       webReceipt.schemaVersion !== 2
       || webReceipt.receiptKind !== 'web-ide-release-validation-gate'
       || webReceipt.mode !== 'release-gate'
-      || webReceipt.package !== 'web-ide@0.2.0'
+      || webReceipt.package !== 'web-ide@0.3.0'
       || webReceipt.gateId !== 'karel-compatibility'
       || webReceipt.sourceCommit !== webIDESourceCommit
       || webReceipt.candidateSha256 !== webIDECandidateSha256
@@ -428,7 +428,7 @@ export async function materializeValidationEvidence({
   }
   const summary = {
     schemaVersion: 1,
-    package: '@web-ide/karel@0.2.0',
+    package: '@web-ide/karel@0.3.0',
     sourceCommit,
     candidateSha256,
     webIDECandidateSha256,

@@ -154,7 +154,7 @@ describe('withVerifiedPackedCandidates', () => {
       'Web IDE peer',
       ({ lock }) => {
         lock.packages['node_modules/@web-ide/karel']
-          .peerDependencies['web-ide'] = '>=0.2.0'
+          .peerDependencies['web-ide'] = '>=0.3.0'
       },
       /package-lock\.json Web IDE peer @web-ide\/karel/u,
     ],

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "package": "@web-ide/karel@0.2.0",
+  "package": "@web-ide/karel@0.3.0",
   "packageLicense": "MIT",
   "packageLicenseTextPath": "LICENSE.md",
   "externalPeers": [

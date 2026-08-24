@@ -283,6 +283,11 @@ function instanceBundle(
     runtimeProvider: runtimeProvider.id,
     brand: `PACKED KAREL · ${packedScenario.label.toUpperCase()}`,
     terminalName: `Packed Python · ${packedScenario.id}`,
+    initialLayout: {
+      selectedPanelId: `packed.karel.panel.${instanceId}`,
+      panelColumnPercent: 50,
+      panelContentPercent: 85,
+    },
     plugins: [
       runtimePlugin,
       coreWorkbenchPlugin,

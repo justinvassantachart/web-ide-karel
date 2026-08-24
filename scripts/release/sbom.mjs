@@ -47,7 +47,7 @@ function peerComponent(peer) {
     ? peer.artifact.sha512Integrity
     : peer.integrity
   const reference = peer.name === 'web-ide'
-    ? `https://github.com/justinvassantachart/ths-ide/releases/download/web-ide-v0.2.0/${peer.artifact.fileName}`
+    ? `https://github.com/justinvassantachart/ths-ide/releases/download/web-ide-v0.3.0/${peer.artifact.fileName}`
     : peer.resolved
   return {
     type: 'library',

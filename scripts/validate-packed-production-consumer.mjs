@@ -22,11 +22,11 @@ import {
   formatWebIDECompatibilityReceipt,
 } from './release/web-compatibility-receipt.mjs'
 
-const EXPECTED_VERSION = '0.2.0'
+const EXPECTED_VERSION = '0.3.0'
 const EXPECTED_KAREL_PEERS = Object.freeze({
   react: '^18.3.0 || ^19.0.0',
   'react-dom': '^18.3.0 || ^19.0.0',
-  'web-ide': '>=0.2.0 <0.3.0',
+  'web-ide': '>=0.3.0 <0.4.0',
 })
 const EXPECTED_REACT_VERSION = '19.2.8'
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url))

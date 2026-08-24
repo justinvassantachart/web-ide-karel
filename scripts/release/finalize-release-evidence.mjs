@@ -338,7 +338,7 @@ const transaction = await withAtomicOutputDirectory(
 
     const retainedSBOM = (await readCanonicalJSON(path.join(
       outputDirectory,
-      'web-ide-karel-0.2.0.cdx.json',
+      'web-ide-karel-0.3.0.cdx.json',
     ))).value
     const sbomInputs = {
       packageManifest,

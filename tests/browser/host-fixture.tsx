@@ -38,6 +38,11 @@ def move_steps(count):
 const configuration: WebIDEConfiguration = {
   runtimeProvider: 'web-ide.runtime.python',
   brand: 'KAREL TEST',
+  initialLayout: {
+    selectedPanelId: 'web-ide-karel.world',
+    panelColumnPercent: 50,
+    panelContentPercent: 85,
+  },
   plugins: [pythonRuntimePlugin, coreWorkbenchPlugin, createKarelPlugin()],
 }
 

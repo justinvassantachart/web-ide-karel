@@ -234,6 +234,10 @@ test('processes 2,000 valid actions and exposes bounded visible history', async 
 test('preserves ordinary stdout and reports a typed nested exception source', async ({
   page,
 }) => {
+  // The Karel-optimized 85/15 split intentionally gives the terminal a compact
+  // viewport. Use a normal laptop-height host so both the typed error and final
+  // process status remain visible without reaching into terminal internals.
+  await page.setViewportSize({ width: 800, height: 900 })
   const diagnostics = observeBrowserDiagnostics(page)
   await gotoScenario(page, 'exception')
   const panel = await openKarelPanel(page)
@@ -251,6 +255,8 @@ test('preserves ordinary stdout and reports a typed nested exception source', as
   expect(exceptionProbe?.stdoutSample).toContain(
     'nested ordinary stdout remains visible',
   )
+  await page.getByRole('textbox', { name: 'Terminal input' }).focus()
+  await page.keyboard.press('Shift+PageUp')
   await expect(terminal).toContainText('SyntheticNestedError: synthetic nested failure')
 
   const events = await protocolEvents(page)
@@ -486,10 +492,10 @@ test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and no
   const diagnostics = observeBrowserDiagnostics(page)
   await gotoScenario(page, 'nested')
 
-  const karelTab = page.getByRole('button', { name: 'Karel', exact: true })
+  const karelTab = page.getByRole('tab', { name: 'Karel', exact: true })
+  await expect(karelTab).toHaveAttribute('aria-selected', 'true')
   await karelTab.focus()
   await expect(karelTab).toBeFocused()
-  await page.keyboard.press('Enter')
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   await expect(panel).toBeVisible()
   await expect(panel.getByRole('status')).toHaveAttribute('aria-live', 'polite')

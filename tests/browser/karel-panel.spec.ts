@@ -152,10 +152,10 @@ test('registers through a real Web IDE host using only public APIs', async ({ pa
   await page.goto('/host.html')
 
   await expect(page.getByText('KAREL TEST', { exact: true })).toBeVisible()
-  const karelTab = page.getByRole('button', { name: 'Karel', exact: true })
+  const karelTab = page.getByRole('tab', { name: 'Karel', exact: true })
   await expect(karelTab).toBeVisible()
+  await expect(karelTab).toHaveAttribute('aria-selected', 'true')
   await karelTab.focus()
-  await page.keyboard.press('Enter')
   await expect(karelTab).toBeFocused()
 
   await expect(page.getByRole('heading', { name: 'First Steps' })).toBeVisible()
@@ -227,7 +227,10 @@ test('fits controls and labeled settings inside a narrow host-provided pane', as
 }) => {
   await page.setViewportSize({ width: 640, height: 820 })
   await page.goto('/host.html')
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Karel', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
 
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   const layout = await panel.evaluate((element) => {
@@ -267,7 +270,10 @@ test('follows the host theme and preserves readable panel contrast', async ({ pa
     window.localStorage.setItem('web-ide.theme', 'dark')
   })
   await page.goto('/host.html')
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Karel', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
 
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   const darkPalette = await readPalette(panel)
@@ -297,7 +303,10 @@ test('runs a nested-module Karel program through the generic Python runtime sess
   await page.goto('/host.html')
   expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true)
 
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Karel', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   await page.getByRole('button', { name: 'Run Karel' }).click()
 
   await expect(page.getByRole('status')).toHaveText(/Complete|Stopped|Error/, {
@@ -325,7 +334,10 @@ test('drives accessible line playback and recorded history through public servic
   await page.goto('/host.html')
   expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true)
 
-  await page.getByRole('button', { name: 'Karel', exact: true }).click()
+  await expect(page.getByRole('tab', { name: 'Karel', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   const panel = page.getByRole('region', { name: 'Karel world and playback' })
   const statusBar = page.getByRole('contentinfo', { name: 'Status bar' })
   const framePosition = panel.locator('.karel-frame-status > span').first()

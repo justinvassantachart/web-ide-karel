@@ -17,15 +17,15 @@ import {
 export const PACKED_CANDIDATE_SPECS = Object.freeze([
   Object.freeze({
     packageName: 'web-ide',
-    expectedVersion: '0.2.0',
+    expectedVersion: '0.3.0',
     reference: 'file:artifacts/web-ide.tgz',
     destination: 'artifacts/web-ide.tgz',
     lockPackagePath: 'node_modules/web-ide',
   }),
   Object.freeze({
     packageName: '@web-ide/karel',
-    expectedVersion: '0.2.0',
-    expectedWebIDEPeer: '>=0.2.0 <0.3.0',
+    expectedVersion: '0.3.0',
+    expectedWebIDEPeer: '>=0.3.0 <0.4.0',
     reference: 'file:artifacts/web-ide-karel.tgz',
     destination: 'artifacts/web-ide-karel.tgz',
     lockPackagePath: 'node_modules/@web-ide/karel',
