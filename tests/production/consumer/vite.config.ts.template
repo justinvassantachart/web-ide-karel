@@ -1,0 +1,28 @@
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
+import wasm from 'vite-plugin-wasm'
+
+export default defineConfig({
+  plugins: [react(), wasm()],
+  resolve: {
+    alias: {
+      'node:buffer': 'buffer',
+      'node:events': 'events',
+      'node:path': 'path-browserify',
+      'node:stream': 'stream-browserify',
+    },
+    dedupe: ['react', 'react-dom', 'web-ide', '@web-ide/karel'],
+  },
+  worker: {
+    format: 'es',
+    plugins: () => [wasm()],
+  },
+  optimizeDeps: { exclude: ['debugger-sh'] },
+  // Preserve debugger-sh's WebAssembly-loader top-level await for evergreen
+  // production browsers instead of applying a second transform plugin.
+  build: {
+    target: 'esnext',
+    outDir: 'dist',
+    emptyOutDir: true,
+  },
+})

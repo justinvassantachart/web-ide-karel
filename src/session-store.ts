@@ -1,5 +1,10 @@
 import type { IDEPanelServices } from 'web-ide'
-import { KarelProtocolDecoder, type KarelDecodeResult } from './protocol'
+import {
+  KarelProtocolDecoder,
+  KarelRetiredRunEventError,
+  KarelUnexpectedRunEventError,
+  type KarelDecodeResult,
+} from './protocol'
 import type {
   KarelProtocolEvent,
   KarelSessionSnapshot,
@@ -74,14 +79,22 @@ export class KarelSessionStore {
       if (this.attachmentCount === 0) {
         this.detachRuntime?.()
         this.detachRuntime = undefined
-        this.decoder.reset()
+        this.decoder.reset({
+          retireActiveRun: true,
+          clearExpectedRunId: true,
+        })
       }
     }
   }
 
   reset(): void {
-    this.decoder.reset()
+    this.decoder.reset({ retireActiveRun: true })
     this.update(waitingSnapshot(this.initialWorld))
+  }
+
+  /** Binds the next decoded run to the identity materialized by the host. */
+  expectRun(runId: string): void {
+    this.decoder.expectRun(runId)
   }
 
   /** Replaces the exact reset world without changing student workspace files. */
@@ -104,7 +117,12 @@ export class KarelSessionStore {
 
   private applyDecodeResult(result: KarelDecodeResult): void {
     for (const event of result.events) this.applyEvent(event)
-    const firstError = result.errors[0]
+    const firstError = result.errors.find(
+      (error) => !(
+        error instanceof KarelRetiredRunEventError
+        || error instanceof KarelUnexpectedRunEventError
+      ),
+    )
     if (firstError) {
       this.update({
         ...this.snapshotValue,

@@ -6,9 +6,9 @@ Use the checked-in npm lockfile and a supported Python interpreter:
 
 ```sh
 npm ci
+npm run check:python
 npx playwright install chromium
-npm run validate
-npm run test:browser
+npm run validate:production
 ```
 
 `npm run validate` is exactly:
@@ -32,12 +32,16 @@ Use narrower scripts while iterating:
 | --- | --- |
 | `npm run lint` | ESLint across the repository |
 | `npm run test:ts` | Vitest unit, component, and integration tests, excluding `tests/browser/**` |
+| `npm run check:python` | Fail closed unless `python3` is Python 3.10 or newer. |
 | `npm run test:python` | Python `unittest` discovery under `tests/python` for `*_test.py` |
 | `npm run typecheck` | TypeScript project references via `tsc -b` |
 | `npm run build:library` | Vite library build and generated declarations |
 | `npm run build:example` | Typecheck and production-build `examples/basic` against `dist` |
 | `npm run test:browser` | Playwright browser suite against the port-4178 fixture |
+| `npm run audit:full` / `npm run audit:production` | Fail at any known vulnerability in the full or production dependency tree. |
+| `npm run test:packed-production` | Pack both sibling packages, strictly install them in a fresh consumer, audit/typecheck/build, then run the production-server browser matrix. |
 | `npm run pack:check` | Inspect the npm tarball contents without publishing |
+| `npm run validate:production` | Run `validate`, the development browser suite, both audits, and the packed-production consumer gate. |
 
 ## Test layers
 
@@ -60,9 +64,9 @@ Use narrower scripts while iterating:
   walls, beepers/bag, colors, predicates, typed failures, world quotas, and
   exactly-once protocol-limit settlement.
 - `tests/unit/protocol.test.ts` covers every chunk boundary, ordinary stdout,
-  contiguous run correlation, terminal settlement, strict fields/source paths,
-  unsupported v1 input, frame/event/error quotas, malformed recovery, and
-  truncation.
+  host-expected and retired run correlation, terminal settlement, strict
+  fields/source paths, unsupported v1 input, frame/event/error quotas,
+  malformed recovery, and truncation.
 - `tests/integration/python-protocol.test.ts` launches the bundled Python
   library, reads host-created execution-only run/world resources, decodes its
   real stdout in TypeScript, preserves ordinary output/tracebacks, and verifies
@@ -74,8 +78,10 @@ Use narrower scripts while iterating:
   UTF-8-byte eviction, stale/duplicate/post-terminal rejection, explicit live
   versus history cursors, and terminal failure/limit preservation.
 - `tests/unit/playback-controller.test.ts` proves public-service composition,
+  deterministic owner-scoped workspace overlays, missing-capability failure,
   eligible-source filtering, current/historical decorations, live advance,
-  scheduled play/pause, pause limits, settlement, world reset, and cleanup.
+  scheduled play/pause, host-configured limits, settlement, world reset, and
+  exact-owner cleanup.
 - `tests/unit/comparison.test.ts` proves deterministic, immutable,
   `formative-only` final-state differences and explicit completion semantics.
 - `tests/component/karel-panel.test.tsx` covers the rendered world, unavailable
@@ -105,6 +111,11 @@ The Playwright suite verifies:
 4. public services drive prepare/pause, live Step Forward, recorded Step Back,
    Return to live, and settled Stop with accessible status text.
 
+Component coverage also resolves execution startup and delivers an initial
+protocol state before the first valid student pause. The panel must remain
+`Starting` with Stop disabled until that pause arrives, preventing the packed
+abort/rerun scenario from racing runtime preparation.
+
 Browser scenarios fail if their asserted runtime, isolation, UI, or lifecycle
 outcome is absent. `playwright.config.ts` runs them headlessly and gives the two
 real-runtime scenarios extended 180-second timeouts inside the tests.
@@ -115,11 +126,70 @@ not establish packed-artifact installation, production-server headers, SPA
 fallback behavior, CSP/CORS/CORP coverage, or production rollback. Those are
 separate release gates and must not be inferred from a green browser run here.
 
+## Packed-production workflow
+
+`npm run test:packed-production` runs
+`scripts/validate-packed-production-consumer.mjs`. It builds and packs the
+adjacent `web-ide` checkout and this package, records both SHA-256 values,
+copies only the tarballs into a fresh temporary project, and installs with
+strict peer and engine checks. The fixture imports public package exports only;
+it then runs full and production audits, typechecking, a real Vite production
+build, and one-worker Playwright against a purpose-built static SPA server.
+
+The production browser matrix proves:
+
+1. nested-module execution with exact line/action/world/run correlation,
+   execution-only resource exclusion, history navigation, and live external
+   Monaco, debugger-sh, and Python-runtime assets;
+2. deterministic termination of a line-only loop at its configured pause
+   limit;
+3. output-flood termination while already accepted, correlated protocol events
+   remain valid;
+4. 2,000 valid Karel actions with contiguous sequences and visible
+   count/byte-bounded history truncation;
+5. ordinary stdout, traceback, typed error, and nested source preservation;
+6. active abort followed by a clean, newly correlated rerun;
+7. sequential project remount without workspace, state, session, or listener
+   leakage;
+8. two simultaneous browser realms with overlapping local run IDs and isolated
+   workspaces/state;
+9. close/unmount cleanup of listeners, sessions, persistence, workers, and
+   post-disposal events; and
+10. keyboard-only operation, retained focus indication, polite/non-color
+    status, reduced motion, narrow responsive layout without horizontal
+    overflow, light/dark themes, and at least 4.5:1 text contrast.
+
+Passing scenarios write 13 full-page PNGs, while Playwright retains trace and
+failure artifacts. Set `KAREL_PRODUCTION_ARTIFACT_DIR` to an absolute directory
+to retain them at a chosen evidence boundary; the wrapper reports every
+artifact's path, byte count, and SHA-256. Set
+`KEEP_KAREL_PRODUCTION_CONSUMER=1` only for local failure investigation.
+
+The tested production server applies the following values to the document,
+nested SPA fallback, static assets, malformed-path response, and 404 response:
+
+```text
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+Cross-Origin-Resource-Policy: same-origin
+Access-Control-Allow-Origin: *
+Content-Security-Policy: default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' data: blob: https://cdn.jsdelivr.net https://runno.dev; worker-src 'self' blob:; child-src 'self' blob:
+X-Content-Type-Options: nosniff
+Referrer-Policy: no-referrer
+```
+
+The matrix also requires `crossOriginIsolated`, `SharedArrayBuffer`, successful
+external responses, and either `Access-Control-Allow-Origin: *` or
+`Cross-Origin-Resource-Policy: cross-origin` on every observed cross-origin
+runtime asset. Do not broaden these origins without a reviewed runtime-asset
+change; a self-hosted deployment may replace them with its exact reviewed
+origins.
+
 ## Validation expectations
 
 A change is locally ready for integration only when:
 
-- `npm run validate` and `npm run test:browser` both exit zero;
+- `npm run validate:production` exits zero;
 - no required test was focused, skipped, relabeled, or weakened;
 - world/protocol fixture changes are intentional and pass in both languages;
 - package dry-run contains only intended public files;

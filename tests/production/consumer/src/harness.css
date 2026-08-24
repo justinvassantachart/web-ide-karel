@@ -1,0 +1,68 @@
+:root,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.packed-harness {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  background: #111827;
+}
+
+.packed-harness-controls {
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 38px;
+  padding: 4px 10px;
+  color: #f8fafc;
+  background: #111827;
+  font: 12px/1.3 ui-sans-serif, system-ui, sans-serif;
+}
+
+.packed-harness-controls nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.packed-harness-controls button,
+.packed-harness-controls output {
+  min-height: 30px;
+  box-sizing: border-box;
+  padding: 5px 9px;
+  border: 1px solid #64748b;
+  border-radius: 5px;
+  color: #f8fafc;
+  background: #1e293b;
+  font: inherit;
+}
+
+.packed-harness-controls button:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.packed-harness-controls button:disabled {
+  opacity: 0.5;
+}
+
+.packed-instance {
+  min-width: 0;
+  min-height: 0;
+}
+
+.packed-unmounted {
+  align-self: center;
+  justify-self: center;
+  color: #f8fafc;
+  font: 600 16px/1.4 ui-sans-serif, system-ui, sans-serif;
+}

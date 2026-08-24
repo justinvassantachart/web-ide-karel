@@ -1,0 +1,235 @@
+import { mkdir } from 'node:fs/promises'
+import path from 'node:path'
+import { expect, type Locator, type Page, type Response } from '@playwright/test'
+
+export interface BrowserDiagnostics {
+  consoleErrors: string[]
+  pageErrors: string[]
+  requestFailures: string[]
+  criticalResponses: string[]
+  externalResponses: Response[]
+}
+
+export function observeBrowserDiagnostics(page: Page): BrowserDiagnostics {
+  const diagnostics: BrowserDiagnostics = {
+    consoleErrors: [],
+    pageErrors: [],
+    requestFailures: [],
+    criticalResponses: [],
+    externalResponses: [],
+  }
+  page.on('console', (message) => {
+    if (message.type() === 'error') diagnostics.consoleErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => diagnostics.pageErrors.push(error.stack ?? error.message))
+  page.on('requestfailed', (request) => {
+    diagnostics.requestFailures.push(
+      `${request.method()} ${request.url()}: ${request.failure()?.errorText ?? 'unknown'}`,
+    )
+  })
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      diagnostics.criticalResponses.push(`${response.status()} ${response.url()}`)
+    }
+    if (/^https:\/\/(?:cdn\.jsdelivr\.net|runno\.dev)\//u.test(response.url())) {
+      diagnostics.externalResponses.push(response)
+    }
+  })
+  return diagnostics
+}
+
+export function expectCleanBrowser(diagnostics: BrowserDiagnostics): void {
+  expect({
+    consoleErrors: diagnostics.consoleErrors,
+    pageErrors: diagnostics.pageErrors,
+    requestFailures: diagnostics.requestFailures,
+    criticalResponses: diagnostics.criticalResponses,
+  }).toEqual({
+    consoleErrors: [],
+    pageErrors: [],
+    requestFailures: [],
+    criticalResponses: [],
+  })
+}
+
+export async function expectSecurityHeaders(page: Page): Promise<void> {
+  const navigation = await page.goto(
+    '/nested/production/matrix/route?mode=single&scenario=nested',
+  )
+  expect(navigation).not.toBeNull()
+  const headers = navigation!.headers()
+  expect(headers['cross-origin-opener-policy']).toBe('same-origin')
+  expect(headers['cross-origin-embedder-policy']).toBe('require-corp')
+  expect(headers['cross-origin-resource-policy']).toBe('same-origin')
+  expect(headers['access-control-allow-origin']).toBe('*')
+  expect(headers['x-content-type-options']).toBe('nosniff')
+  expect(headers['referrer-policy']).toBe('no-referrer')
+  expect(headers['content-security-policy']).toContain("default-src 'self'")
+  expect(headers['content-security-policy']).toContain(
+    "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net",
+  )
+  expect(headers['content-security-policy']).toContain(
+    "connect-src 'self' data: blob: https://cdn.jsdelivr.net https://runno.dev",
+  )
+  expect(await page.evaluate(() => window.crossOriginIsolated)).toBe(true)
+  expect(await page.evaluate(() => typeof SharedArrayBuffer)).toBe('function')
+
+  const normalRoute = await page.request.get('/')
+  expect(normalRoute.status()).toBe(200)
+  const normalHeaders = normalRoute.headers()
+  const fullSecurityHeaderSet = [
+    'cross-origin-opener-policy',
+    'cross-origin-embedder-policy',
+    'cross-origin-resource-policy',
+    'access-control-allow-origin',
+    'content-security-policy',
+    'x-content-type-options',
+    'referrer-policy',
+  ] as const
+  for (const name of fullSecurityHeaderSet) {
+    expect(normalHeaders[name], `GET / ${name}`).toBe(headers[name])
+  }
+
+  for (const [url, status] of [
+    ['/assets/does-not-exist.js', 404],
+    ['/%E0%A4%A', 400],
+  ] as const) {
+    const response = await page.request.get(url)
+    expect(response.status()).toBe(status)
+    const errorHeaders = response.headers()
+    for (const name of fullSecurityHeaderSet) {
+      expect(errorHeaders[name], `${status} ${url} ${name}`).toBe(headers[name])
+    }
+  }
+
+  const scriptSource = await page.locator('script[type="module"]').getAttribute('src')
+  expect(scriptSource).toBeTruthy()
+  const asset = await page.request.get(scriptSource!)
+  expect(asset.ok()).toBe(true)
+  const assetHeaders = asset.headers()
+  for (const name of fullSecurityHeaderSet) {
+    expect(assetHeaders[name], `static asset ${name}`).toBe(headers[name])
+  }
+}
+
+export async function gotoScenario(page: Page, scenario: string): Promise<void> {
+  await page.goto(
+    `/nested/production/matrix/route?mode=single&scenario=${encodeURIComponent(scenario)}`,
+  )
+  await expectPackedIDEReady(page)
+}
+
+export async function expectPackedIDEReady(
+  page: Page,
+  scope: Locator = page.locator('[data-instance-id]').first(),
+): Promise<void> {
+  await expect(scope.getByText(/PACKED KAREL ·/u).first()).toBeVisible({
+    timeout: 150_000,
+  })
+  await expect(scope.locator('.monaco-editor')).toBeVisible({ timeout: 150_000 })
+  await expect(page.getByRole('contentinfo', { name: 'Status bar' })).toContainText(
+    'Ready',
+    { timeout: 150_000 },
+  )
+}
+
+export async function openKarelPanel(
+  scope: Page | Locator,
+): Promise<Locator> {
+  await scope.getByRole('button', { name: 'Karel', exact: true }).click()
+  const panel = scope.getByRole('region', { name: 'Karel world and playback' })
+  await expect(panel).toBeVisible()
+  return panel
+}
+
+export async function runKarel(
+  scope: Page | Locator,
+  panel: Locator,
+): Promise<void> {
+  const run = scope.getByRole('button', { name: 'Run Karel', exact: true })
+  await expect(run).toBeEnabled({ timeout: 150_000 })
+  await run.click()
+  await expect(panel.getByRole('status')).toHaveText('Complete', {
+    timeout: 150_000,
+  })
+}
+
+export async function protocolEvents(page: Page, id = 'primary') {
+  return page.evaluate((instanceId) => {
+    return window.__PACKED_KAREL__.protocolEvents(instanceId)
+  }, id)
+}
+
+export async function hostEvents(page: Page, id = 'primary') {
+  return page.evaluate((instanceId) => {
+    return window.__PACKED_KAREL__.hostEvents(instanceId)
+  }, id)
+}
+
+export async function instanceSnapshot(page: Page, id = 'primary') {
+  return page.evaluate((instanceId) => {
+    return window.__PACKED_KAREL__.snapshot(instanceId)
+  }, id)
+}
+
+export async function instanceProbe(page: Page, id = 'primary') {
+  return page.evaluate((instanceId) => {
+    return window.__PACKED_KAREL__.probe(instanceId)
+  }, id)
+}
+
+export async function captureEvidence(page: Page, filename: string): Promise<void> {
+  const artifactRoot = process.env.KAREL_PRODUCTION_ARTIFACT_DIR
+  if (!artifactRoot || !path.isAbsolute(artifactRoot)) {
+    throw new Error('KAREL_PRODUCTION_ARTIFACT_DIR must be an absolute path')
+  }
+  await mkdir(artifactRoot, { recursive: true })
+  await page.screenshot({
+    path: path.join(artifactRoot, filename),
+    fullPage: true,
+    animations: 'disabled',
+  })
+}
+
+function channel(value: number): number {
+  const normalized = value / 255
+  return normalized <= 0.04045
+    ? normalized / 12.92
+    : ((normalized + 0.055) / 1.055) ** 2.4
+}
+
+function luminance(values: readonly number[]): number {
+  return (
+    0.2126 * channel(values[0]!)
+    + 0.7152 * channel(values[1]!)
+    + 0.0722 * channel(values[2]!)
+  )
+}
+
+async function resolvedRgb(
+  locator: Locator,
+  property: 'color' | 'backgroundColor',
+): Promise<[number, number, number]> {
+  return locator.evaluate((element, cssProperty) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 1
+    canvas.height = 1
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) throw new Error('Canvas 2D context is unavailable')
+    context.fillStyle = getComputedStyle(element)[cssProperty]
+    context.fillRect(0, 0, 1, 1)
+    const [red, green, blue] = context.getImageData(0, 0, 1, 1).data
+    return [red!, green!, blue!]
+  }, property)
+}
+
+export async function contrastRatio(
+  foreground: Locator,
+  background: Locator,
+): Promise<number> {
+  const foregroundColor = await resolvedRgb(foreground, 'color')
+  const backgroundColor = await resolvedRgb(background, 'backgroundColor')
+  const first = luminance(foregroundColor)
+  const second = luminance(backgroundColor)
+  return (Math.max(first, second) + 0.05) / (Math.min(first, second) + 0.05)
+}

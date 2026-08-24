@@ -12,10 +12,15 @@ import {
 import { createFakeRuntime } from '../helpers/fake-runtime'
 
 const { runtime, events } = createFakeRuntime()
+const browserRuntime = {
+  ...runtime,
+  capabilities: { ...runtime.capabilities, debug: true },
+}
 const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)
+let sequence = 0
 
 export function Fixture() {
-  useEffect(() => store.attach(runtime), [])
+  useEffect(() => store.attach(browserRuntime), [])
 
   const move = () => {
     const world = cloneKarelWorld(DEFAULT_KAREL_WORLD)
@@ -26,11 +31,13 @@ export function Fixture() {
         version: KAREL_PROTOCOL_VERSION,
         runId: 'browser-fixture',
         type: 'state',
-        sequence: 0,
+        sequence,
         action: 'move',
+        source: { path: 'main.py', line: 1 },
         world,
       }),
     )
+    sequence += 1
   }
 
   return (
@@ -41,9 +48,17 @@ export function Fixture() {
         </button>
       </div>
       <KarelPanel
-        runtime={runtime}
+        runtime={browserRuntime}
         execution={{
-          start: async () => undefined,
+          start: async () => {
+            events.debugPaused.emit({
+              file: '/workspace/main.py',
+              line: 1,
+              func: 'main',
+              callStack: [],
+              memorySnapshot: null,
+            })
+          },
           stop: () => undefined,
           restart: async () => undefined,
         }}
@@ -54,8 +69,9 @@ export function Fixture() {
           dispose: () => undefined,
         }}
         store={store}
-        workspace={{ snapshot: () => ({}) }}
+        workspace={{ snapshot: () => ({ '/workspace/main.py': 'move()\n' }) }}
         panels={{ reveal: () => undefined }}
+        timelineLimits={{ maxFrames: 4, maxBytes: 1024 * 1024 }}
       />
     </main>
   )

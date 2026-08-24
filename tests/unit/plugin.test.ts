@@ -11,8 +11,10 @@ import type {
 } from 'web-ide'
 import {
   DEFAULT_KAREL_PANEL_ID,
+  DEFAULT_KAREL_PLAYBACK_LIMITS,
   DEFAULT_KAREL_RESOURCE_ID,
   DEFAULT_KAREL_RUN_COMMAND_ID,
+  DEFAULT_KAREL_TIMELINE_LIMITS,
   KAREL_LIBRARY_EXECUTION_PATH,
   KAREL_RUN_EXECUTION_PATH,
   KAREL_STARTER_WORKSPACE_PATH,
@@ -103,9 +105,11 @@ function panelServices(
 
 interface KarelPanelElement {
   props: {
+    playbackLimits?: unknown
     selectedWorldId?: string
     onSelectWorld?(worldId: string): void
     store: unknown
+    timelineLimits?: unknown
   }
 }
 
@@ -216,6 +220,29 @@ describe('host-created Karel plugin', () => {
     expect(plugin.contributes?.panels?.[0]?.id).toBe('course.world')
     expect(commands).not.toHaveBeenCalled()
     activation.dispose()
+  })
+
+  it('passes explicit activity-owned execution and history limits to its panel', () => {
+    const playbackLimits = {
+      ...DEFAULT_KAREL_PLAYBACK_LIMITS,
+      maxPauses: 12,
+      maxElapsedMs: 2_000,
+      maxOutputBytes: 4_096,
+    }
+    const timelineLimits = {
+      ...DEFAULT_KAREL_TIMELINE_LIMITS,
+      maxFrames: 4,
+      maxBytes: 32_768,
+    }
+    const plugin = createKarelPlugin({ playbackLimits, timelineLimits })
+    const panel = plugin.contributes?.panels?.[0]
+    expect(panel).toBeDefined()
+    if (!panel) return
+
+    const python = createFakeRuntime()
+    const rendered = renderPluginPanel(panel, panelServices(python.runtime))
+    expect(rendered.props.playbackLimits).toBe(playbackLimits)
+    expect(rendered.props.timelineLimits).toBe(timelineLimits)
   })
 
   it('selects an explicit strict world document for each execution run', () => {

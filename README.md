@@ -7,7 +7,10 @@ data, or add Karel behavior to Web IDE core.
 
 The package composes only through public Web IDE contributions and panel
 services. A host selects a generic runtime that advertises Python and, for line
-playback, debugger support.
+playback, debugger support plus the optional owner-scoped transient-breakpoint
+overlay API. Providers without that API may still execute Python outside the
+Karel playback controller, but Karel line playback fails closed with a clear
+capability error instead of taking ownership of editor breakpoints.
 
 ## Host composition
 
@@ -217,7 +220,12 @@ available. One terminal event settles the run as `completed`, `runtime-error`,
 `KarelProtocolDecoder` incrementally separates framed events from ordinary
 stdout, validates exact event fields and source paths, rejects wrong-run,
 non-contiguous, unsupported, malformed, oversized, and post-terminal events,
-and can resume after a rejected frame. Current defensive limits are:
+and can resume after a rejected frame. Before execution, the plugin binds the
+store to the exact run ID that it just materialized in `/sysroot/karel_run.json`.
+A sequence-zero event with any other ID is rejected, and up to 256 retired run
+IDs remain blocked so late output from a previous run cannot become the next
+run. Expected stale/wrong-run correlation rejections do not replace the visible
+state with a protocol error. Current defensive limits are:
 
 | Boundary | Limit |
 | --- | ---: |
@@ -240,6 +248,14 @@ existing `/workspace` files, skips support/runtime locations, combines eligible
 line pauses with validated Karel action frames, and owns current, historical,
 and error source decorations.
 
+For each playback run, the controller snapshots the workspace's Python files
+and contributes every non-empty, non-comment source line through Web IDE's
+owner-scoped transient-breakpoint overlay. It starts ordinary debug execution
+and continues between eligible stops, which preserves deterministic lines in
+nested student modules without changing visible editor breakpoints. The overlay
+is cleared on settlement, stop, reset, deactivation, and disposal. Replacement
+is subject to the selected runtime provider's combined breakpoint quota.
+
 The panel exposes Prepare, Play, Pause, Stop, Restart, Reset, Step forward,
 Step back, Return to live, playback speed, and multi-world selection. Step back
 changes only the displayed recorded world; it never reverses the live Python
@@ -247,6 +263,12 @@ process. Reset stops the run and restores the selected initial world without
 rewriting student files. Changing worlds performs the same execution/timeline
 reset before selecting the next initial world. Cleanup cancels timers, clears
 owned source decorations, and revokes subscriptions.
+
+A new run remains visibly `Starting`, with Stop unavailable, until the runtime
+has delivered its first validated pause in a student workspace file. An early
+execution-start resolution, support-code pause, or protocol state frame cannot
+be mistaken for that readiness boundary. This prevents Stop from racing the
+underlying runtime's asynchronous debug preparation.
 
 Current defaults are:
 
@@ -256,6 +278,12 @@ Current defaults are:
 - elapsed time: 60 seconds per run;
 - ordinary stdout/stderr observed by playback: 16 MiB per run; and
 - playback delay: 300 ms, clamped to 50–2,000 ms.
+
+Hosts may pass complete, positive-integer `playbackLimits` and
+`timelineLimits` objects to `createKarelPlugin`. The former owns pause, elapsed,
+output, and playback-speed bounds; the latter owns retained frame count and
+serialized UTF-8 bytes. Limits are instance-scoped, validated at controller
+construction, and do not change the protocol decoder's defensive ceilings.
 
 Terminal failures and limits are preserved separately from evictable history.
 Accessible names, live status/frame text, visible focus, responsive controls,
@@ -280,19 +308,21 @@ checkout:
 
 ```sh
 npm ci
+npm run check:python
 npx playwright install chromium
-npm run validate
-npm run test:browser
+npm run validate:production
 ```
 
 `npm run validate` executes, in order, lint, all non-browser TypeScript and
 Python tests, typechecking, the library and basic-example builds, and
-`npm pack --dry-run`. Browser tests are separate. They run the fixture on port
-4178 with COOP/COEP headers and cover mock cleanup, public host registration,
-a real nested-module Python run, and accessible line/history playback.
+`npm pack --dry-run`. `test:python` runs the version checker first and fails
+closed below Python 3.10. `validate:production` adds the development browser
+suite, full and production dependency audits, and a strict fresh consumer that
+installs packed Web IDE and Karel artifacts, builds them for production, serves
+the nested SPA with production headers, and runs the release browser matrix.
 
-The current browser command uses a cross-origin-isolated Vite development
-fixture. It is not, by itself, a packed-production-consumer or production-server
-proof. See [docs/testing.md](docs/testing.md) for the exact workflows and
+`npm run test:browser` alone still uses a cross-origin-isolated Vite development
+fixture and is not production proof. See [docs/testing.md](docs/testing.md) for
+the exact development and packed-production workflows and
 [docs/architecture.md](docs/architecture.md) for ownership and lifecycle
 details. Security boundaries and reporting are in [SECURITY.md](SECURITY.md).

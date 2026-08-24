@@ -5,10 +5,16 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { IDEPanelServices } from 'web-ide'
-import { KarelPlaybackController } from './playback-controller'
+import {
+  KarelPlaybackController,
+  type KarelPlaybackLimits,
+} from './playback-controller'
 import { KarelWorldView } from './KarelWorldView'
 import type { KarelSessionStore } from './session-store'
-import type { KarelTimelineSnapshot } from './timeline'
+import type {
+  KarelTimelineLimits,
+  KarelTimelineSnapshot,
+} from './timeline'
 import type { KarelSessionSnapshot, KarelWorld } from './types'
 
 export interface KarelPanelWorldOption {
@@ -22,17 +28,34 @@ export interface KarelPanelProps extends IDEPanelServices {
   worlds?: readonly KarelPanelWorldOption[]
   selectedWorldId?: string
   onSelectWorld?(id: string): void
+  /** Optional host-owned cumulative execution limits. */
+  playbackLimits?: KarelPlaybackLimits
+  /** Optional host-owned retained-history limits. */
+  timelineLimits?: KarelTimelineLimits
 }
 
 function statusLabel(
   session: KarelSessionSnapshot,
   timeline: Readonly<KarelTimelineSnapshot>,
+  operation: 'idle' | 'starting' | 'stopping',
+  runtimePaused: boolean,
+  hasReachedStudentPause: boolean,
 ): string {
   if (timeline.cursor.mode === 'history') return 'History'
+  const terminalOutcome = timeline.terminal?.detail.outcome
+  if (terminalOutcome === 'limit-exceeded') return 'Limit reached'
+  if (terminalOutcome === 'runtime-error') return 'Error'
+  if (terminalOutcome === 'completed') return 'Complete'
+  if (terminalOutcome === 'aborted') return 'Stopped'
+  if (operation === 'starting') return 'Starting'
+  if (operation === 'stopping') return 'Stopping'
+  if (timeline.activeRunId !== undefined && !hasReachedStudentPause) {
+    return 'Starting'
+  }
   if (timeline.phase === 'playing') return 'Playing'
   if (timeline.phase === 'advancing') return 'Stepping'
+  if (timeline.phase === 'paused' && !runtimePaused) return 'Pausing'
   if (timeline.phase === 'paused') return 'Paused'
-  if (timeline.terminal?.detail.outcome === 'limit-exceeded') return 'Limit reached'
   return {
     waiting: 'Ready',
     running: 'Running',
@@ -66,6 +89,8 @@ export function KarelPanel({
   worlds = [],
   selectedWorldId,
   onSelectWorld,
+  playbackLimits,
+  timelineLimits,
 }: KarelPanelProps) {
   const session = useSyncExternalStore(
     store.subscribe,
@@ -79,8 +104,18 @@ export function KarelPanel({
       source,
       workspace: { snapshot: workspace.snapshot },
       store,
+      ...(playbackLimits === undefined ? {} : { limits: playbackLimits }),
+      ...(timelineLimits === undefined ? {} : { timelineLimits }),
     }),
-    [execution, runtime, source, store, workspace.snapshot],
+    [
+      execution,
+      playbackLimits,
+      runtime,
+      source,
+      store,
+      timelineLimits,
+      workspace.snapshot,
+    ],
   )
   useEffect(() => controller.activate(), [controller])
   const playback = useSyncExternalStore(
@@ -133,7 +168,13 @@ export function KarelPanel({
           role="status"
           aria-live="polite"
         >
-          {statusLabel(session, timeline)}
+          {statusLabel(
+            session,
+            timeline,
+            playback.operation,
+            playback.runtimePaused,
+            playback.hasReachedStudentPause,
+          )}
         </span>
       </header>
 
@@ -183,7 +224,11 @@ export function KarelPanel({
         <button
           type="button"
           onClick={() => void controller.stop()}
-          disabled={!active || playback.operation === 'stopping'}
+          disabled={
+            !active
+            || busy
+            || !playback.hasReachedStudentPause
+          }
         >
           Stop
         </button>

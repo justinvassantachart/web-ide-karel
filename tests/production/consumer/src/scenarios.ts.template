@@ -1,0 +1,256 @@
+import type { WorkspaceFiles } from 'web-ide'
+import {
+  KAREL_WORLD_SCHEMA_NAME,
+  KAREL_WORLD_SCHEMA_VERSION,
+  parseKarelWorldDocument,
+  type KarelPlaybackLimits,
+  type KarelTimelineLimits,
+  type KarelWorldDocumentV1,
+} from '@web-ide/karel'
+
+export type ScenarioId =
+  | 'nested'
+  | 'line-loop'
+  | 'flood'
+  | 'stress'
+  | 'exception'
+  | 'abort'
+  | 'project-a'
+  | 'project-b'
+
+export interface PackedScenario {
+  id: ScenarioId
+  label: string
+  files: WorkspaceFiles
+  world: KarelWorldDocumentV1
+  playbackLimits: KarelPlaybackLimits
+  timelineLimits: KarelTimelineLimits
+}
+
+const DEFAULT_TIMELINE_LIMITS: KarelTimelineLimits = {
+  maxFrames: 128,
+  maxBytes: 8 * 1024 * 1024,
+}
+
+const FAST_PLAYBACK_LIMITS: KarelPlaybackLimits = {
+  maxPauses: 1_000,
+  maxElapsedMs: 30_000,
+  maxOutputBytes: 2 * 1024 * 1024,
+  minSpeedMs: 1,
+  maxSpeedMs: 2_000,
+  defaultSpeedMs: 1,
+}
+
+function world(name: string): KarelWorldDocumentV1 {
+  return parseKarelWorldDocument({
+    schema: KAREL_WORLD_SCHEMA_NAME,
+    version: KAREL_WORLD_SCHEMA_VERSION,
+    world: {
+      name,
+      columns: 6,
+      rows: 4,
+      karel: {
+        avenue: 1,
+        street: 1,
+        direction: 'east',
+        beepersInBag: 'infinite',
+      },
+      beepers: [{ avenue: 4, street: 2, count: 2 }],
+      walls: [{ avenue: 5, street: 2, direction: 'north' }],
+      colors: [{ avenue: 2, street: 2, color: '#22c55e' }],
+    },
+  })
+}
+
+const nestedFiles: WorkspaceFiles = {
+  '/workspace/main.py': `from student.route import run_route
+from karel import run_karel
+
+if __name__ == "__main__":
+    run_karel(run_route)
+`,
+  '/workspace/student/__init__.py': '',
+  '/workspace/student/route.py': `from karel import move, turn_left, turn_right
+
+def run_route():
+    move()
+    move()
+    turn_left()
+    move()
+    turn_right()
+`,
+}
+
+export const packedScenarios: Readonly<Record<ScenarioId, PackedScenario>> = {
+  nested: {
+    id: 'nested',
+    label: 'Nested module',
+    files: nestedFiles,
+    world: world('Nested Module World'),
+    playbackLimits: FAST_PLAYBACK_LIMITS,
+    timelineLimits: DEFAULT_TIMELINE_LIMITS,
+  },
+  'line-loop': {
+    id: 'line-loop',
+    label: 'Bounded line loop',
+    files: {
+      '/workspace/main.py': `from karel import run_karel
+
+def main():
+    counter = 0
+    while True:
+        counter += 1
+
+if __name__ == "__main__":
+    run_karel(main)
+`,
+    },
+    world: world('Line Loop World'),
+    playbackLimits: {
+      ...FAST_PLAYBACK_LIMITS,
+      maxPauses: 8,
+      // This scenario proves the debugger-pause guard. Keep an independent
+      // elapsed backstop, but leave enough time for nine real serialized DAP
+      // pauses on a loaded CI/browser host so elapsed time cannot win the race.
+      maxElapsedMs: 60_000,
+    },
+    timelineLimits: { maxFrames: 12, maxBytes: 256 * 1024 },
+  },
+  flood: {
+    id: 'flood',
+    label: 'Output and event flood',
+    files: {
+      '/workspace/main.py': `from karel import run_karel, turn_left
+
+def main():
+    for index in range(100):
+        print(f"FLOOD-{index:03d}-" + ("x" * 256), flush=True)
+        turn_left()
+
+if __name__ == "__main__":
+    run_karel(main)
+`,
+    },
+    world: world('Output Flood World'),
+    playbackLimits: {
+      ...FAST_PLAYBACK_LIMITS,
+      maxOutputBytes: 2_500,
+      maxElapsedMs: 15_000,
+    },
+    timelineLimits: { maxFrames: 20, maxBytes: 512 * 1024 },
+  },
+  stress: {
+    id: 'stress',
+    label: 'Valid protocol stress',
+    files: {
+      '/workspace/main.py': `from karel import run_karel, turn_left
+
+def main():
+    exec("turn_left()\\n" * 2_000, globals())
+
+if __name__ == "__main__":
+    run_karel(main)
+`,
+    },
+    world: world('Protocol Stress World'),
+    playbackLimits: {
+      ...FAST_PLAYBACK_LIMITS,
+      maxPauses: 50_000,
+      maxElapsedMs: 60_000,
+      maxOutputBytes: 16 * 1024 * 1024,
+    },
+    timelineLimits: { maxFrames: 10, maxBytes: 512 * 1024 },
+  },
+  exception: {
+    id: 'exception',
+    label: 'Typed nested exception',
+    files: {
+      '/workspace/main.py': `from failures.nested import fail
+from karel import run_karel
+
+def main():
+    print("ordinary stdout before typed nested failure", flush=True)
+    fail()
+
+if __name__ == "__main__":
+    run_karel(main)
+`,
+      '/workspace/failures/__init__.py': '',
+      '/workspace/failures/nested.py': `class SyntheticNestedError(RuntimeError):
+    pass
+
+def fail():
+    print("nested ordinary stdout remains visible", flush=True)
+    raise SyntheticNestedError("synthetic nested failure")
+`,
+    },
+    world: world('Nested Exception World'),
+    playbackLimits: FAST_PLAYBACK_LIMITS,
+    timelineLimits: DEFAULT_TIMELINE_LIMITS,
+  },
+  abort: {
+    id: 'abort',
+    label: 'Abort and rerun',
+    files: {
+      '/workspace/main.py': `from karel import run_karel, turn_left
+
+def main():
+    for _ in range(24):
+        turn_left()
+
+if __name__ == "__main__":
+    run_karel(main)
+`,
+    },
+    world: world('Abort and Rerun World'),
+    // This scenario proves lifecycle recovery across a real debugger restart,
+    // not the elapsed-time guard (covered separately). Keep it bounded while
+    // allowing 24 serialized debugger pauses plus two lifecycle startups on CI.
+    playbackLimits: { ...FAST_PLAYBACK_LIMITS, maxElapsedMs: 60_000 },
+    timelineLimits: { maxFrames: 32, maxBytes: 512 * 1024 },
+  },
+  'project-a': {
+    id: 'project-a',
+    label: 'Sequential project A',
+    files: {
+      '/workspace/main.py': `from a_only import route
+from karel import run_karel
+
+if __name__ == "__main__":
+    run_karel(route)
+`,
+      '/workspace/a_only.py': `from karel import move
+
+def route():
+    move()
+`,
+    },
+    world: world('Sequential Project A'),
+    playbackLimits: FAST_PLAYBACK_LIMITS,
+    timelineLimits: DEFAULT_TIMELINE_LIMITS,
+  },
+  'project-b': {
+    id: 'project-b',
+    label: 'Sequential project B',
+    files: {
+      '/workspace/main.py': `from b_only import route
+from karel import run_karel
+
+if __name__ == "__main__":
+    run_karel(route)
+`,
+      '/workspace/b_only.py': `from karel import turn_left
+
+def route():
+    turn_left()
+`,
+    },
+    world: world('Sequential Project B'),
+    playbackLimits: FAST_PLAYBACK_LIMITS,
+    timelineLimits: DEFAULT_TIMELINE_LIMITS,
+  },
+}
+
+export function scenario(id: string | null): PackedScenario {
+  return packedScenarios[id as ScenarioId] ?? packedScenarios.nested
+}

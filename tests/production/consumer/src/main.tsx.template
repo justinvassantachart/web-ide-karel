@@ -1,0 +1,480 @@
+import {
+  StrictMode,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react'
+import { createRoot } from 'react-dom/client'
+import {
+  WebIDE,
+  WebIDEHostProvider,
+  initWebIDETheme,
+  type EventSource,
+  type IDEEvent,
+  type IDEEventSink,
+  type IDEPlugin,
+  type RuntimeEventChannels,
+  type RuntimeProvider,
+  type RuntimeSession,
+  type WebIDEConfiguration,
+  type WebIDEHost,
+  type WebIDEInstanceHandle,
+  type WorkspaceFiles,
+} from 'web-ide'
+import { coreWorkbenchPlugin } from 'web-ide/plugins'
+import { pythonRuntimeProvider } from 'web-ide/runtimes'
+import {
+  KAREL_COMPARISON_AUTHORITY,
+  KarelSessionStore,
+  compareKarelFinalState,
+  createKarelPlugin,
+  type KarelProtocolEvent,
+} from '@web-ide/karel'
+import { packedScenarios, scenario, type PackedScenario } from './scenarios'
+import 'web-ide/styles.css'
+import '@web-ide/karel/styles.css'
+import './harness.css'
+
+interface InstanceProbe {
+  id: string
+  handle: WebIDEInstanceHandle | null
+  mounted: boolean
+  hostEvents: IDEEvent[]
+  protocolEvents: KarelProtocolEvent[]
+  activations: number
+  deactivations: number
+  activeRuntimeSubscriptions: number
+  totalRuntimeSubscriptions: number
+  runtimeSessionsCreated: number
+  runtimeSessionsDisposed: number
+  stdoutSample: string
+  persistenceEvents: string[]
+  nextRun: number
+}
+
+interface PublicProbeSnapshot {
+  mounted: boolean
+  activations: number
+  deactivations: number
+  activeRuntimeSubscriptions: number
+  totalRuntimeSubscriptions: number
+  runtimeSessionsCreated: number
+  runtimeSessionsDisposed: number
+  stdoutSample: string
+  persistenceEvents: string[]
+}
+
+interface PackedKarelHarness {
+  instanceIds(): string[]
+  snapshot(id: string): ReturnType<WebIDEInstanceHandle['snapshot']> | null
+  persistedFiles(id: string): WorkspaceFiles | null
+  hostEvents(id: string): IDEEvent[]
+  protocolEvents(id: string): KarelProtocolEvent[]
+  probe(id: string): PublicProbeSnapshot | null
+  close(id: string): Promise<void>
+}
+
+declare global {
+  interface Window {
+    __PACKED_KAREL__: PackedKarelHarness
+  }
+}
+
+const probes = new Map<string, InstanceProbe>()
+
+interface InstanceBundle {
+  probe: InstanceProbe
+  configuration: WebIDEConfiguration
+  host: WebIDEHost
+}
+
+const instanceBundles = new Map<string, InstanceBundle>()
+
+function clone<T>(value: T): T {
+  return structuredClone(value)
+}
+
+window.__PACKED_KAREL__ = {
+  instanceIds: () => [...probes.values()]
+    .filter(({ mounted }) => mounted)
+    .map(({ id }) => id)
+    .sort(),
+  snapshot: (id) => probes.get(id)?.handle?.snapshot() ?? null,
+  persistedFiles: (id) => {
+    const files = probes.get(id)?.handle?.persistedFiles()
+    return files === undefined ? null : clone(files)
+  },
+  hostEvents: (id) => clone(probes.get(id)?.hostEvents ?? []),
+  protocolEvents: (id) => clone(probes.get(id)?.protocolEvents ?? []),
+  probe: (id) => {
+    const probe = probes.get(id)
+    if (!probe) return null
+    return clone({
+      mounted: probe.mounted,
+      activations: probe.activations,
+      deactivations: probe.deactivations,
+      activeRuntimeSubscriptions: probe.activeRuntimeSubscriptions,
+      totalRuntimeSubscriptions: probe.totalRuntimeSubscriptions,
+      runtimeSessionsCreated: probe.runtimeSessionsCreated,
+      runtimeSessionsDisposed: probe.runtimeSessionsDisposed,
+      stdoutSample: probe.stdoutSample,
+      persistenceEvents: probe.persistenceEvents,
+    })
+  },
+  close: async (id) => {
+    await probes.get(id)?.handle?.close()
+  },
+}
+
+function trackedSource<T>(
+  source: EventSource<T>,
+  probe: InstanceProbe,
+  observe?: (value: T) => void,
+): EventSource<T> {
+  return {
+    subscribe(listener) {
+      probe.activeRuntimeSubscriptions += 1
+      probe.totalRuntimeSubscriptions += 1
+      const unsubscribe = source.subscribe((value) => {
+        observe?.(value)
+        listener(value)
+      })
+      let active = true
+      return () => {
+        if (!active) return
+        active = false
+        probe.activeRuntimeSubscriptions -= 1
+        unsubscribe()
+      }
+    },
+  }
+}
+
+function instrumentedPythonProvider(
+  instanceId: string,
+  probe: InstanceProbe,
+): RuntimeProvider {
+  const providerId = `packed.runtime.python.${instanceId}`
+  return {
+    ...pythonRuntimeProvider,
+    id: providerId,
+    createSession(): RuntimeSession {
+      const session = pythonRuntimeProvider.createSession()
+      probe.runtimeSessionsCreated += 1
+      let disposed = false
+      const recordDisposed = () => {
+        if (disposed) return
+        disposed = true
+        probe.runtimeSessionsDisposed += 1
+      }
+      const events: RuntimeEventChannels = {
+        stdout: trackedSource(session.events.stdout, probe, (chunk) => {
+          const remaining = 4_096 - probe.stdoutSample.length
+          if (remaining > 0) probe.stdoutSample += chunk.slice(0, remaining)
+        }),
+        stderr: trackedSource(session.events.stderr, probe),
+        terminalClear: trackedSource(session.events.terminalClear, probe),
+        graphicsDraw: trackedSource(session.events.graphicsDraw, probe),
+        debugPaused: trackedSource(session.events.debugPaused, probe),
+        debugResumed: trackedSource(session.events.debugResumed, probe),
+        exit: trackedSource(session.events.exit, probe),
+        diagnostic: trackedSource(session.events.diagnostic, probe),
+        breakpointsValidated: trackedSource(
+          session.events.breakpointsValidated,
+          probe,
+        ),
+      }
+      return new Proxy(session, {
+        get(target, property) {
+          if (property === 'id') return providerId
+          if (property === 'events') return events
+          if (property === 'disposeAndWait' && target.disposeAndWait) {
+            return async () => {
+              try {
+                return await target.disposeAndWait!()
+              } finally {
+                recordDisposed()
+              }
+            }
+          }
+          if (property === 'dispose' && target.dispose) {
+            return () => {
+              try {
+                target.dispose!()
+              } finally {
+                recordDisposed()
+              }
+            }
+          }
+          const value = Reflect.get(target, property, target)
+          return typeof value === 'function' ? value.bind(target) : value
+        },
+      })
+    },
+  }
+}
+
+function protocolProbePlugin(
+  instanceId: string,
+  packedScenario: PackedScenario,
+  probe: InstanceProbe,
+): IDEPlugin {
+  return {
+    id: `packed.protocol.probe.${instanceId}`,
+    activate(context) {
+      probe.activations += 1
+      if (context.runtime) {
+        const store = new KarelSessionStore(packedScenario.world.world)
+        context.register(store.attach(context.runtime))
+        context.register(store.subscribeProtocol((event) => {
+          probe.protocolEvents.push(clone(event))
+        }))
+      }
+      return () => {
+        probe.deactivations += 1
+      }
+    },
+  }
+}
+
+function instanceBundle(
+  instanceId: string,
+  packedScenario: PackedScenario,
+): InstanceBundle {
+  const bundleKey = `${instanceId}:${packedScenario.id}`
+  const existing = instanceBundles.get(bundleKey)
+  if (existing) {
+    probes.set(instanceId, existing.probe)
+    return existing
+  }
+
+  const probe: InstanceProbe = {
+    id: instanceId,
+    handle: null,
+    mounted: false,
+    hostEvents: [],
+    protocolEvents: [],
+    activations: 0,
+    deactivations: 0,
+    activeRuntimeSubscriptions: 0,
+    totalRuntimeSubscriptions: 0,
+    runtimeSessionsCreated: 0,
+    runtimeSessionsDisposed: 0,
+    stdoutSample: '',
+    persistenceEvents: [],
+    nextRun: 0,
+  }
+  const runtimeProvider = instrumentedPythonProvider(instanceId, probe)
+  const runtimePlugin: IDEPlugin = {
+    id: `packed.runtime.plugin.${instanceId}`,
+    contributes: { runtimeProviders: [runtimeProvider] },
+  }
+  const karelPlugin = createKarelPlugin({
+    pluginId: `packed.karel.${instanceId}`,
+    panelId: `packed.karel.panel.${instanceId}`,
+    resourceId: `packed.karel.resources.${instanceId}`,
+    runCommandId: `packed.karel.run.${instanceId}`,
+    worlds: [{ id: 'production', document: packedScenario.world }],
+    playbackLimits: packedScenario.playbackLimits,
+    timelineLimits: packedScenario.timelineLimits,
+    createRunId: () => `${instanceId}-run-${++probe.nextRun}`,
+  })
+  const configuration: WebIDEConfiguration = {
+    runtimeProvider: runtimeProvider.id,
+    brand: `PACKED KAREL · ${packedScenario.label.toUpperCase()}`,
+    terminalName: `Packed Python · ${packedScenario.id}`,
+    plugins: [
+      runtimePlugin,
+      coreWorkbenchPlugin,
+      protocolProbePlugin(instanceId, packedScenario, probe),
+      karelPlugin,
+    ],
+  }
+  const emit: IDEEventSink = (type, payload) => {
+    probe.hostEvents.push(clone({ type, payload } as IDEEvent))
+  }
+  const host: WebIDEHost = {
+    workspace: {
+      id: `packed-${instanceId}-${packedScenario.id}-v1`,
+      localCache: 'memory',
+      initialFiles: packedScenario.files,
+      persistence: {
+        save(_files, context) {
+          probe.persistenceEvents.push(
+            `save:${context.revision}:${context.reason}`,
+          )
+        },
+        flush() {
+          probe.persistenceEvents.push('flush')
+        },
+        dispose() {
+          probe.persistenceEvents.push('dispose')
+        },
+      },
+    },
+    events: { emit, includeRuntime: true },
+  }
+  const bundle = { probe, configuration, host }
+  instanceBundles.set(bundleKey, bundle)
+  probes.set(instanceId, probe)
+  return bundle
+}
+
+function setProbeMounted(probe: InstanceProbe, mounted: boolean): void {
+  probe.mounted = mounted
+}
+
+function setProbeHandle(
+  probe: InstanceProbe,
+  handle: WebIDEInstanceHandle | null,
+): void {
+  probe.handle = handle
+}
+
+function IDEInstance({
+  instanceId,
+  packedScenario,
+}: {
+  instanceId: string
+  packedScenario: PackedScenario
+}) {
+  const { probe, configuration, host } = instanceBundle(
+    instanceId,
+    packedScenario,
+  )
+
+  useEffect(() => {
+    setProbeMounted(probe, true)
+    return () => {
+      setProbeMounted(probe, false)
+    }
+  }, [probe])
+
+  return (
+    <div
+      className="packed-instance"
+      data-instance-id={instanceId}
+    >
+      <WebIDEHostProvider host={host}>
+        <WebIDE
+          ref={(handle) => setProbeHandle(probe, handle)}
+          configuration={configuration}
+        />
+      </WebIDEHostProvider>
+    </div>
+  )
+}
+
+function HarnessControls({ children }: { children: ReactNode }) {
+  return (
+    <header className="packed-harness-controls">
+      <strong>PACKED KAREL PRODUCTION MATRIX</strong>
+      <nav aria-label="Production fixture controls">{children}</nav>
+    </header>
+  )
+}
+
+function SingleScenario({ packedScenario }: { packedScenario: PackedScenario }) {
+  return (
+    <div className="packed-harness">
+      <HarnessControls>
+        <output aria-label="Selected scenario">{packedScenario.label}</output>
+      </HarnessControls>
+      <IDEInstance instanceId="primary" packedScenario={packedScenario} />
+    </div>
+  )
+}
+
+function SequentialProjects() {
+  const [project, setProject] = useState<'project-a' | 'project-b'>('project-a')
+  const [mounted, setMounted] = useState(true)
+  return (
+    <div className="packed-harness">
+      <HarnessControls>
+        <button type="button" onClick={() => setMounted(false)}>
+          Unmount project
+        </button>
+        <button
+          type="button"
+          disabled={mounted}
+          onClick={() => {
+            setProject('project-a')
+            setMounted(true)
+          }}
+        >
+          Mount project A
+        </button>
+        <button
+          type="button"
+          disabled={mounted}
+          onClick={() => {
+            setProject('project-b')
+            setMounted(true)
+          }}
+        >
+          Mount project B
+        </button>
+      </HarnessControls>
+      {mounted
+        ? (
+            <IDEInstance
+              key={project}
+              instanceId={`sequential-${project}`}
+              packedScenario={packedScenarios[project]}
+            />
+          )
+        : <p className="packed-unmounted" role="status">Project unmounted</p>}
+    </div>
+  )
+}
+
+function LifecycleHarness() {
+  const [mounted, setMounted] = useState(false)
+  return (
+    <div className="packed-harness">
+      <HarnessControls>
+        <button type="button" disabled={mounted} onClick={() => setMounted(true)}>
+          Mount lifecycle IDE
+        </button>
+        <button type="button" disabled={!mounted} onClick={() => setMounted(false)}>
+          Unmount lifecycle IDE
+        </button>
+      </HarnessControls>
+      {mounted
+        ? (
+            <IDEInstance
+              instanceId="lifecycle"
+              packedScenario={packedScenarios.abort}
+            />
+          )
+        : <p className="packed-unmounted" role="status">Lifecycle IDE unmounted</p>}
+    </div>
+  )
+}
+
+function App() {
+  const parameters = new URLSearchParams(window.location.search)
+  const mode = parameters.get('mode') ?? 'single'
+  if (mode === 'sequential') return <SequentialProjects />
+  if (mode === 'lifecycle') return <LifecycleHarness />
+  return <SingleScenario packedScenario={scenario(parameters.get('scenario'))} />
+}
+
+const comparisonContract = compareKarelFinalState(
+  packedScenarios.nested.world.world,
+  packedScenarios.nested.world.world,
+  { completion: { actual: true, expected: true } },
+)
+if (
+  comparisonContract.authority !== KAREL_COMPARISON_AUTHORITY
+  || !comparisonContract.matches
+) {
+  throw new Error('The public formative comparison contract is unavailable')
+}
+
+initWebIDETheme()
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)

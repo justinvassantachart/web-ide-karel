@@ -1,11 +1,13 @@
 import type {
   DebugPauseState,
   IDEPanelServices,
+  RuntimeBreakpointMap,
   WorkspaceFiles,
 } from 'web-ide'
 import type { KarelSessionStore } from './session-store'
 import {
   KarelTimeline,
+  type KarelTimelineLimits,
   type KarelTimelineSnapshot,
   type KarelTraceTerminal,
 } from './timeline'
@@ -37,6 +39,7 @@ export interface KarelPlaybackSnapshot {
   timeline: Readonly<KarelTimelineSnapshot>
   speedMs: number
   runtimePaused: boolean
+  hasReachedStudentPause: boolean
   operation: 'idle' | 'starting' | 'stopping'
   message?: string
 }
@@ -48,6 +51,7 @@ export interface KarelPlaybackControllerServices {
   workspace: IDEPanelServices['workspace']
   store: KarelSessionStore
   limits?: KarelPlaybackLimits
+  timelineLimits?: KarelTimelineLimits
   now?: () => number
 }
 
@@ -129,6 +133,23 @@ function absoluteSource(source: KarelSourceLocation): string {
   return `/workspace/${source.path}`
 }
 
+function playbackBreakpoints(files: WorkspaceFiles): RuntimeBreakpointMap {
+  const breakpoints: Record<string, readonly number[]> = {}
+  for (const [path, content] of Object.entries(files).sort(([left], [right]) => (
+    left < right ? -1 : left > right ? 1 : 0
+  ))) {
+    if (!path.startsWith('/workspace/') || !path.endsWith('.py')) continue
+    const lines = content
+      .split(/\r\n|\r|\n/u)
+      .flatMap((line, index) => {
+        const trimmed = line.trim()
+        return trimmed === '' || trimmed.startsWith('#') ? [] : [index + 1]
+      })
+    if (lines.length > 0) breakpoints[path] = Object.freeze(lines)
+  }
+  return Object.freeze(breakpoints)
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error && error.message
     ? error.message
@@ -147,7 +168,8 @@ export class KarelPlaybackController {
   private readonly store: KarelSessionStore
   private readonly limits: Readonly<KarelPlaybackLimits>
   private readonly now: () => number
-  private readonly timeline = new KarelTimeline()
+  private readonly timeline: KarelTimeline
+  private readonly breakpointOverlayOwner = Object.freeze({})
   private readonly listeners = new Set<() => void>()
   private unsubscribe: (() => void)[] = []
   private snapshotValue: Readonly<KarelPlaybackSnapshot>
@@ -159,6 +181,7 @@ export class KarelPlaybackController {
   private startedAt = 0
   private speedMs: number
   private runtimePaused = false
+  private hasReachedStudentPause = false
   private resumePending = false
   private operation: KarelPlaybackSnapshot['operation'] = 'idle'
   private message: string | undefined
@@ -167,6 +190,10 @@ export class KarelPlaybackController {
   private pendingStop: Promise<void> | undefined
   private activated = false
   private disposed = false
+  private breakpointOverlayInstalled = false
+  private pendingBreakpointOverlayInstall: Promise<void> | undefined
+  private pendingBreakpointOverlayClear: Promise<void> | undefined
+  private executionGeneration = 0
 
   constructor(services: KarelPlaybackControllerServices) {
     this.runtime = services.runtime
@@ -177,6 +204,9 @@ export class KarelPlaybackController {
     this.limits = validateLimits(
       services.limits ?? DEFAULT_KAREL_PLAYBACK_LIMITS,
     )
+    this.timeline = services.timelineLimits === undefined
+      ? new KarelTimeline()
+      : new KarelTimeline(services.timelineLimits)
     this.now = services.now ?? (() => performance.now())
     this.speedMs = this.limits.defaultSpeedMs
     this.snapshotValue = this.createSnapshot()
@@ -212,6 +242,7 @@ export class KarelPlaybackController {
   /** Compiles/starts in debug mode and pauses at the first eligible student line. */
   async prepare(): Promise<void> {
     await this.awaitPendingStop()
+    if (this.operation !== 'idle') return
     this.beginRun(false)
     await this.startExecution()
   }
@@ -220,6 +251,7 @@ export class KarelPlaybackController {
   async play(): Promise<void> {
     this.assertActive()
     await this.awaitPendingStop()
+    if (this.operation !== 'idle') return
     const current = this.timeline.getSnapshot()
     if (current.activeRunId === undefined || current.phase === 'terminal') {
       this.beginRun(true)
@@ -296,12 +328,16 @@ export class KarelPlaybackController {
 
   async stop(): Promise<void> {
     this.assertActive()
+    this.executionGeneration += 1
     if (this.pendingStop) {
       await this.pendingStop
       return
     }
     const activeRun = this.runId
-    if (!activeRun || this.timeline.getSnapshot().phase === 'terminal') return
+    if (!activeRun || this.timeline.getSnapshot().phase === 'terminal') {
+      await this.clearBreakpointOverlay()
+      return
+    }
     this.clearRunTimers()
     await this.requestExecutionStop(() => {
       if (this.runId === activeRun && this.timeline.getSnapshot().phase !== 'terminal') {
@@ -315,6 +351,7 @@ export class KarelPlaybackController {
         })
       }
     })
+    await this.clearBreakpointOverlay()
   }
 
   async restart(): Promise<void> {
@@ -327,11 +364,13 @@ export class KarelPlaybackController {
   async reset(): Promise<void> {
     this.assertActive()
     await this.stop()
+    await this.clearBreakpointOverlay()
     this.clearRunTimers()
     this.timeline.reset()
     this.runId = undefined
     this.protocolRunId = undefined
     this.runtimePaused = false
+    this.hasReachedStudentPause = false
     this.operation = 'idle'
     this.message = undefined
     this.store.reset()
@@ -355,14 +394,20 @@ export class KarelPlaybackController {
 
   private deactivate(): void {
     if (!this.activated) return
+    const shouldStop = this.runId !== undefined
+      && this.timeline.getSnapshot().phase !== 'terminal'
+    if (shouldStop) void this.requestExecutionStop()
     this.activated = false
+    this.executionGeneration += 1
     this.clearRunTimers()
+    this.releaseBreakpointOverlay()
     for (const dispose of this.unsubscribe.splice(0).reverse()) dispose()
     this.clearSource()
     this.timeline.reset()
     this.runId = undefined
     this.protocolRunId = undefined
     this.runtimePaused = false
+    this.hasReachedStudentPause = false
     this.operation = 'idle'
     this.message = undefined
     this.publish()
@@ -371,6 +416,7 @@ export class KarelPlaybackController {
   private beginRun(playing: boolean): void {
     this.assertActive()
     this.clearRunTimers()
+    this.executionGeneration += 1
     this.store.reset()
     this.runId = `karel-playback-${nextControllerRun++}`
     this.protocolRunId = undefined
@@ -379,6 +425,7 @@ export class KarelPlaybackController {
     this.outputBytes = 0
     this.startedAt = this.now()
     this.runtimePaused = false
+    this.hasReachedStudentPause = false
     this.resumePending = false
     this.operation = 'starting'
     this.message = undefined
@@ -393,8 +440,14 @@ export class KarelPlaybackController {
 
   private async startExecution(): Promise<void> {
     const activeRun = this.runId
+    const generation = this.executionGeneration
     if (!activeRun) return
     try {
+      await this.installBreakpointOverlay()
+      if (this.runId !== activeRun || this.executionGeneration !== generation) {
+        await this.clearBreakpointOverlay()
+        return
+      }
       await this.execution.start('debug')
     } catch (error) {
       if (this.runId === activeRun) this.fail(error)
@@ -471,6 +524,7 @@ export class KarelPlaybackController {
       void this.resumeOnce()
       return
     }
+    this.hasReachedStudentPause = true
     this.timeline.append({
       kind: 'line',
       runId: this.runId,
@@ -527,7 +581,9 @@ export class KarelPlaybackController {
     this.runtimePaused = false
     this.publish()
     try {
-      await this.runtime.stepOver()
+      // The owner-scoped overlay makes continue deterministic across nested
+      // student callbacks while preserving editor-owned breakpoints.
+      await this.runtime.continueExecution()
     } catch (error) {
       this.fail(error)
     } finally {
@@ -567,6 +623,7 @@ export class KarelPlaybackController {
 
   private settle(terminal: KarelTraceTerminal): void {
     this.clearRunTimers()
+    this.releaseBreakpointOverlay()
     this.runtimePaused = false
     this.operation = this.pendingStop ? 'stopping' : 'idle'
     this.timeline.settle(terminal)
@@ -619,6 +676,69 @@ export class KarelPlaybackController {
     }
   }
 
+  private async installBreakpointOverlay(): Promise<void> {
+    const replace = this.runtime.replaceBreakpointOverlay
+    const clear = this.runtime.clearBreakpointOverlay
+    if (replace === undefined || clear === undefined) {
+      throw new Error(
+        'The selected runtime does not support isolated Karel line playback.',
+      )
+    }
+    const breakpoints = playbackBreakpoints(this.workspace.snapshot())
+    if (Object.keys(breakpoints).length === 0) {
+      throw new Error('Karel playback requires an executable workspace Python file.')
+    }
+    const pending = (async () => {
+      if (this.pendingBreakpointOverlayClear) {
+        await this.pendingBreakpointOverlayClear
+      }
+      await replace.call(this.runtime, this.breakpointOverlayOwner, breakpoints)
+      this.breakpointOverlayInstalled = true
+    })().finally(() => {
+      if (this.pendingBreakpointOverlayInstall === pending) {
+        this.pendingBreakpointOverlayInstall = undefined
+      }
+    })
+    this.pendingBreakpointOverlayInstall = pending
+    await pending
+  }
+
+  private async clearBreakpointOverlay(): Promise<void> {
+    if (this.pendingBreakpointOverlayInstall) {
+      try {
+        await this.pendingBreakpointOverlayInstall
+      } catch {
+        return
+      }
+    }
+    if (this.pendingBreakpointOverlayClear) {
+      await this.pendingBreakpointOverlayClear
+      return
+    }
+    if (!this.breakpointOverlayInstalled) return
+    const clear = this.runtime.clearBreakpointOverlay
+    if (clear === undefined) return
+    const pending = clear.call(this.runtime, this.breakpointOverlayOwner)
+      .then(() => {
+        this.breakpointOverlayInstalled = false
+      })
+      .finally(() => {
+        if (this.pendingBreakpointOverlayClear === pending) {
+          this.pendingBreakpointOverlayClear = undefined
+        }
+      })
+    this.pendingBreakpointOverlayClear = pending
+    await pending
+  }
+
+  private releaseBreakpointOverlay(): void {
+    void this.clearBreakpointOverlay().catch((error: unknown) => {
+      if (this.disposed) return
+      this.message = `Karel breakpoint cleanup failed: ${errorMessage(error)}`
+      this.publish()
+    })
+  }
+
   private takeSequence(): number {
     const sequence = this.nextSequence
     this.nextSequence += 1
@@ -644,7 +764,7 @@ export class KarelPlaybackController {
         (error: unknown) => {
           if (this.runId && this.timeline.getSnapshot().phase !== 'terminal') {
             this.fail(error)
-          } else {
+          } else if (this.activated) {
             const stopError = errorMessage(error)
             this.message = this.message
               ? `${this.message} Runtime stop failed: ${stopError}`
@@ -656,6 +776,7 @@ export class KarelPlaybackController {
       .finally(() => {
         if (this.pendingStop !== pending) return
         this.pendingStop = undefined
+        if (!this.activated) return
         this.operation = 'idle'
         this.publish()
       })
@@ -679,6 +800,7 @@ export class KarelPlaybackController {
       timeline: this.timeline.getSnapshot(),
       speedMs: this.speedMs,
       runtimePaused: this.runtimePaused,
+      hasReachedStudentPause: this.hasReachedStudentPause,
       operation: this.operation,
       ...(this.message === undefined ? {} : { message: this.message }),
     })

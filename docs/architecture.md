@@ -41,9 +41,10 @@ projection accidentally.
 
 The optional Run command reveals the panel and calls the instance-scoped public
 execution service. Panel controls use the same public execution service for
-debug start and settled stop, the public runtime service for step-over and
-events, the workspace snapshot for source eligibility, and the owner-scoped
-source service for current/historical/error presentation.
+debug start and settled stop, the public runtime service for transient
+breakpoint overlays, continue, and events, the workspace snapshot for source
+eligibility, and the owner-scoped source service for
+current/historical/error presentation.
 
 ## World contract
 
@@ -96,14 +97,18 @@ the execution-only run resource and emits native `turn_right` as one action.
 
 `KarelProtocolDecoder` is incremental and keeps ordinary stdout separate. It
 strictly parses event fields and source paths, validates runtime-world values,
-admits one run per reset, requires contiguous sequences, rejects anything after
-settlement, and bounds frames, per-run characters/events, per-push events, and
-reported errors.
+admits one host-expected run per reset, requires contiguous sequences, rejects
+anything after settlement, retains a bounded set of 256 retired run IDs, and
+bounds frames, per-run characters/events, per-push events, and reported errors.
 
 `KarelSessionStore` projects validated state for the panel and separately
 notifies the playback controller of decoded events. Runtime subscriptions are
-reference-counted to tolerate React Strict Mode replay. Reset clears decoder
-correlation; detaching the last consumer revokes all runtime listeners.
+reference-counted to tolerate React Strict Mode replay. The plugin reads the
+fresh execution-only run resource it materializes and binds that ID with
+`expectRun` before runtime output can be projected. Reset retires the active ID;
+detaching the last consumer revokes all runtime listeners and clears the
+expected ID. Wrong and retired IDs are rejected as expected correlation noise
+rather than replacing otherwise valid UI state.
 
 Protocol run IDs correlate untrusted events; they are not user identity,
 authorization, or secrets.
@@ -111,10 +116,27 @@ authorization, or secrets.
 ## Playback controller and timeline
 
 `KarelPlaybackController` is the effectful adapter. It owns timers,
-subscriptions, generic execution calls, debug stepping, eligible-source
-filtering, source decorations, and cumulative pause/time/output limits.
+subscriptions, generic execution calls, transient debug-breakpoint ownership,
+eligible-source filtering, source decorations, and cumulative
+pause/time/output limits.
 Support paths or deleted/out-of-range workspace locations are skipped rather
 than presented as student source.
+
+The controller separately records whether the current run has reached its
+first validated student-source pause. Until then the panel reports `Starting`
+and does not offer Stop, even if execution startup resolves or an initial
+protocol state arrives first. This readiness state resets with every run and
+lifecycle teardown; a support/runtime pause cannot satisfy it.
+
+Before a playback run starts, the controller snapshots ordinary workspace
+files and derives an overlay from every non-empty, non-comment line in each
+`.py` file. It requires Web IDE's optional `replaceBreakpointOverlay` and
+`clearBreakpointOverlay` methods, installs the map under one controller-owned
+object token, and uses Continue between stops so calls into nested student
+modules remain observable. The selected runtime atomically merges that overlay
+with editor and other-owner breakpoints under its configuration quota; Karel
+never overwrites or presents those other sets. The controller clears only its
+own token after settlement and throughout stop/reset/deactivation/disposal.
 
 `KarelTimeline` is a pure state machine. It records immutable line/action
 frames correlated by controller run, monotonically increasing sequence, source,
@@ -169,8 +191,15 @@ package and documented in the README. They bound companion-owned state and
 observed public events. They do not prove that an underlying runtime transport
 cannot buffer data before Web IDE exposes it.
 
+`createKarelPlugin` accepts complete `playbackLimits` and `timelineLimits`
+objects for a host that needs lower activity-specific bounds. They are
+validated as positive safe integers, remain local to that plugin/controller
+instance, and cannot raise the decoder's fixed protocol ceilings.
+
 The selected browser runtime requires cross-origin isolation. A production host
 must return compatible COOP, COEP, CSP, CORS, and CORP headers for the document,
-SPA fallbacks, workers, WASM, and runtime assets. The package's current browser
-fixture proves COOP/COEP development composition, not a production hosting
-configuration. See [testing.md](testing.md) and [../SECURITY.md](../SECURITY.md).
+SPA fallbacks, workers, WASM, and runtime assets. The development fixture proves
+COOP/COEP composition; the separate packed-consumer matrix proves the exact
+production policy, normal/nested/fallback/error routes, asset headers, and
+real runtime downloads described in [testing.md](testing.md) and
+[../SECURITY.md](../SECURITY.md).

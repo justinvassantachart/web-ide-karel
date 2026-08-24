@@ -26,6 +26,10 @@ function state(sequence: number, runId = 'run-test'): KarelProtocolEvent {
 
 function unsafeFrame(value: unknown): string {
   const bytes = new TextEncoder().encode(JSON.stringify(value))
+  return rawFrame(bytes)
+}
+
+function rawFrame(bytes: Uint8Array): string {
   let binary = ''
   for (const byte of bytes) binary += String.fromCharCode(byte)
   return `${KAREL_OSC_PREFIX}${btoa(binary).replace(/\+/g, '-').replace(/\//g, '_')}${KAREL_OSC_TERMINATOR}`
@@ -90,6 +94,42 @@ describe('Karel OSC protocol v2', () => {
     expect(gap.errors[0]?.message).toContain('begin at sequence 0')
   })
 
+  it('optionally retires the active run identity across reset', () => {
+    const decoder = new KarelProtocolDecoder()
+    expect(decoder.push(encodeKarelProtocolEvent(state(0))).errors).toEqual([])
+
+    decoder.reset({ retireActiveRun: true })
+    const stale = decoder.push(encodeKarelProtocolEvent(state(0)))
+    expect(stale.events).toEqual([])
+    expect(stale.errors[0]?.message).toContain('retired prior run')
+
+    const fresh = decoder.push(encodeKarelProtocolEvent(state(0, 'fresh-run')))
+    expect(fresh.errors).toEqual([])
+    expect(fresh.events).toEqual([state(0, 'fresh-run')])
+  })
+
+  it('binds sequence zero to a host-expected run identity', () => {
+    const decoder = new KarelProtocolDecoder()
+    decoder.expectRun('host-created-run')
+
+    const unexpected = decoder.push(
+      encodeKarelProtocolEvent(state(0, 'student-forged-run')),
+    )
+    expect(unexpected.events).toEqual([])
+    expect(unexpected.errors[0]?.message).toContain('host-expected run')
+
+    const expected = decoder.push(
+      encodeKarelProtocolEvent(state(0, 'host-created-run')),
+    )
+    expect(expected.errors).toEqual([])
+    expect(expected.events).toEqual([state(0, 'host-created-run')])
+
+    decoder.reset({ retireActiveRun: true, clearExpectedRunId: true })
+    expect(
+      decoder.push(encodeKarelProtocolEvent(state(0, 'unbound-run'))).events,
+    ).toEqual([state(0, 'unbound-run')])
+  })
+
   it('strictly rejects v1, extra fields, bad source paths, and invalid outcomes', () => {
     const base = state(0) as unknown as Record<string, unknown>
     const values = [
@@ -107,6 +147,58 @@ describe('Karel OSC protocol v2', () => {
     ]
 
     for (const value of values) {
+      const result = new KarelProtocolDecoder().push(unsafeFrame(value))
+      expect(result.events).toEqual([])
+      expect(result.errors).toHaveLength(1)
+    }
+  })
+
+  it('rejects hostile correlation, source, action, and terminal fields at limits', () => {
+    const base = state(0) as unknown as Record<string, unknown>
+    const invalid = [
+      { ...base, runId: '' },
+      {
+        ...base,
+        runId: `r${'x'.repeat(KAREL_PROTOCOL_LIMITS.maxRunIdCharacters)}`,
+      },
+      {
+        ...base,
+        action: 'x'.repeat(KAREL_PROTOCOL_LIMITS.maxActionCharacters + 1),
+      },
+      { ...base, source: { path: '/workspace/main.py', line: 1 } },
+      { ...base, source: { path: 'main.py', line: 0 } },
+      { ...base, source: { path: 'main.py', line: 1, column: 1.5 } },
+      {
+        protocol: KAREL_PROTOCOL_NAME,
+        version: KAREL_PROTOCOL_VERSION,
+        runId: 'run-test',
+        sequence: 0,
+        type: 'terminal',
+        outcome: 'runtime-error',
+        message: 'x'.repeat(KAREL_PROTOCOL_LIMITS.maxMessageCharacters + 1),
+      },
+      {
+        protocol: KAREL_PROTOCOL_NAME,
+        version: KAREL_PROTOCOL_VERSION,
+        runId: 'run-test',
+        sequence: 0,
+        type: 'terminal',
+        outcome: 'runtime-error',
+        message: 'failed',
+        errorType: 'bad type',
+      },
+      {
+        protocol: KAREL_PROTOCOL_NAME,
+        version: KAREL_PROTOCOL_VERSION,
+        runId: 'run-test',
+        sequence: 0,
+        type: 'terminal',
+        outcome: 'limit-exceeded',
+        reason: 'unbounded',
+      },
+    ]
+
+    for (const value of invalid) {
       const result = new KarelProtocolDecoder().push(unsafeFrame(value))
       expect(result.events).toEqual([])
       expect(result.errors).toHaveLength(1)
@@ -176,6 +268,16 @@ describe('Karel OSC protocol v2', () => {
     expect(result.events).toEqual([state(0)])
   })
 
+  it('rejects non-UTF-8 JSON bytes without corrupting the next frame', () => {
+    const decoder = new KarelProtocolDecoder()
+    const result = decoder.push(
+      `${rawFrame(Uint8Array.of(0xc3, 0x28))}${encodeKarelProtocolEvent(state(0))}`,
+    )
+
+    expect(result.errors).toHaveLength(1)
+    expect(result.events).toEqual([state(0)])
+  })
+
   it('rejects an oversized complete frame before decoding and safely resumes', () => {
     const decoder = new KarelProtocolDecoder()
     const oversized = `${KAREL_OSC_PREFIX}${'A'.repeat(
@@ -199,6 +301,22 @@ describe('Karel OSC protocol v2', () => {
 
     expect(result.errors).toHaveLength(KAREL_PROTOCOL_LIMITS.maxErrorsPerChunk)
     expect(result.errors.at(-1)?.message).toContain('error limit')
+  })
+
+  it('bounds accepted events from one hostile stdout chunk', () => {
+    const decoder = new KarelProtocolDecoder()
+    const frames = Array.from(
+      { length: KAREL_PROTOCOL_LIMITS.maxEventsPerChunk + 1 },
+      (_, sequence) => encodeKarelProtocolEvent(state(sequence)),
+    ).join('')
+    const result = decoder.push(frames)
+
+    expect(result.events).toHaveLength(KAREL_PROTOCOL_LIMITS.maxEventsPerChunk)
+    expect(result.events.at(-1)?.sequence).toBe(
+      KAREL_PROTOCOL_LIMITS.maxEventsPerChunk - 1,
+    )
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.message).toContain('chunk exceeds the event limit')
   })
 
   it('reports a truncated frame when the runtime exits', () => {

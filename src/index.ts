@@ -46,9 +46,14 @@ export {
   KAREL_OSC_PREFIX,
   KAREL_OSC_TERMINATOR,
   KarelProtocolDecoder,
+  KarelRetiredRunEventError,
+  KarelUnexpectedRunEventError,
   encodeKarelProtocolEvent,
 } from './protocol'
-export type { KarelDecodeResult } from './protocol'
+export type {
+  KarelDecodeResult,
+  KarelProtocolResetOptions,
+} from './protocol'
 export { KarelSessionStore } from './session-store'
 export type {
   KarelProtocolEventListener,

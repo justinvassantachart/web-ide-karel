@@ -179,4 +179,65 @@ run_karel(move, world)
       errorType: 'KarelBlockedError',
     })
   })
+
+  it('correlates a nested-module Python error without exposing absolute paths', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'web-ide-karel-nested-'))
+    try {
+      writeFileSync(
+        path.join(directory, 'helper.py'),
+        [
+          'def fail():',
+          '    print("nested output remains visible")',
+          '    raise ValueError("synthetic nested failure")',
+          '',
+        ].join('\n'),
+      )
+      writeFileSync(
+        path.join(directory, 'main.py'),
+        [
+          'from helper import fail',
+          'from karel import run_karel',
+          '',
+          'world = {',
+          '    "name": "Nested Error",',
+          '    "columns": 2, "rows": 2,',
+          '    "karel": {"avenue": 1, "street": 1, "direction": "east", "beepersInBag": 0},',
+          '    "beepers": [], "walls": [], "colors": [],',
+          '}',
+          'run_karel(fail, world)',
+          '',
+        ].join('\n'),
+      )
+      const result = spawnSync('python3', ['main.py'], {
+        cwd: directory,
+        env: {
+          ...process.env,
+          PYTHONPATH: path.join(repositoryRoot, 'python'),
+        },
+        encoding: 'utf8',
+      })
+      const decoder = new KarelProtocolDecoder()
+      const decoded = decoder.push(result.stdout)
+      const flushed = decoder.flush()
+
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('helper.py')
+      expect(result.stderr).toContain('ValueError: synthetic nested failure')
+      expect(decoded.text + flushed.text).toBe('nested output remains visible\n')
+      expect([...decoded.errors, ...flushed.errors]).toEqual([])
+      expect(decoded.events.at(-1)).toMatchObject({
+        type: 'terminal',
+        outcome: 'runtime-error',
+        message: 'synthetic nested failure',
+        errorType: 'ValueError',
+        source: { path: 'helper.py', line: 3 },
+      })
+      const terminal = decoded.events.at(-1)
+      if (terminal?.source) {
+        expect(terminal.source.path).not.toContain(directory)
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
 })

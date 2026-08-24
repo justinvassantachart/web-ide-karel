@@ -1,0 +1,547 @@
+import { expect, test } from '@playwright/test'
+import {
+  captureEvidence,
+  contrastRatio,
+  expectCleanBrowser,
+  expectPackedIDEReady,
+  expectSecurityHeaders,
+  gotoScenario,
+  hostEvents,
+  instanceProbe,
+  instanceSnapshot,
+  observeBrowserDiagnostics,
+  openKarelPanel,
+  protocolEvents,
+  runKarel,
+} from './helpers'
+
+test('proves security headers, nested execution, and exact source/action/world correlation', async ({
+  page,
+}) => {
+  const diagnostics = observeBrowserDiagnostics(page)
+  await expectSecurityHeaders(page)
+  await expectPackedIDEReady(page)
+
+  const sidebar = page.getByTestId('sidebar')
+  await expect(sidebar.getByText('main.py', { exact: true })).toBeVisible()
+  await expect(sidebar.getByText('karel.py', { exact: true })).toHaveCount(0)
+  await expect(sidebar.getByText('karel_world.json', { exact: true })).toHaveCount(0)
+  await expect(sidebar.getByText('karel_run.json', { exact: true })).toHaveCount(0)
+  const persisted = await page.evaluate(() => {
+    return window.__PACKED_KAREL__.persistedFiles('primary')
+  })
+  expect(Object.keys(persisted ?? {}).sort()).toEqual([
+    '/workspace/main.py',
+    '/workspace/student/__init__.py',
+    '/workspace/student/route.py',
+  ])
+
+  const panel = await openKarelPanel(page)
+  await expect(panel.getByRole('heading', { name: 'Nested Module World' })).toBeVisible()
+  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  await expect(panel.getByRole('status')).toHaveText('Paused', { timeout: 150_000 })
+
+  await expect(page.getByRole('tab', { name: /^main\.py/u })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(page.getByRole('contentinfo', { name: 'Status bar' })).toContainText(
+    'Ln 1, Col 1',
+  )
+  await expect(page.locator('.monaco-editor .source-presentation-current-line')).toHaveCount(1)
+
+  await panel.getByRole('button', { name: 'Play', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Complete', {
+    timeout: 150_000,
+  })
+
+  const events = await protocolEvents(page)
+  expect(events).toHaveLength(7)
+  expect(events.map(({ sequence }) => sequence)).toEqual([0, 1, 2, 3, 4, 5, 6])
+  expect(new Set(events.map(({ runId }) => runId))).toEqual(
+    new Set(['primary-run-1']),
+  )
+  const states = events.filter((event) => event.type === 'state')
+  expect(states.map(({ action }) => action)).toEqual([
+    'load',
+    'move',
+    'move',
+    'turn_left',
+    'move',
+    'turn_right',
+  ])
+  expect(states[1]).toMatchObject({
+    action: 'move',
+    source: { path: 'student/route.py', line: 4 },
+    world: { karel: { avenue: 2, street: 1, direction: 'east' } },
+  })
+  expect(states[4]).toMatchObject({
+    action: 'move',
+    source: { path: 'student/route.py', line: 7 },
+    world: { karel: { avenue: 3, street: 2, direction: 'north' } },
+  })
+  expect(events.at(-1)).toMatchObject({
+    type: 'terminal',
+    outcome: 'completed',
+    world: { karel: { avenue: 3, street: 2, direction: 'east' } },
+  })
+  await expect(panel).toContainText('Avenue 3, street 2 · facing east')
+  await expect(panel.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /avenue 3, street 2, facing east/u,
+  )
+  await expect(page.locator('.xterm-rows')).toContainText('Program exited with code 0')
+
+  const stepBack = panel.getByRole('button', { name: 'Step back' })
+  await stepBack.click()
+  for (let frame = 0; frame < 32; frame += 1) {
+    if ((await instanceSnapshot(page))?.editor.activeFile === '/workspace/student/route.py') {
+      break
+    }
+    if (await stepBack.isDisabled()) break
+    await stepBack.click()
+  }
+  await expect(panel.getByRole('status')).toHaveText('History')
+  await expect(panel).toContainText(/Recorded frame \d+ of \d+/u)
+  await expect.poll(async () => (await instanceSnapshot(page))?.editor.activeFile).toBe(
+    '/workspace/student/route.py',
+  )
+  await expect(page.locator('.monaco-editor .source-presentation-historical-line')).toHaveCount(1)
+  await panel.getByRole('button', { name: 'Return to live' }).click()
+  await expect(panel.getByRole('status')).toHaveText('Complete')
+
+  await expect.poll(() => diagnostics.externalResponses.some(
+    (response) => /monaco-editor@0\.56\.0\/min\/vs\/loader\.js/u.test(response.url()),
+  )).toBe(true)
+  await expect.poll(() => diagnostics.externalResponses.some(
+    (response) => /debugger-sh@0\.3\.15\/dist\/engine_bg\.wasm/u.test(response.url()),
+  )).toBe(true)
+  await expect.poll(() => diagnostics.externalResponses.some(
+    (response) => /^https:\/\/runno\.dev\//u.test(response.url()),
+  )).toBe(true)
+  for (const response of diagnostics.externalResponses) {
+    expect(response.status(), response.url()).toBeLessThan(400)
+    const headers = response.headers()
+    expect(
+      headers['access-control-allow-origin'] === '*'
+      || headers['cross-origin-resource-policy'] === 'cross-origin',
+      `cross-origin isolation header missing for ${response.url()}`,
+    ).toBe(true)
+  }
+
+  await captureEvidence(page, '01-nested-source-correlation.png')
+  expectCleanBrowser(diagnostics)
+})
+
+test('terminates a line-only loop at the configured debugger-pause limit', async ({
+  page,
+}) => {
+  const diagnostics = observeBrowserDiagnostics(page)
+  await gotoScenario(page, 'line-loop')
+  const panel = await openKarelPanel(page)
+  await panel.getByRole('button', { name: 'Play', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Limit reached', {
+    timeout: 150_000,
+  })
+  await expect(panel).toContainText('Karel run exceeded the debugger-pause limit.')
+  await expect(panel).toContainText(/\d+ retained/u)
+  const events = await protocolEvents(page)
+  expect(events.filter((event) => event.type === 'state').length).toBeLessThanOrEqual(1)
+  await captureEvidence(page, '02-line-only-pause-limit.png')
+  expectCleanBrowser(diagnostics)
+})
+
+test('bounds ordinary output flood while accepting correlated protocol events', async ({
+  page,
+}) => {
+  const diagnostics = observeBrowserDiagnostics(page)
+  await gotoScenario(page, 'flood')
+  const panel = await openKarelPanel(page)
+  await panel.getByRole('button', { name: 'Play', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Limit reached', {
+    timeout: 150_000,
+  })
+  await expect(panel).toContainText('Karel run exceeded the output-byte limit.')
+  expect((await instanceProbe(page))?.stdoutSample).toContain('FLOOD-')
+  await expect(page.locator('.xterm-rows')).toContainText('Program exited with code 0')
+
+  const events = await protocolEvents(page)
+  expect(events.length).toBeGreaterThan(1)
+  expect(events.every((event, index) => event.sequence === index)).toBe(true)
+  expect(events.every((event) => event.runId === 'primary-run-1')).toBe(true)
+  expect(events.filter((event) => event.type === 'state').every(
+    (event) => event.action === 'load' || event.action === 'turn_left',
+  )).toBe(true)
+  await captureEvidence(page, '03-output-flood-limit.png')
+  expectCleanBrowser(diagnostics)
+})
+
+test('processes 2,000 valid actions and exposes bounded visible history', async ({
+  page,
+}) => {
+  const diagnostics = observeBrowserDiagnostics(page)
+  await gotoScenario(page, 'stress')
+  const panel = await openKarelPanel(page)
+  const startedAt = Date.now()
+  await panel.getByRole('button', { name: 'Play', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Complete', {
+    timeout: 90_000,
+  })
+  const elapsedMs = Date.now() - startedAt
+  process.stdout.write(`Packed stress: 2000 actions completed in ${elapsedMs}ms\n`)
+
+  const events = await protocolEvents(page)
+  expect(events).toHaveLength(2_002)
+  expect(events[0]).toMatchObject({ type: 'state', sequence: 0, action: 'load' })
+  expect(events[1]).toMatchObject({
+    type: 'state',
+    sequence: 1,
+    action: 'turn_left',
+    source: { path: 'main.py', line: 4 },
+  })
+  expect(events.at(-2)).toMatchObject({
+    type: 'state',
+    sequence: 2_000,
+    action: 'turn_left',
+    world: { karel: { direction: 'east' } },
+  })
+  expect(events.at(-1)).toMatchObject({
+    type: 'terminal',
+    sequence: 2_001,
+    outcome: 'completed',
+  })
+  expect(events.every((event, index) => event.sequence === index)).toBe(true)
+  await expect(panel).toContainText('Live frame 10 of 10')
+  await expect(panel).toContainText(/older frames discarded within the memory limit/u)
+
+  await panel.getByRole('button', { name: 'Step back' }).click()
+  await expect(panel.getByRole('status')).toHaveText('History')
+  await expect(panel).toContainText(/Recorded frame \d+ of 10/u)
+  await panel.getByRole('button', { name: 'Return to live' }).click()
+  await expect(panel.getByRole('status')).toHaveText('Complete')
+  await captureEvidence(page, '04-protocol-stress-truncated-history.png')
+  expectCleanBrowser(diagnostics)
+})
+
+test('preserves ordinary stdout and reports a typed nested exception source', async ({
+  page,
+}) => {
+  const diagnostics = observeBrowserDiagnostics(page)
+  await gotoScenario(page, 'exception')
+  const panel = await openKarelPanel(page)
+  await panel.getByRole('button', { name: 'Play', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Error', {
+    timeout: 150_000,
+  })
+  await expect(panel.getByRole('alert')).toContainText('synthetic nested failure')
+  await expect(panel).toContainText('Last action: SyntheticNestedError')
+  const terminal = page.locator('.xterm-rows')
+  const exceptionProbe = await instanceProbe(page)
+  expect(exceptionProbe?.stdoutSample).toContain(
+    'ordinary stdout before typed nested failure',
+  )
+  expect(exceptionProbe?.stdoutSample).toContain(
+    'nested ordinary stdout remains visible',
+  )
+  await expect(terminal).toContainText('SyntheticNestedError: synthetic nested failure')
+
+  const events = await protocolEvents(page)
+  expect(events.at(-1)).toMatchObject({
+    type: 'terminal',
+    outcome: 'runtime-error',
+    message: 'synthetic nested failure',
+    errorType: 'SyntheticNestedError',
+    source: { path: 'failures/nested.py', line: 6 },
+  })
+  await expect.poll(async () => (await instanceSnapshot(page))?.editor.activeFile).toBe(
+    '/workspace/failures/nested.py',
+  )
+  await captureEvidence(page, '05-typed-nested-exception.png')
+  expectCleanBrowser(diagnostics)
+})
+
+test('aborts an active debug run and completes a clean correlated rerun', async ({
+  page,
+}) => {
+  const diagnostics = observeBrowserDiagnostics(page)
+  await gotoScenario(page, 'abort')
+  const panel = await openKarelPanel(page)
+  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  // Require both the correlated host pause and its visible live frame before
+  // Stop so this scenario exercises an active debug run deterministically.
+  await expect.poll(async () => {
+    return (await hostEvents(page)).filter(({ type }) => type === 'debug_paused').length
+  }, { timeout: 150_000 }).toBe(1)
+  await expect(panel.getByRole('status')).toHaveText('Paused', { timeout: 150_000 })
+  await expect(panel).toContainText('Live frame 1 of 1')
+  await panel.getByRole('button', { name: 'Stop', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Stopped', { timeout: 150_000 })
+  await expect(panel).toContainText('Karel run stopped.')
+
+  await panel.getByRole('button', { name: 'Restart', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Complete', {
+    timeout: 150_000,
+  })
+  const events = await protocolEvents(page)
+  const rerunEvents = events.filter(({ runId }) => runId === 'primary-run-2')
+  expect(rerunEvents).toHaveLength(26)
+  expect(rerunEvents.at(-1)).toMatchObject({
+    type: 'terminal',
+    outcome: 'completed',
+    world: { karel: { avenue: 1, street: 1, direction: 'east' } },
+  })
+  await expect(page.locator('.xterm-rows')).toContainText('Program exited with code 0')
+  await captureEvidence(page, '06-abort-clean-rerun.png')
+  expectCleanBrowser(diagnostics)
+})
+
+test('remounts sequential workspaces without files, state, or listeners crossing projects', async ({
+  page,
+}) => {
+  const diagnostics = observeBrowserDiagnostics(page)
+  await page.goto('/nested/production/matrix/route?mode=sequential')
+  const first = page.locator('[data-instance-id="sequential-project-a"]')
+  await expectPackedIDEReady(page, first)
+  const firstPanel = await openKarelPanel(first)
+  await runKarel(first, firstPanel)
+  await expect(firstPanel).toContainText('Avenue 2, street 1 · facing east')
+  expect(await page.evaluate(() => Object.keys(
+    window.__PACKED_KAREL__.persistedFiles('sequential-project-a') ?? {},
+  ).sort())).toEqual(['/workspace/a_only.py', '/workspace/main.py'])
+
+  await page.evaluate(() => window.__PACKED_KAREL__.close('sequential-project-a'))
+  await page.getByRole('button', { name: 'Unmount project' }).click()
+  await expect(page.getByText('Project unmounted', { exact: true })).toBeVisible()
+  await expect.poll(async () => {
+    return (await instanceProbe(page, 'sequential-project-a'))?.activeRuntimeSubscriptions
+  }).toBe(0)
+  await expect.poll(async () => {
+    const probe = await instanceProbe(page, 'sequential-project-a')
+    return probe?.runtimeSessionsDisposed === probe?.runtimeSessionsCreated
+  }).toBe(true)
+
+  await page.getByRole('button', { name: 'Mount project B' }).click()
+  const second = page.locator('[data-instance-id="sequential-project-b"]')
+  await expectPackedIDEReady(page, second)
+  const sidebar = second.getByTestId('sidebar')
+  await expect(sidebar.getByText('b_only.py', { exact: true })).toBeVisible()
+  await expect(sidebar.getByText('a_only.py', { exact: true })).toHaveCount(0)
+  const secondPanel = await openKarelPanel(second)
+  await expect(secondPanel.getByRole('status')).toHaveText('Ready')
+  await runKarel(second, secondPanel)
+  await expect(secondPanel).toContainText('Avenue 1, street 1 · facing north')
+  expect(await page.evaluate(() => Object.keys(
+    window.__PACKED_KAREL__.persistedFiles('sequential-project-b') ?? {},
+  ).sort())).toEqual(['/workspace/b_only.py', '/workspace/main.py'])
+  await captureEvidence(page, '07-sequential-project-remount.png')
+
+  await page.evaluate(() => window.__PACKED_KAREL__.close('sequential-project-b'))
+  await page.getByRole('button', { name: 'Unmount project' }).click()
+  await expect.poll(async () => {
+    return (await instanceProbe(page, 'sequential-project-b'))?.activeRuntimeSubscriptions
+  }).toBe(0)
+  expectCleanBrowser(diagnostics)
+})
+
+test('runs two simultaneous isolated IDE realms with overlapping local run identities', async ({
+  page,
+  context,
+}) => {
+  const secondPage = await context.newPage()
+  const firstDiagnostics = observeBrowserDiagnostics(page)
+  const secondDiagnostics = observeBrowserDiagnostics(secondPage)
+  await Promise.all([
+    gotoScenario(page, 'project-a'),
+    gotoScenario(secondPage, 'project-b'),
+  ])
+  const [firstPanel, secondPanel] = await Promise.all([
+    openKarelPanel(page),
+    openKarelPanel(secondPage),
+  ])
+  await Promise.all([
+    runKarel(page, firstPanel),
+    runKarel(secondPage, secondPanel),
+  ])
+  await expect(firstPanel).toContainText('Avenue 2, street 1 · facing east')
+  await expect(secondPanel).toContainText('Avenue 1, street 1 · facing north')
+
+  const [firstEvents, secondEvents] = await Promise.all([
+    protocolEvents(page),
+    protocolEvents(secondPage),
+  ])
+  expect(firstEvents.at(-1)).toMatchObject({
+    runId: 'primary-run-1',
+    type: 'terminal',
+    outcome: 'completed',
+    world: { karel: { avenue: 2, direction: 'east' } },
+  })
+  expect(secondEvents.at(-1)).toMatchObject({
+    runId: 'primary-run-1',
+    type: 'terminal',
+    outcome: 'completed',
+    world: { karel: { avenue: 1, direction: 'north' } },
+  })
+  expect(Object.keys((await page.evaluate(
+    () => window.__PACKED_KAREL__.persistedFiles('primary'),
+  )) ?? {})).toContain('/workspace/a_only.py')
+  expect(Object.keys((await secondPage.evaluate(
+    () => window.__PACKED_KAREL__.persistedFiles('primary'),
+  )) ?? {})).toContain('/workspace/b_only.py')
+  await captureEvidence(page, '08-isolated-realm-project-a.png')
+  await captureEvidence(secondPage, '09-isolated-realm-project-b.png')
+  expectCleanBrowser(firstDiagnostics)
+  expectCleanBrowser(secondDiagnostics)
+
+  await secondPage.close()
+  await expect(firstPanel.getByRole('status')).toHaveText('Complete')
+})
+
+test('unmounts an active IDE with exact listener, session, persistence, and worker cleanup', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker
+    const state = { created: 0, active: 0, terminated: 0 }
+    Object.defineProperty(window, '__PACKED_WORKERS__', { value: state })
+    class TrackedWorker extends NativeWorker {
+      private packedTerminated = false
+
+      constructor(url: string | URL, options?: WorkerOptions) {
+        super(url, options)
+        state.created += 1
+        state.active += 1
+      }
+
+      override terminate() {
+        if (!this.packedTerminated) {
+          this.packedTerminated = true
+          state.active -= 1
+          state.terminated += 1
+        }
+        super.terminate()
+      }
+    }
+    Object.defineProperty(window, 'Worker', { value: TrackedWorker })
+  })
+  const diagnostics = observeBrowserDiagnostics(page)
+  await page.goto('/nested/production/matrix/route?mode=lifecycle')
+  await expect(page.getByText('Lifecycle IDE unmounted')).toBeVisible()
+  await page.getByRole('button', { name: 'Mount lifecycle IDE', exact: true }).click()
+  const scope = page.locator('[data-instance-id="lifecycle"]')
+  await expectPackedIDEReady(page, scope)
+  const panel = await openKarelPanel(scope)
+  await panel.getByRole('button', { name: 'Prepare & pause' }).click()
+  await expect(panel.getByRole('status')).toHaveText('Paused', { timeout: 150_000 })
+  const before = await instanceProbe(page, 'lifecycle')
+  expect(before?.activeRuntimeSubscriptions).toBeGreaterThan(0)
+  await expect.poll(() => page.evaluate(() => {
+    return (window as unknown as {
+      __PACKED_WORKERS__: { created: number }
+    }).__PACKED_WORKERS__.created
+  })).toBeGreaterThan(0)
+  await captureEvidence(page, '10-lifecycle-paused-before-cleanup.png')
+
+  await page.evaluate(() => window.__PACKED_KAREL__.close('lifecycle'))
+  await page.getByRole('button', { name: 'Unmount lifecycle IDE' }).click()
+  await expect(page.getByText('Lifecycle IDE unmounted')).toBeVisible()
+  await expect.poll(async () => {
+    return (await instanceProbe(page, 'lifecycle'))?.activeRuntimeSubscriptions
+  }).toBe(0)
+  await expect.poll(async () => {
+    const probe = await instanceProbe(page, 'lifecycle')
+    return probe?.activations === probe?.deactivations
+  }).toBe(true)
+  await expect.poll(async () => {
+    const probe = await instanceProbe(page, 'lifecycle')
+    return probe?.runtimeSessionsCreated === probe?.runtimeSessionsDisposed
+  }).toBe(true)
+  await expect.poll(() => page.evaluate(() => {
+    return (window as unknown as {
+      __PACKED_WORKERS__: { active: number }
+    }).__PACKED_WORKERS__.active
+  })).toBe(0)
+  const eventCount = (await hostEvents(page, 'lifecycle')).length
+  await page.waitForTimeout(500)
+  expect((await hostEvents(page, 'lifecycle')).length).toBe(eventCount)
+  const after = await instanceProbe(page, 'lifecycle')
+  expect(after?.persistenceEvents).toContain('flush')
+  expect(after?.persistenceEvents).toContain('dispose')
+  await captureEvidence(page, '11-lifecycle-unmounted-clean.png')
+  expectCleanBrowser(diagnostics)
+})
+
+test('meets keyboard, focus, reduced-motion, responsive, theme, contrast, and non-color status checks', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 640, height: 820 })
+  const diagnostics = observeBrowserDiagnostics(page)
+  await gotoScenario(page, 'nested')
+
+  const karelTab = page.getByRole('button', { name: 'Karel', exact: true })
+  await karelTab.focus()
+  await expect(karelTab).toBeFocused()
+  await page.keyboard.press('Enter')
+  const panel = page.getByRole('region', { name: 'Karel world and playback' })
+  await expect(panel).toBeVisible()
+  await expect(panel.getByRole('status')).toHaveAttribute('aria-live', 'polite')
+
+  const prepare = panel.getByRole('button', { name: 'Prepare & pause' })
+  await prepare.focus()
+  await page.keyboard.press('Tab')
+  const play = panel.getByRole('button', { name: 'Play', exact: true })
+  await expect(play).toBeFocused()
+  const focusStyle = await play.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth }
+  })
+  expect(focusStyle.outlineStyle).not.toBe('none')
+  expect(Number.parseFloat(focusStyle.outlineWidth)).toBeGreaterThanOrEqual(2)
+  expect(await panel.locator('.karel-world-robot').evaluate(
+    (element) => getComputedStyle(element).transitionDuration,
+  )).toBe('0s')
+  expect(await panel.locator('.karel-playback-controls').evaluate(
+    (element) => getComputedStyle(element).display,
+  )).toBe('grid')
+  expect(await panel.locator('.karel-panel-footer').evaluate(
+    (element) => getComputedStyle(element).flexDirection,
+  )).toBe('column')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+
+  const heading = panel.getByRole('heading', { name: 'Nested Module World' })
+  expect(await contrastRatio(heading, panel)).toBeGreaterThanOrEqual(4.5)
+  expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light')
+  const lightPalette = await panel.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { color: style.color, background: style.backgroundColor }
+  })
+  await captureEvidence(page, '12-accessibility-light-responsive.png')
+
+  await page.getByRole('button', { name: 'Manage' }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark (Modern)' }).click()
+  await expect.poll(() => page.evaluate(
+    () => document.documentElement.dataset.theme,
+  )).toBe('dark')
+  expect(await contrastRatio(heading, panel)).toBeGreaterThanOrEqual(4.5)
+  const darkPalette = await panel.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return { color: style.color, background: style.backgroundColor }
+  })
+  expect(darkPalette.color).not.toBe(lightPalette.color)
+  expect(darkPalette.background).not.toBe(lightPalette.background)
+
+  const run = page.getByRole('button', { name: 'Run Karel', exact: true })
+  await run.focus()
+  await page.keyboard.press('Enter')
+  await expect(panel.getByRole('status')).toHaveText('Complete', {
+    timeout: 150_000,
+  })
+  await expect(panel.getByRole('status')).toHaveText('Complete')
+  await expect(panel).toContainText('Last action: complete')
+  await expect(panel.getByRole('img')).toHaveAttribute(
+    'aria-label',
+    /avenue 3, street 2, facing east/u,
+  )
+  await captureEvidence(page, '13-accessibility-dark-complete.png')
+  expectCleanBrowser(diagnostics)
+})

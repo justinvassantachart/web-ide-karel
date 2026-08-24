@@ -21,6 +21,7 @@ const LIMIT_REASONS = new Set<KarelLimitReason>([
   'output-byte-limit',
   'queue-limit',
 ])
+const MAX_RETIRED_RUN_IDS = 256
 
 export interface KarelDecodeResult {
   /** Valid Karel events found in this chunk. */
@@ -29,6 +30,29 @@ export interface KarelDecodeResult {
   text: string
   /** Malformed or unsupported frames; decoding continues after each one. */
   errors: Error[]
+}
+
+export interface KarelProtocolResetOptions {
+  /** Reject a late event carrying the just-finished run identity. */
+  retireActiveRun?: boolean
+  /** Forget a host-bound next-run identity when the owning session is disposed. */
+  clearExpectedRunId?: boolean
+}
+
+/** Expected correlation rejection that session projection can ignore safely. */
+export class KarelRetiredRunEventError extends Error {
+  constructor() {
+    super('Karel protocol event belongs to a retired prior run')
+    this.name = 'KarelRetiredRunEventError'
+  }
+}
+
+/** Expected correlation rejection that session projection can ignore safely. */
+export class KarelUnexpectedRunEventError extends Error {
+  constructor() {
+    super('Karel protocol event does not match the host-expected run')
+    this.name = 'KarelUnexpectedRunEventError'
+  }
 }
 
 function plainObject(value: unknown, field: string): Record<string, unknown> {
@@ -277,6 +301,9 @@ export class KarelProtocolDecoder {
   private eventCount = 0
   private protocolCharacters = 0
   private terminalReceived = false
+  private expectedRunId: string | undefined
+  private readonly retiredRunIds = new Set<string>()
+  private retiredRunOrder: string[] = []
 
   push(chunk: string): KarelDecodeResult {
     this.pending += chunk
@@ -377,22 +404,48 @@ export class KarelProtocolDecoder {
     return result
   }
 
-  reset(): void {
+  /** Binds the next accepted sequence-zero event to a host-created run ID. */
+  expectRun(runId: string): void {
+    const expectedRunId = parseRunId(runId)
+    this.reset({ retireActiveRun: true })
+    this.expectedRunId = expectedRunId
+  }
+
+  reset(options: KarelProtocolResetOptions = {}): void {
+    if (options.retireActiveRun && this.activeRunId !== undefined) {
+      this.retireRunId(this.activeRunId)
+    }
     this.pending = ''
     this.activeRunId = undefined
     this.nextSequence = 0
     this.eventCount = 0
     this.protocolCharacters = 0
     this.terminalReceived = false
+    if (options.clearExpectedRunId) this.expectedRunId = undefined
   }
 
   private acceptSequence(event: KarelProtocolEvent): void {
     if (this.activeRunId === undefined) {
+      if (this.retiredRunIds.has(event.runId)) {
+        throw new KarelRetiredRunEventError()
+      }
+      if (
+        this.expectedRunId !== undefined
+        && event.runId !== this.expectedRunId
+      ) {
+        throw new KarelUnexpectedRunEventError()
+      }
       if (event.sequence !== 0) {
         throw new Error('Karel protocol run must begin at sequence 0')
       }
       this.activeRunId = event.runId
     } else if (event.runId !== this.activeRunId) {
+      if (this.retiredRunIds.has(event.runId)) {
+        throw new KarelRetiredRunEventError()
+      }
+      if (this.expectedRunId !== undefined) {
+        throw new KarelUnexpectedRunEventError()
+      }
       throw new Error('Karel protocol event belongs to a different run')
     }
     if (this.terminalReceived) {
@@ -409,6 +462,16 @@ export class KarelProtocolDecoder {
     this.nextSequence += 1
     this.eventCount += 1
     if (event.type === 'terminal') this.terminalReceived = true
+  }
+
+  private retireRunId(runId: string): void {
+    if (this.retiredRunIds.has(runId)) return
+    this.retiredRunIds.add(runId)
+    this.retiredRunOrder.push(runId)
+    while (this.retiredRunOrder.length > MAX_RETIRED_RUN_IDS) {
+      const expired = this.retiredRunOrder.shift()
+      if (expired !== undefined) this.retiredRunIds.delete(expired)
+    }
   }
 }
 

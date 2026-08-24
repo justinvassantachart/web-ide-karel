@@ -6,13 +6,17 @@ import type {
 import {
   createKarelExecutionFiles,
   createKarelWorkspaceFiles,
+  KAREL_RUN_EXECUTION_PATH,
+  type KarelRunResource,
   type KarelWorkspaceResourcesOptions,
 } from './assets'
 import {
   KarelPanel,
   type KarelPanelWorldOption,
 } from './KarelPanel'
+import type { KarelPlaybackLimits } from './playback-controller'
 import { KarelSessionStore, type KarelRuntimeSession } from './session-store'
+import type { KarelTimelineLimits } from './timeline'
 import { DEFAULT_KAREL_WORLD } from './assets'
 import {
   parseKarelWorldDocument,
@@ -44,6 +48,10 @@ export interface CreateKarelPluginOptions extends KarelWorkspaceResourcesOptions
   initialWorldId?: string
   /** Set false when the host already supplies its own run affordance. */
   contributeRunCommand?: boolean
+  /** Cumulative execution limits owned by this Karel activity instance. */
+  playbackLimits?: KarelPlaybackLimits
+  /** Retained visual-history limits owned by this Karel activity instance. */
+  timelineLimits?: KarelTimelineLimits
 }
 
 interface KarelRuntimeState {
@@ -151,6 +159,12 @@ export function createKarelPlugin(options: CreateKarelPluginOptions = {}): IDEPl
           state.selectedWorld =
             worlds.find((world) => world.id === worldId) ?? state.selectedWorld
         }}
+        {...(options.playbackLimits === undefined
+          ? {}
+          : { playbackLimits: options.playbackLimits })}
+        {...(options.timelineLimits === undefined
+          ? {}
+          : { timelineLimits: options.timelineLimits })}
       />
     )
   }
@@ -205,10 +219,18 @@ export function createKarelPlugin(options: CreateKarelPluginOptions = {}): IDEPl
         id: resourceId,
         order: options.panelOrder ?? 25,
         scope: 'execution-only',
-        files: () => createKarelExecutionFiles({
-          world: state.selectedWorld.world,
-          createRunId: options.createRunId,
-        }),
+        files: () => {
+          const files = createKarelExecutionFiles({
+            world: state.selectedWorld.world,
+            createRunId: options.createRunId,
+          })
+          const run = JSON.parse(
+            files[KAREL_RUN_EXECUTION_PATH] ?? 'null',
+          ) as KarelRunResource | null
+          if (!run) throw new Error('Karel run resource was not materialized')
+          state.store.expectRun(run.runId)
+          return files
+        },
       })
       const supportsPython = context.runtime.languageIds.some(
         (languageId) => languageId.toLowerCase() === 'python',

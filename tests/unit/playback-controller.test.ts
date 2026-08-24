@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   DEFAULT_KAREL_PLAYBACK_LIMITS,
   KarelPlaybackController,
+  type KarelPlaybackLimits,
 } from '../../src/playback-controller'
 import { DEFAULT_KAREL_WORLD } from '../../src/assets'
 import { KarelSessionStore } from '../../src/session-store'
@@ -21,7 +22,10 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-function setup(options: { maxPauses?: number } = {}) {
+function setup(options: {
+  limits?: Partial<KarelPlaybackLimits>
+  now?: () => number
+} = {}) {
   const fake = createFakeRuntime()
   const start = vi.fn(async () => undefined)
   const stop = vi.fn(async () => undefined)
@@ -47,14 +51,15 @@ function setup(options: { maxPauses?: number } = {}) {
       }),
     },
     store,
-    ...(options.maxPauses === undefined
+    ...(options.limits === undefined
       ? {}
       : {
           limits: {
             ...DEFAULT_KAREL_PLAYBACK_LIMITS,
-            maxPauses: options.maxPauses,
+            ...options.limits,
           },
         }),
+    ...(options.now === undefined ? {} : { now: options.now }),
   } satisfies ConstructorParameters<typeof KarelPlaybackController>[0]
   const controller = new KarelPlaybackController(services)
   const deactivate = controller.activate()
@@ -89,13 +94,13 @@ function frame(event: KarelProtocolEvent): string {
 describe('KarelPlaybackController', () => {
   it('filters support pauses and records only eligible workspace lines', async () => {
     const fixture = setup()
-    const stepOver = vi.spyOn(fixture.runtime, 'stepOver')
+    const continueExecution = vi.spyOn(fixture.runtime, 'continueExecution')
 
     await fixture.controller.prepare()
     expect(fixture.start).toHaveBeenCalledWith('debug')
 
     fixture.events.debugPaused.emit(pause('/sysroot/karel.py', 10))
-    expect(stepOver).toHaveBeenCalledTimes(1)
+    expect(continueExecution).toHaveBeenCalledTimes(1)
     fixture.events.debugPaused.emit(pause('/main.py', 2))
 
     const snapshot = fixture.controller.getSnapshot()
@@ -113,14 +118,85 @@ describe('KarelPlaybackController', () => {
     })
   })
 
+  it('owns a transient workspace overlay and clears only that owner', async () => {
+    const fixture = setup()
+    const replace = vi.spyOn(fixture.runtime, 'replaceBreakpointOverlay')
+    const clear = vi.spyOn(fixture.runtime, 'clearBreakpointOverlay')
+
+    await fixture.controller.prepare()
+
+    expect(replace).toHaveBeenCalledTimes(1)
+    const [owner, breakpoints] = replace.mock.calls[0] as unknown as [
+      object,
+      Record<string, readonly number[]>,
+    ]
+    expect(typeof owner).toBe('object')
+    expect(breakpoints).toEqual({
+      '/workspace/helpers/steps.py': [1],
+      '/workspace/main.py': [1, 2, 3],
+    })
+
+    await fixture.controller.stop()
+    expect(clear).toHaveBeenCalledTimes(1)
+    expect(clear).toHaveBeenCalledWith(owner)
+  })
+
+  it('fails closed when the selected runtime lacks isolated overlays', async () => {
+    const fixture = setup()
+    const unsupportedRuntime = fixture.runtime as Partial<typeof fixture.runtime>
+    delete unsupportedRuntime.replaceBreakpointOverlay
+    delete unsupportedRuntime.clearBreakpointOverlay
+
+    await fixture.controller.prepare()
+
+    expect(fixture.start).not.toHaveBeenCalled()
+    expect(fixture.controller.getSnapshot().timeline.terminal?.detail).toMatchObject({
+      outcome: 'runtime-error',
+      message: 'The selected runtime does not support isolated Karel line playback.',
+    })
+  })
+
+  it('cancels an in-flight overlay install before reset can start Python', async () => {
+    const fixture = setup()
+    let finishInstall: (() => void) | undefined
+    const replace = vi.spyOn(fixture.runtime, 'replaceBreakpointOverlay')
+      .mockImplementation(() => new Promise<undefined>((resolve) => {
+        finishInstall = () => resolve(undefined)
+      }))
+    const clear = vi.spyOn(fixture.runtime, 'clearBreakpointOverlay')
+
+    const preparing = fixture.controller.prepare()
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledTimes(1))
+    const resetting = fixture.controller.reset()
+    finishInstall?.()
+    await Promise.all([preparing, resetting])
+
+    expect(fixture.start).not.toHaveBeenCalled()
+    expect(clear).toHaveBeenCalledTimes(1)
+    expect(fixture.controller.getSnapshot().timeline.activeRunId).toBeUndefined()
+  })
+
+  it('coalesces concurrent prepare requests into one runtime start', async () => {
+    const fixture = setup()
+    const replace = vi.spyOn(fixture.runtime, 'replaceBreakpointOverlay')
+
+    await Promise.all([
+      fixture.controller.prepare(),
+      fixture.controller.prepare(),
+    ])
+
+    expect(replace).toHaveBeenCalledTimes(1)
+    expect(fixture.start).toHaveBeenCalledTimes(1)
+  })
+
   it('advances the live runtime and scrubs recorded history without reversing it', async () => {
     const fixture = setup()
-    const stepOver = vi.spyOn(fixture.runtime, 'stepOver')
+    const continueExecution = vi.spyOn(fixture.runtime, 'continueExecution')
     await fixture.controller.prepare()
     fixture.events.debugPaused.emit(pause('/main.py', 1))
 
     await fixture.controller.stepForward()
-    expect(stepOver).toHaveBeenCalledTimes(1)
+    expect(continueExecution).toHaveBeenCalledTimes(1)
     fixture.events.debugPaused.emit(pause('/main.py', 2))
     expect(fixture.controller.getSnapshot().timeline.frames).toHaveLength(2)
 
@@ -132,26 +208,26 @@ describe('KarelPlaybackController', () => {
 
     await fixture.controller.stepForward()
     expect(fixture.controller.getSnapshot().timeline.cursor.mode).toBe('live')
-    expect(stepOver).toHaveBeenCalledTimes(1)
+    expect(continueExecution).toHaveBeenCalledTimes(1)
   })
 
   it('plays at the selected delay and pauses between source lines', async () => {
     vi.useFakeTimers()
     const fixture = setup()
-    const stepOver = vi.spyOn(fixture.runtime, 'stepOver')
+    const continueExecution = vi.spyOn(fixture.runtime, 'continueExecution')
     const play = fixture.controller.play()
     await play
     fixture.events.debugPaused.emit(pause('/main.py', 1))
 
     await vi.advanceTimersByTimeAsync(299)
-    expect(stepOver).not.toHaveBeenCalled()
+    expect(continueExecution).not.toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(1)
-    expect(stepOver).toHaveBeenCalledTimes(1)
+    expect(continueExecution).toHaveBeenCalledTimes(1)
 
     fixture.events.debugPaused.emit(pause('/main.py', 2))
     fixture.controller.pause()
     await vi.advanceTimersByTimeAsync(1_000)
-    expect(stepOver).toHaveBeenCalledTimes(1)
+    expect(continueExecution).toHaveBeenCalledTimes(1)
     expect(fixture.controller.getSnapshot().message).toContain('not been reversed')
   })
 
@@ -195,7 +271,7 @@ describe('KarelPlaybackController', () => {
   })
 
   it('settles and stops on pause limits', async () => {
-    const fixture = setup({ maxPauses: 1 })
+    const fixture = setup({ limits: { maxPauses: 1 } })
     await fixture.controller.prepare()
     fixture.events.debugPaused.emit(pause('/main.py', 1))
     fixture.events.debugPaused.emit(pause('/main.py', 2))
@@ -223,6 +299,20 @@ describe('KarelPlaybackController', () => {
     expect(fixture.clearDecorations).toHaveBeenCalled()
   })
 
+  it('stops active Python and clears its overlay when the panel deactivates', async () => {
+    const fixture = setup()
+    const clear = vi.spyOn(fixture.runtime, 'clearBreakpointOverlay')
+    await fixture.controller.prepare()
+    fixture.events.debugPaused.emit(pause('/main.py', 1))
+
+    const deactivate = fixture.controller.activate()
+    deactivate()
+    await vi.waitFor(() => expect(fixture.stop).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(clear).toHaveBeenCalledTimes(1))
+
+    expect(fixture.events.debugPaused.listenerCount).toBe(0)
+  })
+
   it('settles an exit emitted by an explicit settled stop as aborted', async () => {
     const fixture = setup()
     await fixture.controller.prepare()
@@ -240,7 +330,7 @@ describe('KarelPlaybackController', () => {
   })
 
   it('awaits a limit-triggered stop before starting a replacement run', async () => {
-    const fixture = setup({ maxPauses: 1 })
+    const fixture = setup({ limits: { maxPauses: 1 } })
     let releaseStop: (() => void) | undefined
     fixture.stop.mockImplementationOnce(
       () => new Promise<undefined>((resolve) => {
@@ -262,6 +352,118 @@ describe('KarelPlaybackController', () => {
     await restart
     expect(fixture.start).toHaveBeenCalledTimes(2)
     expect(fixture.start).toHaveBeenLastCalledWith('debug')
+  })
+
+  it('bounds line-only support pauses even when no Karel action is emitted', async () => {
+    const fixture = setup({ limits: { maxPauses: 2 } })
+    await fixture.controller.prepare()
+
+    fixture.events.debugPaused.emit(pause('/sysroot/karel.py', 10))
+    fixture.events.debugPaused.emit(pause('/sysroot/karel.py', 11))
+    fixture.events.debugPaused.emit(pause('/sysroot/karel.py', 12))
+    await Promise.resolve()
+
+    expect(fixture.controller.getSnapshot().timeline.frames).toEqual([])
+    expect(fixture.controller.getSnapshot().timeline.terminal?.detail).toMatchObject({
+      outcome: 'limit-exceeded',
+      reason: 'pause-limit',
+    })
+    expect(fixture.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('combines UTF-8 stdout and stderr bytes under one output limit', async () => {
+    const fixture = setup({ limits: { maxOutputBytes: 6 } })
+    await fixture.controller.prepare()
+
+    fixture.events.stdout.emit('abc')
+    fixture.events.stderr.emit('🟦')
+    await Promise.resolve()
+
+    expect(fixture.controller.getSnapshot().timeline.terminal?.detail).toMatchObject({
+      outcome: 'limit-exceeded',
+      reason: 'output-byte-limit',
+    })
+    expect(fixture.stop).toHaveBeenCalledTimes(1)
+    fixture.events.stdout.emit('ignored after settlement')
+    expect(fixture.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles and stops at the elapsed-time limit without a runtime event', async () => {
+    vi.useFakeTimers()
+    const fixture = setup({ limits: { maxElapsedMs: 25 } })
+    await fixture.controller.prepare()
+
+    await vi.advanceTimersByTimeAsync(24)
+    expect(fixture.controller.getSnapshot().timeline.terminal).toBeUndefined()
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(fixture.controller.getSnapshot().timeline.terminal?.detail).toMatchObject({
+      outcome: 'limit-exceeded',
+      reason: 'elapsed-time-limit',
+    })
+    expect(fixture.stop).toHaveBeenCalledTimes(1)
+  })
+
+  it('clamps playback speed deterministically and rejects non-integers', () => {
+    const fixture = setup()
+
+    fixture.controller.setSpeed(1)
+    expect(fixture.controller.getSnapshot().speedMs).toBe(
+      DEFAULT_KAREL_PLAYBACK_LIMITS.minSpeedMs,
+    )
+    fixture.controller.setSpeed(10_000)
+    expect(fixture.controller.getSnapshot().speedMs).toBe(
+      DEFAULT_KAREL_PLAYBACK_LIMITS.maxSpeedMs,
+    )
+    expect(() => fixture.controller.setSpeed(1.5)).toThrow('safe integer')
+  })
+
+  it('does not admit a late prior-run frame after restart', async () => {
+    const fixture = setup()
+    await fixture.controller.prepare()
+    const staleWorld = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    staleWorld.karel.avenue = 2
+    const stale = frame({
+      protocol: KAREL_PROTOCOL_NAME,
+      version: KAREL_PROTOCOL_VERSION,
+      runId: 'prior-runtime-run',
+      sequence: 0,
+      type: 'state',
+      action: 'move',
+      world: staleWorld,
+    })
+    fixture.events.stdout.emit(stale)
+    expect(fixture.controller.getSnapshot().timeline.frames).toHaveLength(1)
+
+    await fixture.controller.restart()
+    expect(fixture.controller.getSnapshot().timeline.frames).toEqual([])
+    fixture.events.stdout.emit(stale)
+
+    expect(fixture.controller.getSnapshot().timeline.frames).toEqual([])
+    expect(fixture.store.getSnapshot()).toMatchObject({
+      status: 'waiting',
+      sequence: -1,
+      world: { karel: { avenue: 1 } },
+    })
+  })
+
+  it('isolates two controller instances and disposes only owned listeners', async () => {
+    const first = setup()
+    const second = setup()
+    await first.controller.prepare()
+    await second.controller.prepare()
+
+    first.events.debugPaused.emit(pause('/main.py', 1))
+    expect(first.controller.getSnapshot().timeline.frames).toHaveLength(1)
+    expect(second.controller.getSnapshot().timeline.frames).toEqual([])
+    expect(first.events.debugPaused.listenerCount).toBe(1)
+    expect(second.events.debugPaused.listenerCount).toBe(1)
+
+    first.controller.dispose()
+    expect(first.events.debugPaused.listenerCount).toBe(0)
+    expect(second.events.debugPaused.listenerCount).toBe(1)
+    second.events.debugPaused.emit(pause('/main.py', 2))
+    expect(second.controller.getSnapshot().timeline.frames).toHaveLength(1)
   })
 
   it('selects a new reset world without mutating student files', async () => {
