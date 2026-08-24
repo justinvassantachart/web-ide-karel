@@ -124,9 +124,11 @@ than presented as student source.
 
 The controller separately records whether the current run has reached its
 first validated student-source pause. Until then the panel reports `Starting`
-and does not offer Stop, even if execution startup resolves or an initial
-protocol state arrives first. This readiness state resets with every run and
-lifecycle teardown; a support/runtime pause cannot satisfy it.
+and does not offer Stop, Reset, Restart, or world selection, even if execution
+startup resolves or an initial protocol state arrives first. Terminal
+settlement invalidates pending local preparation generations before cleanup.
+This readiness state resets with every run and lifecycle teardown; a support/
+runtime pause cannot satisfy it.
 
 Before a playback run starts, the controller snapshots ordinary workspace
 files and derives an overlay from every non-empty, non-comment line in each

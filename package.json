@@ -47,11 +47,12 @@
     "test:python": "npm run check:python && python3 -m unittest discover -s tests/python -p '*_test.py'",
     "test:browser": "playwright test",
     "test:packed-production": "node scripts/validate-packed-production-consumer.mjs",
+    "check:production-environment": "node scripts/check-production-validation-environment.mjs",
     "audit:full": "npm audit --audit-level=low",
     "audit:production": "npm audit --omit=dev --audit-level=low",
     "pack:check": "npm pack --dry-run",
     "validate": "npm run lint && npm run test && npm run typecheck && npm run build && npm run pack:check",
-    "validate:production": "npm run validate && npm run test:browser && npm run audit:full && npm run audit:production && npm run test:packed-production"
+    "validate:production": "npm run check:production-environment && npm run validate && npm run test:browser && npm run audit:full && npm run audit:production && npm run test:packed-production"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",

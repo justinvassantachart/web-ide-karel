@@ -183,18 +183,22 @@ describe('Karel panel', () => {
     detach()
   })
 
-  it('does not report a pause or permit stop until the runtime actually pauses', async () => {
+  it('does not permit run transitions until the runtime actually pauses', async () => {
     const { runtime, events } = createFakeRuntime()
     Object.assign(runtime.capabilities, { debug: true })
     const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)
     const detach = store.attach(runtime)
     const start = vi.fn(async () => undefined)
     const stop = vi.fn(async () => undefined)
+    const restart = vi.fn(async () => undefined)
+    const selectWorld = vi.fn()
+    const secondWorld = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    secondWorld.name = 'Second world'
 
     const { unmount } = render(
       <KarelPanel
         runtime={runtime}
-        execution={{ start, stop, restart: async () => undefined }}
+        execution={{ start, stop, restart }}
         source={{
           reveal: () => undefined,
           replaceDecorations: () => undefined,
@@ -202,6 +206,12 @@ describe('Karel panel', () => {
           dispose: () => undefined,
         }}
         store={store}
+        worlds={[
+          { id: 'first', label: 'First world', world: DEFAULT_KAREL_WORLD },
+          { id: 'second', label: 'Second world', world: secondWorld },
+        ]}
+        selectedWorldId="first"
+        onSelectWorld={selectWorld}
         workspace={{ snapshot: () => ({ '/workspace/main.py': 'move()\n' }) }}
         panels={{ reveal: () => undefined }}
       />,
@@ -214,7 +224,13 @@ describe('Karel panel', () => {
     await vi.waitFor(() => expect(start).toHaveBeenCalledWith('debug'))
     expect(screen.getByRole('status').textContent).toContain('Starting')
     const stopButton = screen.getByRole('button', { name: 'Stop' }) as HTMLButtonElement
+    const resetButton = screen.getByRole('button', { name: 'Reset' }) as HTMLButtonElement
+    const restartButton = screen.getByRole('button', { name: 'Restart' }) as HTMLButtonElement
+    const worldSelect = screen.getByLabelText('World') as HTMLSelectElement
     expect(stopButton.disabled).toBe(true)
+    expect(resetButton.disabled).toBe(true)
+    expect(restartButton.disabled).toBe(true)
+    expect(worldSelect.disabled).toBe(true)
 
     const startupWorld = cloneKarelWorld(DEFAULT_KAREL_WORLD)
     act(() => events.stdout.emit(encodeKarelProtocolEvent({
@@ -228,6 +244,15 @@ describe('Karel panel', () => {
     })))
     expect(screen.getByRole('status').textContent).toContain('Starting')
     expect(stopButton.disabled).toBe(true)
+    expect(resetButton.disabled).toBe(true)
+    expect(restartButton.disabled).toBe(true)
+    expect(worldSelect.disabled).toBe(true)
+    fireEvent.click(resetButton)
+    fireEvent.click(restartButton)
+    fireEvent.change(worldSelect, { target: { value: 'second' } })
+    expect(stop).not.toHaveBeenCalled()
+    expect(restart).not.toHaveBeenCalled()
+    expect(selectWorld).not.toHaveBeenCalled()
 
     act(() => events.debugPaused.emit({
       file: '/main.py',
@@ -238,6 +263,9 @@ describe('Karel panel', () => {
     }))
     expect(screen.getByRole('status').textContent).toContain('Paused')
     expect(stopButton.disabled).toBe(false)
+    expect(resetButton.disabled).toBe(false)
+    expect(restartButton.disabled).toBe(false)
+    expect(worldSelect.disabled).toBe(false)
 
     await act(async () => {
       fireEvent.click(stopButton)
@@ -309,8 +337,9 @@ describe('Karel panel', () => {
     })
     expect(start).toHaveBeenCalledWith('debug')
     const reset = screen.getByRole('button', { name: 'Reset' })
-    reset.focus()
-    expect(document.activeElement).toBe(reset)
+    const playbackSpeed = screen.getByLabelText('Playback speed')
+    playbackSpeed.focus()
+    expect(document.activeElement).toBe(playbackSpeed)
     act(() => events.debugPaused.emit({
       file: '/main.py',
       line: 2,
@@ -327,6 +356,8 @@ describe('Karel panel', () => {
       path: '/workspace/main.py',
       line: 2,
     })
+    expect(document.activeElement).toBe(playbackSpeed)
+    reset.focus()
     expect(document.activeElement).toBe(reset)
 
     await act(async () => {

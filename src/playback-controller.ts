@@ -622,6 +622,9 @@ export class KarelPlaybackController {
   }
 
   private settle(terminal: KarelTraceTerminal): void {
+    // Invalidate preparation that may still be waiting on an overlay or host
+    // startup so it cannot launch after this run has already terminated.
+    this.executionGeneration += 1
     this.clearRunTimers()
     this.releaseBreakpointOverlay()
     this.runtimePaused = false

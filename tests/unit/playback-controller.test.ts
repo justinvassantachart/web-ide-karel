@@ -404,6 +404,33 @@ describe('KarelPlaybackController', () => {
     expect(fixture.stop).toHaveBeenCalledTimes(1)
   })
 
+  it('does not start after the elapsed limit settles during overlay preparation', async () => {
+    vi.useFakeTimers()
+    const fixture = setup({ limits: { maxElapsedMs: 25 } })
+    let releaseOverlay: (() => void) | undefined
+    vi.spyOn(fixture.runtime, 'replaceBreakpointOverlay').mockImplementation(
+      () => new Promise<undefined>((resolve) => {
+        releaseOverlay = () => resolve(undefined)
+      }),
+    )
+    const clearOverlay = vi.spyOn(fixture.runtime, 'clearBreakpointOverlay')
+
+    const preparation = fixture.controller.prepare()
+    await vi.advanceTimersByTimeAsync(25)
+
+    expect(fixture.controller.getSnapshot().timeline.terminal?.detail).toMatchObject({
+      outcome: 'limit-exceeded',
+      reason: 'elapsed-time-limit',
+    })
+    expect(fixture.stop).toHaveBeenCalledTimes(1)
+
+    releaseOverlay?.()
+    await preparation
+
+    expect(fixture.start).not.toHaveBeenCalled()
+    expect(clearOverlay).toHaveBeenCalledTimes(1)
+  })
+
   it('clamps playback speed deterministically and rejects non-integers', () => {
     const fixture = setup()
 

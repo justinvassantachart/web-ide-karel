@@ -264,11 +264,12 @@ rewriting student files. Changing worlds performs the same execution/timeline
 reset before selecting the next initial world. Cleanup cancels timers, clears
 owned source decorations, and revokes subscriptions.
 
-A new run remains visibly `Starting`, with Stop unavailable, until the runtime
-has delivered its first validated pause in a student workspace file. An early
-execution-start resolution, support-code pause, or protocol state frame cannot
-be mistaken for that readiness boundary. This prevents Stop from racing the
-underlying runtime's asynchronous debug preparation.
+A new run remains visibly `Starting`, with Stop, Reset, Restart, and world
+selection unavailable, until the runtime has delivered its first validated
+pause in a student workspace file. An early execution-start resolution,
+support-code pause, or protocol state frame cannot be mistaken for that
+readiness boundary. Terminal settlement invalidates pending local preparation
+generations so a limit cannot launch execution after it has already settled.
 
 Current defaults are:
 

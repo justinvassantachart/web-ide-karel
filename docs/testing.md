@@ -80,13 +80,13 @@ Use narrower scripts while iterating:
 - `tests/unit/playback-controller.test.ts` proves public-service composition,
   deterministic owner-scoped workspace overlays, missing-capability failure,
   eligible-source filtering, current/historical decorations, live advance,
-  scheduled play/pause, host-configured limits, settlement, world reset, and
-  exact-owner cleanup.
+  scheduled play/pause, host-configured limits, settlement during deferred
+  overlay preparation, world reset, and exact-owner cleanup.
 - `tests/unit/comparison.test.ts` proves deterministic, immutable,
   `formative-only` final-state differences and explicit completion semantics.
 - `tests/component/karel-panel.test.tsx` covers the rendered world, unavailable
   runtime messaging, accessible controls/status, multi-world reset, source
-  presentation, and Strict Mode listener cleanup.
+  presentation, startup transition locking, and Strict Mode listener cleanup.
 - `tests/unit/plugin.test.ts` covers ordinary versus execution-only resources,
   fresh run materialization, public Run registration, language capability
   checks, custom IDs, and strict world selection failures.
@@ -113,8 +113,9 @@ The Playwright suite verifies:
 
 Component coverage also resolves execution startup and delivers an initial
 protocol state before the first valid student pause. The panel must remain
-`Starting` with Stop disabled until that pause arrives, preventing the packed
-abort/rerun scenario from racing runtime preparation.
+`Starting` with Stop, Reset, Restart, and world selection disabled until that
+pause arrives, preventing the packed abort/rerun scenario from racing runtime
+preparation through another transition.
 
 Browser scenarios fail if their asserted runtime, isolation, UI, or lifecycle
 outcome is absent. `playwright.config.ts` runs them headlessly and gives the two
@@ -163,7 +164,11 @@ Passing scenarios write 13 full-page PNGs, while Playwright retains trace and
 failure artifacts. Set `KAREL_PRODUCTION_ARTIFACT_DIR` to an absolute directory
 to retain them at a chosen evidence boundary; the wrapper reports every
 artifact's path, byte count, and SHA-256. Set
-`KEEP_KAREL_PRODUCTION_CONSUMER=1` only for local failure investigation.
+`KEEP_KAREL_PRODUCTION_CONSUMER=1` only for local failure investigation. The
+complete `validate:production` gate fails before running if
+`KAREL_PRODUCTION_DIAGNOSTIC_GREP` is present; that filter is reserved for an
+explicit direct diagnostic invocation of `test:packed-production` and can
+never produce release evidence.
 
 The tested production server applies the following values to the document,
 nested SPA fallback, static assets, malformed-path response, and 404 response:

@@ -140,11 +140,14 @@ export function KarelPanel({
   const paused = timeline.phase === 'paused'
   const playing = timeline.phase === 'playing'
   const busy = playback.operation !== 'idle'
+  const awaitingStudentPause = active && !playback.hasReachedStudentPause
+  const transitionLocked = busy || awaitingStudentPause
   const canStepBack = timeline.frames.length >= 2
   const canStepForward = timeline.cursor.mode === 'history'
     || (paused && playback.runtimePaused)
 
   const chooseWorld = (id: string) => {
+    if (transitionLocked) return
     const choice = worlds.find((candidate) => candidate.id === id)
     if (!choice) return
     setWorldId(id)
@@ -226,7 +229,7 @@ export function KarelPanel({
           onClick={() => void controller.stop()}
           disabled={
             !active
-            || busy
+            || transitionLocked
             || !playback.hasReachedStudentPause
           }
         >
@@ -235,14 +238,14 @@ export function KarelPanel({
         <button
           type="button"
           onClick={() => void controller.reset()}
-          disabled={busy}
+          disabled={transitionLocked}
         >
           Reset
         </button>
         <button
           type="button"
           onClick={() => void controller.restart()}
-          disabled={!supportsDebug || busy}
+          disabled={!supportsDebug || transitionLocked}
         >
           Restart
         </button>
@@ -287,7 +290,7 @@ export function KarelPanel({
             <select
               value={worldId}
               onChange={(event) => chooseWorld(event.target.value)}
-              disabled={busy}
+              disabled={transitionLocked}
             >
               {worlds.map((choice) => (
                 <option key={choice.id} value={choice.id}>
