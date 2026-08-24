@@ -66,8 +66,8 @@ async function verifyKarelCompatibilityCandidate({
     || !Number.isSafeInteger(state.source.sourceEpoch)
     || state.source.sourceEpoch <= 0
     || state.source.finalEligible !== true
-    || state.source.sourceReference !== 'web-ide-karel-v0.2.0-source-r2'
-    || state.source.tag.name !== 'web-ide-karel-v0.2.0-source-r2'
+    || state.source.sourceReference !== 'web-ide-karel-v0.2.0-source-r3'
+    || state.source.tag.name !== 'web-ide-karel-v0.2.0-source-r3'
     || state.source.tag.objectType !== 'tag'
     || !/^[a-f0-9]{40}$/u.test(state.source.tag.objectId)
     || state.source.tag.peeledCommit !== state.source.commit
@@ -163,7 +163,7 @@ export async function webIDECompatibilityReceipt({
     'name', 'objectId', 'objectType', 'peeledCommit',
   ], [], 'Web IDE compatibility candidate tag')
   if (
-    state.source.tag.name !== 'web-ide-v0.2.0-source-r2'
+    state.source.tag.name !== 'web-ide-v0.2.0-source-r3'
     || state.source.tag.objectType !== 'tag'
     || state.source.tag.peeledCommit !== state.source.commit
   ) throw new TypeError('Web IDE compatibility candidate tag is invalid')

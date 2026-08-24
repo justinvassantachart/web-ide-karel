@@ -30,10 +30,12 @@ following recorded evidence:
   downstream receipt; and
 - downstream cache seeding and retention under the consuming host's policy.
 
-The earlier annotated `v0.2.0` source tag is retained unchanged as an abandoned
-prepublication checkpoint: no Hamilton release or uploaded asset was created
-from it. The forward-only path-safe evidence run uses
-`web-ide-karel-v0.2.0-source-r2`; neither tag may be moved or rewritten.
+The earlier annotated `v0.2.0` and `web-ide-karel-v0.2.0-source-r2` source tags
+are retained unchanged as abandoned prepublication checkpoints: no Hamilton
+release or uploaded asset was created from either. The r2 Karel candidate was
+superseded when Web's real receipt capture failed closed before publication.
+The forward-only evidence run uses `web-ide-karel-v0.2.0-source-r3`; none of
+these tags may be moved or rewritten.
 
 The package remains `private: true` and is not published to npm. The accepted
 `hamilton.python-karel/1` identifier is recorded only in release-evidence
@@ -54,7 +56,7 @@ outputs are external and it performs no tag, release, or upload mutation.
 The sequence is intentionally:
 
 1. generate Web IDE's final candidate state, tarball, and runtime report from
-   its exact annotated `web-ide-v0.2.0-source-r2` tag;
+   its exact annotated `web-ide-v0.2.0-source-r3` tag;
 2. commit the exact Web candidate into Karel's packed-consumer lock and generate
    the exact Karel candidate;
 3. run the unfiltered exact-pair compatibility gate through the isolated capture

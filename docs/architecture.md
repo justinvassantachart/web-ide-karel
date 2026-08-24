@@ -204,7 +204,7 @@ the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
 The Web peer source is bound to the annotated
-`web-ide-v0.2.0-source-r2` tag; its separate immutable Hamilton asset release
+`web-ide-v0.2.0-source-r3` tag; its separate immutable Hamilton asset release
 uses `web-ide-v0.2.0`.
 
 Release evidence is external output produced by `scripts/release/`; it is not a
