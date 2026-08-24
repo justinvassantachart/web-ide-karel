@@ -40,7 +40,10 @@ Use narrower scripts while iterating:
 | `npm run test:browser` | Playwright browser suite against the port-4178 fixture |
 | `npm run audit:full` / `npm run audit:production` | Fail at any known vulnerability in the full or production dependency tree. |
 | `npm run test:packed-production` | Verify an exact locked Web IDE/Karel tarball pair, install it with lifecycle scripts disabled in a fresh consumer/cache, audit/typecheck/build, then run the production-server browser matrix. |
+| `npm run test:release` | Exercise canonical JSON, safe tar parsing, source/tag gates, peer-evidence binding, license/SBOM generation, and strict manifest/validation schemas. |
 | `npm run pack:check` | Inspect the npm tarball contents without publishing |
+| `npm run release:candidate` | Produce an external deterministic Karel candidate/evidence set from exact pushed/tagged source and exact Web candidate evidence. |
+| `npm run release:finalize` | Bind a final candidate and canonical all-pass validation record to Web IDE's finalized artifact manifest. |
 | `npm run validate:production` | Run `validate`, the development browser suite, both audits, and the packed-production consumer gate. |
 
 ## Test layers
@@ -158,7 +161,10 @@ static SPA server. The fixture imports public package exports only.
 The fixture lock is coupled to the exact package bytes. Regenerate and review
 it after any included package file, manifest, dependency, or build output
 changes; an integrity mismatch is evidence of drift, not permission to update
-the lock during validation.
+the lock during validation. Release tooling also binds the complete canonical
+transitive lock graph; only the two independently verified private-artifact
+integrities are normalized for that graph check. Added nodes, registry or Git
+URL drift, lifecycle flags, and any other transitive-node change fail closed.
 
 The production browser matrix proves:
 
@@ -212,6 +218,136 @@ external responses, and either `Access-Control-Allow-Origin: *` or
 runtime asset. Do not broaden these origins without a reviewed runtime-asset
 change; a self-hosted deployment may replace them with its exact reviewed
 origins.
+
+## Deterministic release-evidence workflow
+
+Release outputs must use an absent absolute path outside this repository. Each
+command stages into a sibling temporary directory and atomically renames only
+after every check succeeds; a failed run leaves no partial target and is
+retryable.
+File inputs must be absolute non-symlink regular-file paths outside this
+repository; the finalizer's candidate input must be a separate external real
+directory. Candidate generation does not read a sibling working tree: it
+clones the exact verified
+Karel commit twice, materializes the independently inspected Web IDE tar as the
+clone's build-only sibling, uses a separate fresh npm cache for each build, and
+uses isolated home/temp directories plus empty user/global npm configuration.
+The environment is rebuilt from a small transport/path allowlist, so arbitrary
+variables, npm configuration, registry-auth tokens, and Vite-prefixed values are
+not inherited. Release Git commands use `/usr/bin/git`, neutral system/global
+configuration, and the fixed OS keychain credential helper solely for
+authenticated live-remote reads; tokens are not inherited or printed. Each
+clone runs
+`npm ci --ignore-scripts --strict-peer-deps --engine-strict` before
+building and packing. Both npm tarballs and their canonical inventories must be
+identical.
+
+For a final candidate:
+
+```sh
+KAREL_RELEASE_OUTPUT_DIR=/absolute/external/new-karel-candidate \
+KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE=/absolute/web-evidence/candidate-state.json \
+KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.2.0.tgz \
+  npm run release:candidate
+```
+
+Final mode fails unless local `main` equals both its tracking ref and the live
+remote, the worktree is clean, the pushed annotated `v0.2.0` tag peels to
+`HEAD`, and Node `24.11.1`/npm `11.6.2` are active. The Web candidate state must
+be canonical final evidence, its exact ten-artifact inventory must bind the
+runtime report and tar SHA-256, and the committed packed-consumer lock must bind
+the computed Web and Karel SHA-512 values.
+
+For tooling tests before final tags exist, set `KAREL_RELEASE_MODE=test`. This
+mode still requires the exact pushed Karel `main`, exact toolchain, canonical
+Web candidate-state fixture, and two clean byte-identical builds, but archives
+the pushed commit and marks every output non-final. It never satisfies
+`release:finalize` and must not be uploaded or cited as release evidence.
+
+For Web IDE finalization, run the exact pair with
+`KAREL_RELEASE_WEB_IDE_GATE_RECEIPT=1` and
+both `KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE` and
+`KAREL_RELEASE_KAREL_CANDIDATE_STATE` set to their canonical candidate states.
+The unfiltered successful run emits exactly one Web IDE compatibility receipt
+as its final stdout line; retain that complete raw log for Web's finalizer.
+
+Capture each gate with the repository runner. It requires the same final
+clean/pushed/tagged source and exact locked candidate pair; the Web manifest is
+additionally required for `web-ide-peer-evidence`. The runner selects the
+predeclared executable and argv, removes inherited Node/npm/test controls,
+captures actual stdout/stderr and exit status, and atomically publishes one raw
+log plus one canonical receipt to a previously absent external directory:
+
+```sh
+KAREL_RELEASE_GATE_ID=packed-exact-pair \
+KAREL_RELEASE_GATE_OUTPUT_DIR=/absolute/external/gates/packed-exact-pair \
+KAREL_RELEASE_KAREL_TARBALL=/absolute/karel-candidate/web-ide-karel-0.2.0.tgz \
+KAREL_RELEASE_KAREL_CANDIDATE_STATE=/absolute/karel-candidate/candidate-state.json \
+KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-candidate/web-ide-0.2.0.tgz \
+KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE=/absolute/web-candidate/candidate-state.json \
+  npm run release:capture-gate
+```
+
+Gate capture uses these fixed wall-clock budgets:
+
+| Gate | Timeout |
+| --- | ---: |
+| `validate-production` | 45 minutes |
+| `packed-exact-pair` | 20 minutes |
+| `audit-production` | 10 minutes |
+| `audit-full` | 10 minutes |
+| `reproducibility` | 45 minutes |
+| `web-ide-peer-evidence` | 5 minutes |
+
+The longer budgets cover the multi-build/browser and reproducibility gates;
+the audit and local verification gates retain narrower bounds. Each receipt
+binds its exact timeout and the 10-second termination grace period. On timeout
+or capture-limit overflow, the runner signals the gate's isolated POSIX process
+group with `SIGTERM`, waits the grace period, sends `SIGKILL` if any member
+remains, and verifies that both the direct child and process group have settled
+before the staging directory is discarded. The release machine uses macOS
+process-group semantics; capture fails closed on Windows.
+
+After the successful compatibility log has finalized Web IDE's manifest,
+capture `web-ide-peer-evidence` with
+`KAREL_RELEASE_WEB_IDE_MANIFEST=/absolute/web-evidence/artifact-manifest.json`.
+Copy `release/validation-summary.template.json` outside the repository and bind
+each gate's external log and receipt by absolute path, exact filename, size,
+and SHA-256. Replace both source commits and both candidate digests, serialize
+the input as canonical JSON, and run. Logs must be nonempty UTF-8 and contain no
+credentials or private keys:
+
+```sh
+KAREL_RELEASE_CANDIDATE_DIR=/absolute/external/final-karel-candidate \
+KAREL_RELEASE_OUTPUT_DIR=/absolute/external/new-final-karel-evidence \
+KAREL_RELEASE_VALIDATION_INPUT=/absolute/external/validation-summary.json \
+KAREL_RELEASE_WEB_IDE_MANIFEST=/absolute/web-evidence/artifact-manifest.json \
+KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.2.0.tgz \
+  npm run release:finalize
+```
+
+Finalization leaves the candidate directory read-only, copies its exact bytes
+into transactional staging, and independently rechecks clean/pushed/tagged
+Karel source, the tag-derived source archive, deterministic-build schema,
+package tar allowlist and inspection, regenerated licenses and SBOM, consumer
+locks, final Web manifest/sidecar/tar/runtime/candidate cross-links, and every
+raw validation log and capture receipt. It copies and rehashes the exact bytes,
+then verifies the predeclared command, scrubbed environment, actual zero exit,
+both source commits, both candidate digests, and the final Web receipt footer.
+Unknown fields, rewritten reports plus rewritten state, symlinks, missing logs,
+peer drift, and late failures all fail closed without publishing a partial
+output. Git controls and the archived reference are checked before and after
+archive generation, and finalization re-verifies the complete live source
+identity immediately before its atomic publication step. It does not tag or
+publish.
+
+The external candidate directory contains the source archive, package tarball,
+candidate state, safe package inventory, deterministic-build comparison,
+license inventory, `THIRD_PARTY_LICENSES.txt`, CycloneDX 1.6 SBOM, and Web
+candidate verification. Finalization additionally retains the six raw logs and
+capture receipts and writes the canonical validation summary, Web
+final-manifest verification, artifact manifest, and sidecar. Runtime assets
+remain represented only by Web IDE's referenced report digest and count.
 
 ## Validation expectations
 

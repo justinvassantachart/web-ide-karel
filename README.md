@@ -341,9 +341,50 @@ KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.2.0.tgz \
   npm run test:packed-production
 ```
 
+The Web IDE release compatibility run additionally sets
+`KAREL_RELEASE_WEB_IDE_GATE_RECEIPT=1` and supplies the canonical Web candidate
+state through `KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE` plus the canonical Karel
+candidate state through `KAREL_RELEASE_KAREL_CANDIDATE_STATE`. After the
+complete, unfiltered exact-pair gate succeeds, the script emits Web IDE's
+required candidate/source-bound receipt as the final stdout line. Receipt mode
+rejects source-built candidates, unbound Karel bytes, and diagnostic filtering.
+
 The source license and package version do not themselves complete a release.
 See [publishing readiness](docs/publishing-readiness.md) for the remaining
 artifact and immutable-release evidence.
+
+### Deterministic release evidence
+
+`npm run release:candidate` is the Karel candidate builder. In its
+default `final` mode it requires a clean, pushed `main`, the pushed annotated
+`v0.2.0` tag at `HEAD`, the exact Node/npm toolchain, an absent external output
+path, and the exact Web IDE candidate state and tarball. It verifies the
+canonical Web candidate state, runtime-assets report, tar SHA-256, consumer-lock
+SHA-512 integrity, and package identity before running two isolated clean Karel
+installs/builds/packs with fresh npm caches. It then writes a deterministic
+source archive, candidate tarball, safe tar inventory, license inventory,
+deduplicated license text, CycloneDX SBOM, reproducibility report, and candidate
+state outside the repository.
+
+The dependency-ordered release sequence deliberately has two stages. Karel's
+candidate binds Web IDE's pre-manifest candidate evidence so the paired
+compatibility gate can run without a circular manifest dependency. After that
+gate finalizes Web IDE's artifact manifest, `npm run release:finalize` verifies
+the canonical Web manifest, sidecar, exact tarball, and runtime report against
+the peer bytes recorded by Karel and accepts only six outputs from the
+repository's validation-gate capture runner. Each output contains the exact raw
+log plus a canonical receipt recording the predeclared executable/argv, scrubbed
+environment policy, actual exit status, Karel/Web source identities, and exact
+candidate pair. Finalization copies and rehashes those caller-supplied bytes,
+independently validates every receipt and the Web compatibility footer,
+regenerates the source archive, package inspection, license evidence, and SBOM,
+and writes Karel's final manifest and sidecar to a separate atomic output.
+Karel references Web IDE's runtime evidence by digest and never claims or
+duplicates Web-owned runtime assets.
+
+The scripts require absolute external input/output paths; see
+[docs/testing.md](docs/testing.md) for exact variables and the explicitly
+non-final test mode. They do not tag, publish, upload, or mutate a release.
 
 `npm run test:browser` alone still uses a cross-origin-isolated Vite development
 fixture and is not production proof. See [docs/testing.md](docs/testing.md) for

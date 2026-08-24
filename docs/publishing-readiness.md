@@ -30,7 +30,45 @@ following recorded evidence:
   downstream receipt; and
 - downstream cache seeding and retention under the consuming host's policy.
 
-The package remains `private: true` and is not published to npm. GitHub release
-assets, downstream capability identifiers, URLs, credentials, and host cache
-state are distribution-owned records and are not embedded in package source or
-runtime contracts.
+The package remains `private: true` and is not published to npm. The accepted
+`hamilton.python-karel/1` identifier is recorded only in release-evidence
+inputs/manifests, not in package runtime contracts. Published URLs, credentials,
+and host cache state remain distribution-owned records and are not embedded in
+the package.
+
+## Deterministic evidence and dependency order
+
+The checked-in `release/` inputs and `scripts/release/` tooling now define the
+Karel evidence format and fail-closed workflow. Candidate generation binds
+the canonical Web IDE candidate state, exact Web tarball, Web-owned runtime
+verification report, committed consumer lock, exact pushed/tagged Karel source,
+two isolated byte-identical Karel packs, independent safe tar inventory,
+per-file license inventory, deduplicated license text, and CycloneDX SBOM. Its
+outputs are external and it performs no tag, release, or upload mutation.
+
+The sequence is intentionally:
+
+1. generate Web IDE's final candidate state, tarball, and runtime report;
+2. commit the exact Web candidate into Karel's packed-consumer lock and generate
+   the exact Karel candidate;
+3. run the unfiltered exact-pair compatibility gate through the scrubbed capture
+   runner in receipt mode and provide its complete raw log, including the final
+   canonical receipt line, to Web IDE;
+4. finalize Web IDE's artifact manifest; then
+5. finalize Karel's manifest against that exact Web manifest and sidecar.
+
+This prevents a circular manifest dependency. Karel's candidate state is a
+pre-manifest binding, not a substitute for Web IDE's final manifest. Karel
+finalization must prove the manifest names the same Web source commit/tree/tag,
+tar SHA-256/SHA-512, and runtime report used at candidate generation.
+
+## Lock regeneration boundary
+
+Release tooling and packaged documentation are source inputs, so every source
+commit can change the Karel tarball. Final-mode generation therefore requires
+the committed consumer lock to be regenerated from the exact final Web IDE and
+Karel candidate bytes and to contain both computed SHA-512 integrities. No
+commit, digest, or integrity printed in prose is release evidence. The actual
+source identities, candidate digests, lock bindings, and receipts belong only
+in the external canonical evidence directory and the downstream release
+ledger. Test-mode generation is disposable and cannot close this boundary.

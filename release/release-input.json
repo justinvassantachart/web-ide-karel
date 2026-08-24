@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "package": "@web-ide/karel@0.2.0",
+  "sourceRepository": "https://github.com/justinvassantachart/web-ide-karel.git",
+  "sourceTag": "v0.2.0",
+  "sourceAssetFilename": "web-ide-karel-0.2.0-source.tar.gz",
+  "capabilityReleaseId": "hamilton.python-karel/1",
+  "packageRole": "karel",
+  "releaseRepository": "justinvassantachart/ths-ide",
+  "releaseTag": "web-ide-karel-v0.2.0",
+  "releaseAssetFilename": "web-ide-karel-0.2.0.tgz",
+  "nodeVersion": "24.11.1",
+  "npmVersion": "11.6.2",
+  "webIDE": {
+    "package": "web-ide@0.2.0",
+    "peerRange": ">=0.2.0 <0.3.0",
+    "packageRole": "web-ide",
+    "releaseRepository": "justinvassantachart/ths-ide",
+    "releaseTag": "web-ide-v0.2.0",
+    "releaseAssetFilename": "web-ide-0.2.0.tgz",
+    "artifactManifestFilename": "artifact-manifest.json",
+    "runtimeEvidenceFilename": "runtime-assets-verification.json"
+  }
+}

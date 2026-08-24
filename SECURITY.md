@@ -132,6 +132,9 @@ integrities for one exact Web IDE/Karel pair. Its verifier copies both
 candidates to stable fixture names, hashes those destinations before npm is
 allowed to run, and rejects path or byte drift. Installation uses `npm ci`, a
 new disposable cache, strict engine/peer checks, and disabled lifecycle scripts.
+Release validation additionally closes the complete canonical npm v3 package
+graph, so an added node, changed transitive URL, or lifecycle flag cannot hide
+behind unchanged direct artifact entries.
 An existing global npm cache, sibling checkout, mutable manifest rewrite, or
 SemVer-compatible substitute cannot satisfy that gate. Release-candidate
 overrides must be absolute paths; a missing, non-file, or integrity-mismatched
@@ -140,6 +143,41 @@ candidate fails closed.
 The package remains `private: true`; MIT licensing does not authorize an npm
 publication. Immutable release publication, receipts, and downstream cache
 seeding remain separate host-owned distribution steps.
+
+Release-evidence tooling accepts only absolute non-symlink regular-file inputs,
+plus a separate external real candidate directory, and publishes only to a new
+external path through sibling staging plus atomic rename. Its in-memory
+gzip/tar parser enforces compressed, expanded, per-entry,
+entry-count, path, and PAX limits; accepts the exact reviewed textual package
+inventory and safe regular-file mode; and rejects links, traversal, duplicate
+or case-colliding paths, unexpected files, invalid UTF-8, sensitive filenames,
+secret patterns, developer paths, and Web IDE internal/sibling imports. It
+reconciles npm pack JSON with those independently parsed bytes. Candidate builds
+use two detached exact-source clones, separate new npm caches, disabled
+lifecycle scripts, and strict engines/peers. Git release reads use an absolute
+binary with neutral global/system configuration, replacement objects disabled,
+and local rewrite/include/archive-format/worktree-config/object-indirection
+checks, including untracked Git info attributes that could alter an archive.
+Source archives pin the reviewed Git tar umask. Final source evidence
+requires a clean pushed `main` and pushed annotated tag at `HEAD`; non-final
+test outputs are labeled and rejected by finalization. Archive controls and its
+source reference are checked before and after generation, and the same live
+source identity is re-verified immediately before atomic final publication. The
+gate capture runner executes only predeclared argv in a scrubbed environment,
+enforces the gate-specific wall-clock timeout, captures the actual combined
+output and exit status, and writes a source/candidate-pair-bound receipt.
+Timeout or output-limit termination targets the isolated process group with
+bounded `SIGTERM` then `SIGKILL` escalation and settles it before returning.
+Finalization copies, rehashes, and independently validates the retained raw
+logs and capture receipts; it never converts an operator-authored pass flag into
+release evidence.
+
+Web IDE runtime assets remain a Web IDE trust boundary. Karel verifies the
+canonical Web candidate state/runtime report before its build, then verifies
+the finalized Web manifest and sidecar against the same source, tar, SRI, and
+runtime-report digests. Karel records only the owner, report digest, and asset
+count; it neither duplicates that inventory nor claims to have fetched or
+licensed those Web-owned assets.
 
 Raw protocol events, source paths, stdout/stderr, world names, and error text may
 contain user-authored data. Avoid persistent logging by default, apply host

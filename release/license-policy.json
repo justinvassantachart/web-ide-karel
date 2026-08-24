@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "package": "@web-ide/karel@0.2.0",
+  "packageLicense": "MIT",
+  "packageLicenseTextPath": "LICENSE.md",
+  "externalPeers": [
+    {
+      "name": "react",
+      "license": "MIT",
+      "licenseTextPath": "node_modules/react/LICENSE",
+      "licenseTextSha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "name": "react-dom",
+      "license": "MIT",
+      "licenseTextPath": "node_modules/react-dom/LICENSE",
+      "licenseTextSha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    }
+  ]
+}

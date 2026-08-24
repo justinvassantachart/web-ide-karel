@@ -9,6 +9,11 @@ import {
 } from 'node:fs/promises'
 import path from 'node:path'
 
+import {
+  validateProductionConsumerLock,
+  validateProductionConsumerManifest,
+} from './release/consumer-lock.mjs'
+
 export const PACKED_CANDIDATE_SPECS = Object.freeze([
   Object.freeze({
     packageName: 'web-ide',
@@ -53,17 +58,9 @@ function assertSha512Integrity(integrity, label) {
 export async function readPackedCandidateExpectations(consumerRoot) {
   const manifest = await readJSON(path.join(consumerRoot, 'package.json'))
   const lock = await readJSON(path.join(consumerRoot, 'package-lock.json'))
-  if (lock.lockfileVersion !== 3) {
-    throw new Error(
-      `Packed consumer package-lock.json must use lockfileVersion 3, found ${String(lock.lockfileVersion)}`,
-    )
-  }
-  const lockRoot = lock.packages?.['']
-  if (lockRoot === undefined) {
-    throw new Error('Packed consumer package-lock.json is missing its root package record')
-  }
+  const lockRoot = lock.packages['']
 
-  return PACKED_CANDIDATE_SPECS.map((spec) => {
+  const expectations = PACKED_CANDIDATE_SPECS.map((spec) => {
     assertReference(
       manifest.dependencies?.[spec.packageName],
       spec.reference,
@@ -106,6 +103,9 @@ export async function readPackedCandidateExpectations(consumerRoot) {
       expectedIntegrity: lockedPackage.integrity,
     })
   })
+  validateProductionConsumerManifest(manifest)
+  validateProductionConsumerLock(lock)
+  return expectations
 }
 
 async function hashFile(file) {
@@ -129,15 +129,33 @@ export function isolatedNpmEnvironment(baseEnvironment, cacheRoot) {
     throw new Error('The packed consumer npm cache path must be absolute')
   }
   const environment = {}
+  const permitted = new Set([
+    'all_proxy',
+    'ci',
+    'home',
+    'http_proxy',
+    'https_proxy',
+    'no_proxy',
+    'node_extra_ca_certs',
+    'path',
+    'ssl_cert_file',
+    'tmpdir',
+  ])
   for (const [key, value] of Object.entries(baseEnvironment)) {
-    if (key.toLowerCase() !== 'npm_config_cache' && value !== undefined) {
+    if (permitted.has(key.toLowerCase()) && value !== undefined) {
       environment[key] = value
     }
   }
   return {
     ...environment,
+    CI: 'true',
+    LANG: 'C',
+    LC_ALL: 'C',
+    NO_UPDATE_NOTIFIER: '1',
+    npm_config_audit: 'false',
     npm_config_cache: cacheRoot,
     npm_config_engine_strict: 'true',
+    npm_config_fund: 'false',
     npm_config_ignore_scripts: 'true',
     npm_config_strict_peer_deps: 'true',
   }
@@ -183,8 +201,14 @@ export async function reportAndCleanupPackedConsumer({
 }
 
 async function removeDestinations(consumerRoot) {
-  await Promise.all(PACKED_CANDIDATE_SPECS.map((spec) =>
+  const results = await Promise.allSettled(PACKED_CANDIDATE_SPECS.map((spec) =>
     rm(path.join(consumerRoot, spec.destination), { force: true })))
+  const failures = results
+    .filter((result) => result.status === 'rejected')
+    .map((result) => result.reason)
+  if (failures.length > 0) {
+    throw new AggregateError(failures, 'Packed candidate cleanup failed')
+  }
 }
 
 async function validateCandidatePaths(consumerRoot, candidates) {

@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "package": "@web-ide/karel@0.2.0",
+  "sourceCommit": "REPLACE_WITH_EXACT_40_CHARACTER_SOURCE_COMMIT",
+  "candidateSha256": "REPLACE_WITH_EXACT_64_CHARACTER_CANDIDATE_SHA256",
+  "webIDECandidateSha256": "REPLACE_WITH_EXACT_64_CHARACTER_WEB_IDE_CANDIDATE_SHA256",
+  "webIDESourceCommit": "REPLACE_WITH_EXACT_40_CHARACTER_WEB_IDE_SOURCE_COMMIT",
+  "gates": [
+    {
+      "id": "validate-production",
+      "command": "WEB_IDE_CANDIDATE_TARBALL=<web-candidate> KAREL_CANDIDATE_TARBALL=<karel-candidate> npm run validate:production",
+      "log": { "path": "/absolute/external/validate-production/validation-validate-production.log", "fileName": "validation-validate-production.log", "size": "REPLACE_WITH_EXACT_NONZERO_LOG_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_LOG_SHA256" },
+      "receipt": { "path": "/absolute/external/validate-production/validation-validate-production.receipt.json", "fileName": "validation-validate-production.receipt.json", "size": "REPLACE_WITH_EXACT_NONZERO_RECEIPT_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_RECEIPT_SHA256" }
+    },
+    {
+      "id": "packed-exact-pair",
+      "command": "WEB_IDE_CANDIDATE_TARBALL=<web-candidate> KAREL_CANDIDATE_TARBALL=<karel-candidate> npm run test:packed-production",
+      "log": { "path": "/absolute/external/packed-exact-pair/validation-packed-exact-pair.log", "fileName": "validation-packed-exact-pair.log", "size": "REPLACE_WITH_EXACT_NONZERO_LOG_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_LOG_SHA256" },
+      "receipt": { "path": "/absolute/external/packed-exact-pair/validation-packed-exact-pair.receipt.json", "fileName": "validation-packed-exact-pair.receipt.json", "size": "REPLACE_WITH_EXACT_NONZERO_RECEIPT_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_RECEIPT_SHA256" }
+    },
+    {
+      "id": "audit-production",
+      "command": "npm audit --omit=dev --audit-level=low",
+      "log": { "path": "/absolute/external/audit-production/validation-audit-production.log", "fileName": "validation-audit-production.log", "size": "REPLACE_WITH_EXACT_NONZERO_LOG_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_LOG_SHA256" },
+      "receipt": { "path": "/absolute/external/audit-production/validation-audit-production.receipt.json", "fileName": "validation-audit-production.receipt.json", "size": "REPLACE_WITH_EXACT_NONZERO_RECEIPT_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_RECEIPT_SHA256" }
+    },
+    {
+      "id": "audit-full",
+      "command": "npm audit --audit-level=low",
+      "log": { "path": "/absolute/external/audit-full/validation-audit-full.log", "fileName": "validation-audit-full.log", "size": "REPLACE_WITH_EXACT_NONZERO_LOG_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_LOG_SHA256" },
+      "receipt": { "path": "/absolute/external/audit-full/validation-audit-full.receipt.json", "fileName": "validation-audit-full.receipt.json", "size": "REPLACE_WITH_EXACT_NONZERO_RECEIPT_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_RECEIPT_SHA256" }
+    },
+    {
+      "id": "reproducibility",
+      "command": "KAREL_RELEASE_OUTPUT_DIR=<fresh-output> KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE=<web-candidate-state> KAREL_RELEASE_WEB_IDE_TARBALL=<web-candidate> npm run release:candidate",
+      "log": { "path": "/absolute/external/reproducibility/validation-reproducibility.log", "fileName": "validation-reproducibility.log", "size": "REPLACE_WITH_EXACT_NONZERO_LOG_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_LOG_SHA256" },
+      "receipt": { "path": "/absolute/external/reproducibility/validation-reproducibility.receipt.json", "fileName": "validation-reproducibility.receipt.json", "size": "REPLACE_WITH_EXACT_NONZERO_RECEIPT_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_RECEIPT_SHA256" }
+    },
+    {
+      "id": "web-ide-peer-evidence",
+      "command": "Exact Web IDE artifact-manifest, sidecar, package and runtime-assets evidence verification",
+      "log": { "path": "/absolute/external/web-ide-peer-evidence/validation-web-ide-peer-evidence.log", "fileName": "validation-web-ide-peer-evidence.log", "size": "REPLACE_WITH_EXACT_NONZERO_LOG_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_LOG_SHA256" },
+      "receipt": { "path": "/absolute/external/web-ide-peer-evidence/validation-web-ide-peer-evidence.receipt.json", "fileName": "validation-web-ide-peer-evidence.receipt.json", "size": "REPLACE_WITH_EXACT_NONZERO_RECEIPT_SIZE", "sha256": "REPLACE_WITH_EXACT_64_CHARACTER_RECEIPT_SHA256" }
+    }
+  ]
+}

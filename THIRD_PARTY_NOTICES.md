@@ -14,5 +14,9 @@ Web IDE is a separate MIT-licensed peer package. React and React DOM are
 separate peer dependencies under their own licenses. Development and consumer
 dependencies retain their own licenses and notices and are not package files.
 
-P2.5 remains incomplete until the exact `0.2.0` tarball has a generated,
-reviewed per-file license inventory and production SBOM tied to its digest.
+The deterministic release-evidence workflow generates a per-file machine
+license inventory, deduplicated `THIRD_PARTY_LICENSES.txt`, and CycloneDX 1.6
+SBOM tied to one exact `0.2.0` tarball. P2.5 remains incomplete until those
+outputs are generated and reviewed from the final pushed/tagged source and
+exact finalized Web IDE peer, then published and independently re-downloaded
+under the documented immutable-release gate.

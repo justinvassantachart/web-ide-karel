@@ -197,16 +197,50 @@ source checkouts; it is not a release or host dependency path.
 Release compatibility is narrower than the peer range. The packed-production
 consumer commits one lock for stable `web-ide.tgz` and `web-ide-karel.tgz`
 references and verifies both candidates' SHA-512 values before a strict,
-script-disabled `npm ci` in a disposable cache. Candidate overrides are
+script-disabled `npm ci` in a disposable cache. Release tooling also binds the
+complete canonical transitive lock graph. Candidate overrides are
 absolute paths, while default source validation packs temporary artifacts from
 the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
 
-This repository produces package-generic source and compatibility evidence.
-Application capability IDs, immutable release identities, downstream artifact
-URLs, cache seeding, and retention policy remain host/distribution concerns;
-they do not enter Karel runtime contracts or package source.
+Release evidence is external output produced by `scripts/release/`; it is not a
+runtime dependency and is never written inside the repository. Candidate and
+final outputs are built in sibling staging directories and atomically renamed
+to previously absent targets. Git source reads ignore ambient global/system
+configuration and replacement objects and reject local rewrite, include,
+archive-format, upload-pack, graft, alternate-object, and replace-ref controls.
+The evidence
+binds package and lockfile digests, source commit/tree/annotated tag, a
+deterministic exact-tag archive, two byte-identical isolated package builds,
+independently parsed npm-tar inventory, per-file licenses, CycloneDX SBOM,
+capture-runner validation logs with actual-exit/source/candidate-pair-bound
+receipts, intended private Hamilton release assets, and an unchanged live
+source identity immediately before atomic final publication. The accepted
+composition identity `hamilton.python-karel/1` appears only in release metadata;
+it does not enter Karel's public runtime or world contracts.
+
+The evidence dependency order avoids a manifest cycle:
+
+```text
+Web IDE candidate state + tar + runtime report
+  -> Karel deterministic candidate
+  -> exact-pair compatibility validation log
+  -> Web IDE final artifact manifest
+  -> Karel final artifact manifest
+```
+
+Karel candidate generation verifies the canonical Web candidate state, exact
+tar SHA-256/SHA-512 identity, packed package inventory, consumer-lock binding,
+and exact runtime-report digest. Karel finalization then independently verifies
+the finalized canonical Web manifest and sidecar and requires its source,
+tarball, and runtime-report values to equal the candidate-stage values. The
+Karel manifest records only a digest reference to Web IDE's runtime evidence;
+Web IDE remains the sole owner of the runtime-asset inventory.
+
+Immutable release mutation, downstream artifact URLs, cache seeding, and
+retention policy remain host/distribution concerns. The evidence scripts do not
+tag, publish, upload, or alter those systems.
 
 ## Limits and deployment boundary
 

@@ -17,6 +17,10 @@ import {
   reportAndCleanupPackedConsumer,
   withVerifiedPackedCandidates,
 } from './packed-candidates.mjs'
+import {
+  exactPairCompatibilityEvidence,
+  formatWebIDECompatibilityReceipt,
+} from './release/web-compatibility-receipt.mjs'
 
 const EXPECTED_VERSION = '0.2.0'
 const EXPECTED_KAREL_PEERS = Object.freeze({
@@ -38,12 +42,18 @@ const consumerRoot = path.join(temporaryRoot, 'consumer')
 const npmCacheRoot = path.join(temporaryRoot, 'npm-cache')
 const keepTemporary = process.env.KEEP_KAREL_PRODUCTION_CONSUMER === '1'
 const diagnosticGrep = process.env.KAREL_PRODUCTION_DIAGNOSTIC_GREP
+const receiptModeInput = process.env.KAREL_RELEASE_WEB_IDE_GATE_RECEIPT
+const receiptMode = receiptModeInput === '1'
+const webCandidateState = process.env.KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE
+const karelCandidateState = process.env.KAREL_RELEASE_KAREL_CANDIDATE_STATE
 const requestedArtifactParent = process.env.KAREL_PRODUCTION_ARTIFACT_DIR
 const artifactParent = requestedArtifactParent === undefined
   ? tmpdir()
   : path.resolve(requestedArtifactParent)
 let artifactRoot
 let strictInstallEnvironment
+let compatibilityReceipt
+let compatibilityKarel
 
 function run(command, args, options = {}) {
   const cwd = options.cwd ?? consumerRoot
@@ -115,10 +125,19 @@ async function resolveCandidates() {
     )
   }
   if (webIDEOverride !== undefined && karelOverride !== undefined) {
+    if (receiptMode && webCandidateState === undefined) {
+      throw new Error(
+        'KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE is required in Web IDE receipt mode',
+      )
+    }
     return {
       '@web-ide/karel': karelOverride,
       'web-ide': webIDEOverride,
     }
+  }
+
+  if (receiptMode) {
+    throw new Error('Web IDE receipt mode requires both exact candidate tarball overrides')
   }
 
   await mkdir(packRoot, { recursive: true })
@@ -270,6 +289,9 @@ async function reportArtifacts() {
 }
 
 try {
+  if (receiptModeInput !== undefined && receiptModeInput !== '1') {
+    throw new Error('KAREL_RELEASE_WEB_IDE_GATE_RECEIPT must be 1 when supplied')
+  }
   await mkdir(artifactParent, { recursive: true })
   artifactRoot = await mkdtemp(
     path.join(artifactParent, 'web-ide-karel-production-evidence-'),
@@ -282,6 +304,24 @@ try {
 
   await assertFixtureUsesPublicExportsOnly()
   const candidates = await resolveCandidates()
+  if (receiptMode) {
+    if (diagnosticGrep) {
+      throw new Error('Web IDE receipt mode rejects diagnostic grep filtering')
+    }
+    if (karelCandidateState === undefined) {
+      throw new Error(
+        'KAREL_RELEASE_KAREL_CANDIDATE_STATE is required in Web IDE receipt mode',
+      )
+    }
+    const pairEvidence = await exactPairCompatibilityEvidence({
+      webIDECandidateStatePath: webCandidateState,
+      webIDETarballPath: candidates['web-ide'],
+      karelCandidateStatePath: karelCandidateState,
+      karelTarballPath: candidates['@web-ide/karel'],
+    })
+    compatibilityReceipt = pairEvidence.receipt
+    compatibilityKarel = pairEvidence.karel
+  }
   await copyFixture()
 
   await withVerifiedPackedCandidates({
@@ -293,6 +333,16 @@ try {
           `${candidate.packageName}@${candidate.expectedVersion}: ${candidate.sourcePath} sha256=${candidate.sha256} sha512=${candidate.integrity} bytes=${candidate.bytes}\n`,
         )
       }
+      if (
+        compatibilityReceipt
+        && verified.find((candidate) => candidate.packageName === 'web-ide')?.sha256
+          !== compatibilityReceipt.candidateSha256
+      ) throw new Error('Verified Web IDE candidate changed after receipt binding')
+      if (
+        compatibilityKarel
+        && verified.find((candidate) => candidate.packageName === '@web-ide/karel')?.sha256
+          !== compatibilityKarel.candidateSha256
+      ) throw new Error('Verified Karel candidate changed after receipt binding')
       run('npm', [
         'ci',
         '--ignore-scripts',
@@ -336,4 +386,7 @@ try {
       process.stdout.write(`Retained production consumer: ${temporaryRoot}\n`)
     },
   })
+}
+if (compatibilityReceipt && !process.exitCode) {
+  process.stdout.write(formatWebIDECompatibilityReceipt(compatibilityReceipt))
 }

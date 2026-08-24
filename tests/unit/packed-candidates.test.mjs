@@ -44,40 +44,16 @@ async function createFixture(mutate = () => {}) {
 
   const webIDEContent = Buffer.from('exact web ide candidate\n')
   const karelContent = Buffer.from('exact karel candidate\n')
-  const manifest = {
-    name: 'test-consumer',
-    version: '0.0.0',
-    dependencies: {
-      '@web-ide/karel': 'file:artifacts/web-ide-karel.tgz',
-      'web-ide': 'file:artifacts/web-ide.tgz',
-    },
-  }
-  const lock = {
-    name: 'test-consumer',
-    version: '0.0.0',
-    lockfileVersion: 3,
-    requires: true,
-    packages: {
-      '': {
-        name: 'test-consumer',
-        version: '0.0.0',
-        dependencies: { ...manifest.dependencies },
-      },
-      'node_modules/@web-ide/karel': {
-        version: '0.2.0',
-        resolved: 'file:artifacts/web-ide-karel.tgz',
-        integrity: integrity(karelContent),
-        peerDependencies: {
-          'web-ide': '>=0.2.0 <0.3.0',
-        },
-      },
-      'node_modules/web-ide': {
-        version: '0.2.0',
-        resolved: 'file:artifacts/web-ide.tgz',
-        integrity: integrity(webIDEContent),
-      },
-    },
-  }
+  const manifest = JSON.parse(await readFile(path.join(
+    repositoryRoot,
+    'tests/production/consumer/package.json',
+  ), 'utf8'))
+  const lock = JSON.parse(await readFile(path.join(
+    repositoryRoot,
+    'tests/production/consumer/package-lock.json',
+  ), 'utf8'))
+  lock.packages['node_modules/web-ide'].integrity = integrity(webIDEContent)
+  lock.packages['node_modules/@web-ide/karel'].integrity = integrity(karelContent)
   mutate({ manifest, lock })
   await writeFile(
     path.join(consumerRoot, 'package.json'),
@@ -281,6 +257,9 @@ describe('isolatedNpmEnvironment', () => {
       NpM_CoNfIg_CaChE: '/old-mixed',
       npm_config_ignore_scripts: 'false',
       npm_config_strict_peer_deps: 'false',
+      NODE_OPTIONS: '--require /tmp/untrusted.cjs',
+      KAREL_PRODUCTION_DIAGNOSTIC_GREP: 'skip',
+      PLAYWRIGHT_TEST_BASE_URL: 'https://untrusted.example.test',
     }, cache)
 
     expect(environment).toMatchObject({
@@ -293,6 +272,9 @@ describe('isolatedNpmEnvironment', () => {
     expect(Object.keys(environment).filter(
       (key) => key.toLowerCase() === 'npm_config_cache',
     )).toEqual(['npm_config_cache'])
+    expect(environment).not.toHaveProperty('NODE_OPTIONS')
+    expect(environment).not.toHaveProperty('KAREL_PRODUCTION_DIAGNOSTIC_GREP')
+    expect(environment).not.toHaveProperty('PLAYWRIGHT_TEST_BASE_URL')
   })
 
   it('rejects a relative cache path', () => {
