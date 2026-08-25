@@ -14,23 +14,30 @@ import {
   validateProductionConsumerManifest,
 } from './release/consumer-lock.mjs'
 
-export const PACKED_CANDIDATE_SPECS = Object.freeze([
-  Object.freeze({
-    packageName: 'web-ide',
-    expectedVersion: '0.3.0',
-    reference: 'file:artifacts/web-ide.tgz',
-    destination: 'artifacts/web-ide.tgz',
-    lockPackagePath: 'node_modules/web-ide',
-  }),
-  Object.freeze({
-    packageName: '@web-ide/karel',
-    expectedVersion: '0.3.1',
-    expectedWebIDEPeer: '>=0.3.0 <0.4.0',
-    reference: 'file:artifacts/web-ide-karel.tgz',
-    destination: 'artifacts/web-ide-karel.tgz',
-    lockPackagePath: 'node_modules/@web-ide/karel',
-  }),
-])
+function packedCandidateSpecs(webIDEVersion) {
+  if (!['0.3.0', '0.3.1'].includes(webIDEVersion)) {
+    throw new TypeError(`Unsupported packed Web IDE version ${String(webIDEVersion)}`)
+  }
+  return Object.freeze([
+    Object.freeze({
+      packageName: 'web-ide',
+      expectedVersion: webIDEVersion,
+      reference: 'file:artifacts/web-ide.tgz',
+      destination: 'artifacts/web-ide.tgz',
+      lockPackagePath: 'node_modules/web-ide',
+    }),
+    Object.freeze({
+      packageName: '@web-ide/karel',
+      expectedVersion: '0.3.1',
+      expectedWebIDEPeer: '>=0.3.0 <0.4.0',
+      reference: 'file:artifacts/web-ide-karel.tgz',
+      destination: 'artifacts/web-ide-karel.tgz',
+      lockPackagePath: 'node_modules/@web-ide/karel',
+    }),
+  ])
+}
+
+export const PACKED_CANDIDATE_SPECS = packedCandidateSpecs('0.3.0')
 
 async function readJSON(file) {
   return JSON.parse(await readFile(file, 'utf8'))
@@ -55,12 +62,16 @@ function assertSha512Integrity(integrity, label) {
   }
 }
 
-export async function readPackedCandidateExpectations(consumerRoot) {
+export async function readPackedCandidateExpectations(
+  consumerRoot,
+  { webIDEVersion = '0.3.0' } = {},
+) {
+  const specs = packedCandidateSpecs(webIDEVersion)
   const manifest = await readJSON(path.join(consumerRoot, 'package.json'))
   const lock = await readJSON(path.join(consumerRoot, 'package-lock.json'))
   const lockRoot = lock.packages['']
 
-  const expectations = PACKED_CANDIDATE_SPECS.map((spec) => {
+  const expectations = specs.map((spec) => {
     assertReference(
       manifest.dependencies?.[spec.packageName],
       spec.reference,
@@ -104,7 +115,7 @@ export async function readPackedCandidateExpectations(consumerRoot) {
     })
   })
   validateProductionConsumerManifest(manifest)
-  validateProductionConsumerLock(lock)
+  validateProductionConsumerLock(lock, { webIDEVersion })
   return expectations
 }
 
@@ -200,8 +211,8 @@ export async function reportAndCleanupPackedConsumer({
   if (finalizationError !== undefined) throw finalizationError
 }
 
-async function removeDestinations(consumerRoot) {
-  const results = await Promise.allSettled(PACKED_CANDIDATE_SPECS.map((spec) =>
+async function removeDestinations(consumerRoot, specs) {
+  const results = await Promise.allSettled(specs.map((spec) =>
     rm(path.join(consumerRoot, spec.destination), { force: true })))
   const failures = results
     .filter((result) => result.status === 'rejected')
@@ -211,9 +222,9 @@ async function removeDestinations(consumerRoot) {
   }
 }
 
-async function validateCandidatePaths(consumerRoot, candidates) {
+async function validateCandidatePaths(consumerRoot, candidates, specs) {
   const resolved = new Map()
-  for (const spec of PACKED_CANDIDATE_SPECS) {
+  for (const spec of specs) {
     const candidate = candidates?.[spec.packageName]
     if (typeof candidate !== 'string' || !path.isAbsolute(candidate)) {
       throw new Error(
@@ -248,6 +259,7 @@ export async function withVerifiedPackedCandidates({
   consumerRoot,
   candidates,
   consume,
+  webIDEVersion = '0.3.0',
 }) {
   if (!path.isAbsolute(consumerRoot)) {
     throw new Error('Packed consumer root must be an absolute path')
@@ -255,12 +267,16 @@ export async function withVerifiedPackedCandidates({
   if (typeof consume !== 'function') {
     throw new Error('A packed candidate consumer callback is required')
   }
-  const candidatePaths = await validateCandidatePaths(consumerRoot, candidates)
+  const specs = packedCandidateSpecs(webIDEVersion)
+  const candidatePaths = await validateCandidatePaths(consumerRoot, candidates, specs)
   await mkdir(path.join(consumerRoot, 'artifacts'), { recursive: true })
-  await removeDestinations(consumerRoot)
+  await removeDestinations(consumerRoot, specs)
 
   try {
-    const expectations = await readPackedCandidateExpectations(consumerRoot)
+    const expectations = await readPackedCandidateExpectations(
+      consumerRoot,
+      { webIDEVersion },
+    )
     const verified = []
     for (const expectation of expectations) {
       const sourcePath = candidatePaths.get(expectation.packageName)
@@ -286,7 +302,7 @@ export async function withVerifiedPackedCandidates({
     }
     return await consume(Object.freeze(verified))
   } catch (error) {
-    await removeDestinations(consumerRoot)
+    await removeDestinations(consumerRoot, specs)
     throw error
   }
 }

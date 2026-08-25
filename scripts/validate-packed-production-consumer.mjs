@@ -8,6 +8,7 @@ import {
   readdir,
   rename,
   rm,
+  writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -19,12 +20,17 @@ import {
 } from './packed-candidates.mjs'
 import {
   exactPairCompatibilityEvidence,
+  exactSuccessorPairCompatibilityEvidence,
   formatWebIDECompatibilityReceipt,
 } from './release/web-compatibility-receipt.mjs'
+import { validateProductionConsumerLock } from './release/consumer-lock.mjs'
 
+const successorProfileInput = process.env.KAREL_RELEASE_WEB_IDE_SUCCESSOR
+const successorMode = successorProfileInput === '0.3.1'
+const expectedWebIDEVersion = successorMode ? '0.3.1' : '0.3.0'
 const EXPECTED_VERSIONS = Object.freeze({
   '@web-ide/karel': '0.3.1',
-  'web-ide': '0.3.0',
+  'web-ide': expectedWebIDEVersion,
 })
 const EXPECTED_KAREL_PEERS = Object.freeze({
   react: '^18.3.0 || ^19.0.0',
@@ -49,6 +55,8 @@ const receiptModeInput = process.env.KAREL_RELEASE_WEB_IDE_GATE_RECEIPT
 const receiptMode = receiptModeInput === '1'
 const webCandidateState = process.env.KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE
 const karelCandidateState = process.env.KAREL_RELEASE_KAREL_CANDIDATE_STATE
+const karelArtifactManifest = process.env.KAREL_RELEASE_KAREL_ARTIFACT_MANIFEST
+const karelReleaseReceipt = process.env.KAREL_RELEASE_KAREL_RELEASE_RECEIPT
 const requestedArtifactParent = process.env.KAREL_PRODUCTION_ARTIFACT_DIR
 const artifactParent = requestedArtifactParent === undefined
   ? tmpdir()
@@ -57,6 +65,7 @@ let artifactRoot
 let strictInstallEnvironment
 let compatibilityReceipt
 let compatibilityKarel
+let compatibilityWebIDE
 
 function run(command, args, options = {}) {
   const cwd = options.cwd ?? consumerRoot
@@ -173,6 +182,29 @@ async function copyFixture() {
     },
   })
   await materializeTemplates(consumerRoot)
+  if (successorMode) {
+    const successorLock = JSON.parse(await readFile(
+      path.join(
+        repositoryRoot,
+        'release/web-ide-0.3.1-compatibility.package-lock.json',
+      ),
+      'utf8',
+    ))
+    const validation = validateProductionConsumerLock(successorLock, {
+      webIDEIntegrity: compatibilityWebIDE.sha512Integrity,
+      karelIntegrity: compatibilityKarel.sha512Integrity,
+      requireWebIDEIntegrity: true,
+      requireKarelIntegrity: true,
+      webIDEVersion: '0.3.1',
+    })
+    if (validation.webIDE.binding !== 'exact' || validation.karel.binding !== 'exact') {
+      throw new TypeError('Committed Web IDE 0.3.1 compatibility lock is not exact')
+    }
+    await writeFile(
+      path.join(consumerRoot, 'package-lock.json'),
+      `${JSON.stringify(successorLock, null, 2)}\n`,
+    )
+  }
 }
 
 async function materializeTemplates(root) {
@@ -298,6 +330,13 @@ async function reportArtifacts() {
 }
 
 try {
+  if (
+    successorProfileInput !== undefined
+    && successorProfileInput !== '0.3.1'
+  ) throw new Error('KAREL_RELEASE_WEB_IDE_SUCCESSOR must be 0.3.1 when supplied')
+  if (successorMode && !receiptMode) {
+    throw new Error('Web IDE successor mode requires release receipt mode')
+  }
   if (receiptModeInput !== undefined && receiptModeInput !== '1') {
     throw new Error('KAREL_RELEASE_WEB_IDE_GATE_RECEIPT must be 1 when supplied')
   }
@@ -322,20 +361,39 @@ try {
         'KAREL_RELEASE_KAREL_CANDIDATE_STATE is required in Web IDE receipt mode',
       )
     }
-    const pairEvidence = await exactPairCompatibilityEvidence({
-      webIDECandidateStatePath: webCandidateState,
-      webIDETarballPath: candidates['web-ide'],
-      karelCandidateStatePath: karelCandidateState,
-      karelTarballPath: candidates['@web-ide/karel'],
-    })
+    if (
+      successorMode
+      && (karelArtifactManifest === undefined || karelReleaseReceipt === undefined)
+    ) {
+      throw new Error(
+        'Web IDE successor mode requires the immutable Karel artifact manifest and release receipt',
+      )
+    }
+    const pairEvidence = successorMode
+      ? await exactSuccessorPairCompatibilityEvidence({
+          webIDECandidateStatePath: webCandidateState,
+          webIDETarballPath: candidates['web-ide'],
+          karelArtifactManifestPath: karelArtifactManifest,
+          karelCandidateStatePath: karelCandidateState,
+          karelReleaseReceiptPath: karelReleaseReceipt,
+          karelTarballPath: candidates['@web-ide/karel'],
+        })
+      : await exactPairCompatibilityEvidence({
+          webIDECandidateStatePath: webCandidateState,
+          webIDETarballPath: candidates['web-ide'],
+          karelCandidateStatePath: karelCandidateState,
+          karelTarballPath: candidates['@web-ide/karel'],
+        })
     compatibilityReceipt = pairEvidence.receipt
     compatibilityKarel = pairEvidence.karel
+    compatibilityWebIDE = pairEvidence.webIDE
   }
   await copyFixture()
 
   await withVerifiedPackedCandidates({
     consumerRoot,
     candidates,
+    webIDEVersion: expectedWebIDEVersion,
     consume: async (verified) => {
       for (const candidate of verified) {
         process.stdout.write(

@@ -6,8 +6,8 @@ capability bindings remain unchanged. Both packages remain `private: true` and
 are not published to npm; the `0.3.0` artifact stays bound only to
 `hamilton.python-karel/2`.
 
-The compact presentation changes packaged bytes and remains unpublished. The
-forward-only release mechanics now name package `0.3.1`, annotated source tag
+The compact `0.3.1` package is now an immutable private Hamilton release. Its
+forward-only release mechanics name package `0.3.1`, annotated source tag
 `web-ide-karel-v0.3.1-source`, Hamilton release tag
 `web-ide-karel-v0.3.1`, and exact capability release
 `hamilton.python-karel/3`. They do not reuse or move the `0.2.0` r6 or `0.3.0`
@@ -110,3 +110,22 @@ in the external canonical evidence directory and the downstream release
 ledger. Test-mode generation is disposable and cannot close this boundary.
 Rebinding the consumer lock to exact `0.3.1` candidate bytes proves
 compatibility only; it is not publication evidence.
+
+## Post-publication Web IDE 0.3.1 compatibility
+
+Web IDE `0.3.1` is inside Karel's published peer range but was not part of the
+historical Karel release finalization. The additive compatibility capture uses
+the separately committed
+`release/web-ide-0.3.1-compatibility.package-lock.json` and verifies the exact
+published Karel receipt, manifest, candidate state, and package bytes before it
+runs the complete packed production/browser consumer against Web IDE's final
+candidate. Its reviewed source is identified by annotated tag
+`web-ide-karel-compatibility-gate-v2-web-ide-v0.3.1-source`.
+
+This attestation does not regenerate Karel, move
+`web-ide-karel-v0.3.1-source`, change the Karel artifact manifest, or rebind
+`hamilton.python-karel/3`. The historical Web IDE `0.3.0` consumer lock remains
+the default for the original release tools. The successor capture is atomic,
+normalizes local paths, has a 90-second process timeout plus bounded cleanup,
+and emits the existing `karel:release-compatibility-gate@2` receipt contract
+with Web IDE `0.3.1` identity only after the unfiltered exact-pair gate passes.

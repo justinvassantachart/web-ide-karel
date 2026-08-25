@@ -342,6 +342,32 @@ KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.3.0.tgz \
   npm run release:finalize
 ```
 
+### Post-publication Web IDE 0.3.1 compatibility
+
+The forward-only compatibility capture verifies the immutable published Karel
+`0.3.1` release before exercising Web IDE `0.3.1`. Run it only from the clean,
+pushed commit identified by annotated tag
+`web-ide-karel-compatibility-gate-v2-web-ide-v0.3.1-source`:
+
+```sh
+KAREL_WEB_IDE_COMPATIBILITY_OUTPUT_DIR=/absolute/external/web-ide-0.3.1-compatibility \
+KAREL_RELEASE_KAREL_TARBALL=/absolute/karel-release/web-ide-karel-0.3.1.tgz \
+KAREL_RELEASE_KAREL_ARTIFACT_MANIFEST=/absolute/karel-release/artifact-manifest.json \
+KAREL_RELEASE_KAREL_CANDIDATE_STATE=/absolute/karel-release/candidate-state.json \
+KAREL_RELEASE_KAREL_RELEASE_RECEIPT=/absolute/karel-release/release-receipt.json \
+KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-candidate/web-ide-0.3.1.tgz \
+KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE=/absolute/web-candidate/candidate-state.json \
+  node scripts/release/capture-web-ide-successor-compatibility.mjs
+```
+
+The subprocess has a fixed 90-second timeout plus bounded termination and
+settlement periods. On success, the previously absent output directory
+contains `karel-compatibility.log` and its canonical capture sidecar. The log's
+unique final line is the Web IDE schema-2 receipt with emitter
+`karel:release-compatibility-gate@2`, Web IDE `0.3.1` source/candidate identity,
+and exit code zero. The historical Web IDE `0.3.0` capture remains the default
+release workflow and its lock and evidence are unchanged.
+
 Finalization leaves the candidate directory read-only, copies its exact bytes
 into transactional staging, and independently rechecks clean/pushed/tagged
 Karel source, the tag-derived source archive, deterministic-build schema,

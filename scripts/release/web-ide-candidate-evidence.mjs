@@ -19,18 +19,39 @@ import {
 } from './release-utils.mjs'
 import { validateWebIDERuntimeReport } from './web-ide-evidence.mjs'
 
-const WEB_CANDIDATE_ARTIFACTS = [
-  'THIRD_PARTY_LICENSES.txt',
-  'bundle-provenance.json',
-  'deterministic-builds.json',
-  'package-inspection.json',
-  'runtime-assets-verification.json',
-  'runtime-source-provenance.json',
-  'third-party-licenses.json',
-  'web-ide-0.3.0-source.tar.gz',
-  'web-ide-0.3.0.cdx.json',
-  'web-ide-0.3.0.tgz',
-]
+export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
+  '0.3.0': Object.freeze({
+    package: 'web-ide@0.3.0',
+    capabilityReleaseId: 'hamilton.python-karel/2',
+    sourceTag: 'web-ide-v0.3.0-source',
+    releaseAssetFilename: 'web-ide-0.3.0.tgz',
+    sourceAssetFilename: 'web-ide-0.3.0-source.tar.gz',
+    sbomFilename: 'web-ide-0.3.0.cdx.json',
+  }),
+  '0.3.1': Object.freeze({
+    package: 'web-ide@0.3.1',
+    capabilityReleaseId: 'hamilton.python/2',
+    sourceTag: 'web-ide-v0.3.1-source',
+    releaseAssetFilename: 'web-ide-0.3.1.tgz',
+    sourceAssetFilename: 'web-ide-0.3.1-source.tar.gz',
+    sbomFilename: 'web-ide-0.3.1.cdx.json',
+  }),
+})
+
+function candidateArtifacts(identity) {
+  return [
+    'THIRD_PARTY_LICENSES.txt',
+    'bundle-provenance.json',
+    'deterministic-builds.json',
+    'package-inspection.json',
+    'runtime-assets-verification.json',
+    'runtime-source-provenance.json',
+    'third-party-licenses.json',
+    identity.sourceAssetFilename,
+    identity.sbomFilename,
+    identity.releaseAssetFilename,
+  ].sort()
+}
 
 function assertPositiveSafeInteger(value, location) {
   if (!Number.isSafeInteger(value) || value <= 0) {
@@ -88,7 +109,8 @@ function validateSource(source, sourceTag) {
 export function validateWebIDECandidateState(
   state,
   mode,
-  sourceTag = 'web-ide-v0.3.0-source',
+  sourceTag = WEB_IDE_CANDIDATE_IDENTITIES['0.3.0'].sourceTag,
+  identity = WEB_IDE_CANDIDATE_IDENTITIES['0.3.0'],
 ) {
   assertExactKeys(state, [
     'schemaVersion',
@@ -107,9 +129,9 @@ export function validateWebIDECandidateState(
     : state.result === permittedResult
   if (
     state.schemaVersion !== 1
-    || state.package !== 'web-ide@0.3.0'
+    || state.package !== identity.package
     || !resultMatches
-    || state.capabilityReleaseId !== 'hamilton.python-karel/2'
+    || state.capabilityReleaseId !== identity.capabilityReleaseId
     || state.packageRole !== 'web-ide'
   ) throw new TypeError('Web IDE candidate state identity is not eligible')
   if (state.result === 'nonrelease-preflight') {
@@ -153,7 +175,7 @@ export function validateWebIDECandidateState(
     names.push(artifact.fileName)
   }
   if (
-    JSON.stringify(names) !== JSON.stringify(WEB_CANDIDATE_ARTIFACTS)
+    JSON.stringify(names) !== JSON.stringify(candidateArtifacts(identity))
     || JSON.stringify(names) !== JSON.stringify(sortStrings(names))
     || new Set(names).size !== names.length
   ) throw new TypeError('Web IDE candidate state artifacts are not exact and sorted')

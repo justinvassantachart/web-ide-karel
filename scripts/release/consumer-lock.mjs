@@ -42,18 +42,33 @@ const EXPECTED_LOCK_ROOT = Object.freeze({
   devDependencies: EXPECTED_PRODUCTION_CONSUMER_MANIFEST.devDependencies,
 })
 
-const EXPECTED_WEB_IDE_LOCK_ENTRY = Object.freeze({
-  version: '0.3.0',
-  resolved: 'file:artifacts/web-ide.tgz',
-  license: 'MIT',
-  peer: true,
-  workspaces: ['examples/basic', 'examples/plugin-demo'],
-  dependencies: { 'debugger-sh': '0.3.15' },
-  engines: { node: '^20.19.0 || >=22.12.0' },
-  peerDependencies: {
-    react: '^18.3.0 || ^19.0.0',
-    'react-dom': '^18.3.0 || ^19.0.0',
-  },
+const WEB_IDE_LOCK_IDENTITIES = Object.freeze({
+  '0.3.0': Object.freeze({
+    version: '0.3.0',
+    resolved: 'file:artifacts/web-ide.tgz',
+    license: 'MIT',
+    peer: true,
+    workspaces: ['examples/basic', 'examples/plugin-demo'],
+    dependencies: { 'debugger-sh': '0.3.15' },
+    engines: { node: '^20.19.0 || >=22.12.0' },
+    peerDependencies: {
+      react: '^18.3.0 || ^19.0.0',
+      'react-dom': '^18.3.0 || ^19.0.0',
+    },
+  }),
+  '0.3.1': Object.freeze({
+    version: '0.3.1',
+    resolved: 'file:artifacts/web-ide.tgz',
+    license: 'MIT',
+    peer: true,
+    workspaces: ['examples/basic', 'examples/plugin-demo'],
+    dependencies: { 'debugger-sh': '0.3.15' },
+    engines: { node: '^20.19.0 || >=22.12.0' },
+    peerDependencies: {
+      react: '^18.3.0 || ^19.0.0',
+      'react-dom': '^18.3.0 || ^19.0.0',
+    },
+  }),
 })
 
 const EXPECTED_KAREL_LOCK_ENTRY = Object.freeze({
@@ -76,8 +91,10 @@ const EXPECTED_KAREL_LOCK_ENTRY = Object.freeze({
 // node-field change necessarily changes this digest.
 const ARTIFACT_INTEGRITY_PLACEHOLDER
   = 'ARTIFACT-INTEGRITY-VALIDATED-SEPARATELY'
-const EXPECTED_NORMALIZED_LOCK_SHA256
-  = 'd5a4011f149db75a78cb805cd26b4f65713d7eb022dc57625b6410e11d918522'
+const EXPECTED_NORMALIZED_LOCK_SHA256 = Object.freeze({
+  '0.3.0': 'd5a4011f149db75a78cb805cd26b4f65713d7eb022dc57625b6410e11d918522',
+  '0.3.1': 'b48dce1a17929456f6ba845164fe493eba0bc7698f6755548cfa5d04f452cb11',
+})
 
 function assertSha512Integrity(value, location) {
   if (typeof value !== 'string' || !value.startsWith('sha512-')) {
@@ -161,8 +178,13 @@ export function validateProductionConsumerLock(
     karelIntegrity,
     requireWebIDEIntegrity = false,
     requireKarelIntegrity = false,
+    webIDEVersion = '0.3.0',
   } = {},
 ) {
+  const expectedWebIDE = WEB_IDE_LOCK_IDENTITIES[webIDEVersion]
+  if (!expectedWebIDE) {
+    throw new TypeError(`Unsupported packed consumer Web IDE version ${String(webIDEVersion)}`)
+  }
   assertExactKeys(lock, [
     'name', 'version', 'lockfileVersion', 'requires', 'packages',
   ], [], 'packed consumer lockfile')
@@ -188,7 +210,7 @@ export function validateProductionConsumerLock(
 
   const lockedWebIDEIntegrity = validateArtifactEntry(
     lock.packages['node_modules/web-ide'],
-    EXPECTED_WEB_IDE_LOCK_ENTRY,
+    expectedWebIDE,
     'packed consumer Web IDE lock entry',
   )
   const lockedKarelIntegrity = validateArtifactEntry(
@@ -205,7 +227,7 @@ export function validateProductionConsumerLock(
   const normalizedDigest = sha256Bytes(Buffer.from(
     canonicalJSONString(normalizedLock),
   ))
-  if (normalizedDigest !== EXPECTED_NORMALIZED_LOCK_SHA256) {
+  if (normalizedDigest !== EXPECTED_NORMALIZED_LOCK_SHA256[webIDEVersion]) {
     throw new TypeError(
       'Packed consumer complete transitive lock graph differs from the reviewed contract',
     )
@@ -223,7 +245,7 @@ export function validateProductionConsumerLock(
       binding: lockedKarelIntegrity === karelIntegrity ? 'exact' : 'pending',
     },
     webIDE: {
-      reference: EXPECTED_WEB_IDE_LOCK_ENTRY.resolved,
+      reference: expectedWebIDE.resolved,
       integrity: lockedWebIDEIntegrity,
       binding: lockedWebIDEIntegrity === webIDEIntegrity ? 'exact' : 'pending',
     },

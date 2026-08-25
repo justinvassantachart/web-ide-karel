@@ -220,6 +220,15 @@ its immutable Hamilton asset release remains `web-ide-v0.3.0`. Those source and
 artifact identities are verified and referenced, never moved or rebound for
 this Karel-only successor.
 
+An additive post-publication profile attests the already-released Karel
+`0.3.1` bytes with Web IDE `0.3.1`. It first verifies Karel's immutable release
+receipt, artifact manifest, candidate state, and tarball, then installs that
+tarball and Web IDE's exact candidate through the separately committed
+`release/web-ide-0.3.1-compatibility.package-lock.json`. The full packed
+production/browser consumer emits Web IDE's existing schema-2 compatibility
+receipt only after success. This profile does not alter the historical Web IDE
+`0.3.0` lock, Karel release evidence, package, or capability binding.
+
 Release evidence is external output produced by `scripts/release/`; it is not a
 runtime dependency and is never written inside the repository. Candidate and
 final outputs are built in sibling staging directories and atomically renamed

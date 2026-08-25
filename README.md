@@ -5,13 +5,14 @@ owns Karel's world contract, Python teaching library, protocol, playback,
 renderer, and panel. It does not provide a Python interpreter, persist host
 data, or add Karel behavior to Web IDE core.
 
-The MIT-licensed `0.2.0` r6 and `0.3.0` artifacts remain immutable historical
-private releases. This source is the forward-only compact `0.3.1` successor for
-Hamilton's exact `hamilton.python-karel/3` composition and remains
-`private: true`; it is not published to npm and no `0.3.1` artifact is claimed
-published yet. It consumes the immutable Web IDE `0.3.0` artifact through peer
-range `>=0.3.0 <0.4.0`. Release consumers install one exact reviewed Web IDE/Karel
-artifact pair rather than selecting arbitrary versions from that range.
+The MIT-licensed `0.2.0` r6, `0.3.0`, and compact `0.3.1` artifacts are
+immutable historical private releases. The `0.3.1` package remains
+`private: true`, is not published to npm, and is bound only to Hamilton's exact
+`hamilton.python-karel/3` release metadata. Its peer range
+`>=0.3.0 <0.4.0` admits a separately attested Web IDE `0.3.1` pairing without
+changing or republishing the Karel artifact. Release consumers install one
+exact reviewed Web IDE/Karel artifact pair rather than selecting arbitrary
+versions from that range.
 
 The package composes only through public Web IDE contributions and panel
 services. A host selects a generic runtime that advertises Python and, for line
@@ -368,9 +369,17 @@ The release capture runner later replaces only declared local repository,
 candidate, execution, workspace, and home roots with stable placeholders and
 fails if a personal or temporary absolute path remains.
 
-The source license and package version do not themselves complete a release.
-See [publishing readiness](docs/publishing-readiness.md) for the immutable
-historical records and the remaining `0.3.1` candidate/finalization boundary.
+After publication, the additive Web IDE `0.3.1` compatibility capture verifies
+the immutable Karel release receipt, artifact manifest, candidate state, and
+tarball before using a separate committed consumer lock. It runs the same
+unfiltered packed production/browser matrix under a 90-second process timeout
+and emits Web IDE's canonical compatibility receipt only on success. The
+historical Web IDE `0.3.0` lock and Karel candidate/finalization workflow remain
+unchanged; see [testing](docs/testing.md) for the exact command.
+
+The source license and package version do not themselves establish an
+immutable release. See [publishing readiness](docs/publishing-readiness.md) for
+the historical release records and post-publication compatibility boundary.
 
 ### Deterministic release evidence
 

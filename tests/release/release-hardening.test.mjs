@@ -106,6 +106,29 @@ describe('exact packed consumer contract', () => {
       requireWebIDEIntegrity: true,
     })).toThrow(/integrity is not exact/u)
   })
+
+  it('keeps the historical lock unchanged and validates the committed Web IDE 0.3.1 profile', async () => {
+    const historical = JSON.parse(await readFile(path.join(
+      repositoryRoot,
+      'tests/production/consumer/package-lock.json',
+    ), 'utf8'))
+    const successor = JSON.parse(await readFile(path.join(
+      repositoryRoot,
+      'release/web-ide-0.3.1-compatibility.package-lock.json',
+    ), 'utf8'))
+    expect(validateProductionConsumerLock(historical).webIDE.binding)
+      .toBe('pending')
+    expect(validateProductionConsumerLock(successor, {
+      webIDEVersion: '0.3.1',
+    }).webIDE.integrity).toBe(
+      'sha512-h+mOQ5zM3a4ZWBysIvypMsNKKIemc+h2VAZRt0l+U5jON+H3J6T35W+6T93mx91GSSokkD0IYQ4vwg2lD+6yQw==',
+    )
+    expect(() => validateProductionConsumerLock(historical, {
+      webIDEVersion: '0.3.1',
+    })).toThrow(/locked release contract/u)
+    expect(() => validateProductionConsumerLock(successor))
+      .toThrow(/locked release contract/u)
+  })
 })
 
 describe('captured validation gate evidence', () => {
