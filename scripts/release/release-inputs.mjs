@@ -39,7 +39,7 @@ export async function loadReleaseConfiguration() {
     input.capabilityReleaseId !== 'hamilton.python-karel/5'
     || input.packageRole !== 'karel'
     || input.sourceRepository !== 'https://github.com/justinvassantachart/web-ide-karel.git'
-    || input.sourceTag !== 'web-ide-karel-v0.3.2-source-r2'
+    || input.sourceTag !== 'web-ide-karel-v0.3.2-source-r3'
     || input.releaseRepository !== 'justinvassantachart/ths-ide'
     || input.releaseTag !== 'web-ide-karel-v0.3.2'
   ) {
