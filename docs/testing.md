@@ -266,7 +266,7 @@ KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.3.1.tgz \
 
 Final mode fails unless local `main` equals both its tracking ref and the live
 remote, the worktree is clean, the pushed annotated
-`web-ide-karel-v0.3.2-source-r2` tag peels to `HEAD`, and Node `24.11.1`/npm
+`web-ide-karel-v0.3.2-source-r3` tag peels to `HEAD`, and Node `24.11.1`/npm
 `11.6.2` are active. The Web candidate state must be canonical final evidence,
 its exact ten-artifact inventory must bind the runtime report and tar SHA-256,
 and the committed packed-consumer lock must bind the computed Web and Karel

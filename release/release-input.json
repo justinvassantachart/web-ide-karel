@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": "@web-ide/karel@0.3.2",
   "sourceRepository": "https://github.com/justinvassantachart/web-ide-karel.git",
-  "sourceTag": "web-ide-karel-v0.3.2-source-r2",
+  "sourceTag": "web-ide-karel-v0.3.2-source-r3",
   "sourceAssetFilename": "web-ide-karel-0.3.2-source.tar.gz",
   "capabilityReleaseId": "hamilton.python-karel/5",
   "packageRole": "karel",
