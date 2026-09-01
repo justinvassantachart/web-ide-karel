@@ -80,12 +80,14 @@ export interface KarelWorldViewProps {
   world: KarelWorld
   className?: string
   style?: CSSProperties
+  blockedMove?: boolean
 }
 
 export function KarelWorldView({
   world,
   className,
   style,
+  blockedMove = false,
 }: KarelWorldViewProps) {
   const descriptionId = useId()
   const gridPatternId = `${descriptionId.replaceAll(':', '')}-grid`
@@ -100,6 +102,7 @@ export function KarelWorldView({
     <svg
       className={className}
       style={style}
+      data-karel-blocked={blockedMove ? 'true' : 'false'}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
       aria-label={`${world.name}: Karel at avenue ${world.karel.avenue}, street ${world.karel.street}, facing ${world.karel.direction}`}
@@ -110,7 +113,10 @@ export function KarelWorldView({
         {world.name}. Avenue {world.karel.avenue}, street {world.karel.street},
         {' '}facing {world.karel.direction}.
       </title>
-      <desc id={descriptionId}>{describeKarelWorld(world)}</desc>
+      <desc id={descriptionId}>
+        {describeKarelWorld(world)}
+        {blockedMove ? ' Karel\'s last move was blocked.' : ''}
+      </desc>
       <defs aria-hidden="true">
         <pattern
           id={gridPatternId}
@@ -264,6 +270,27 @@ export function KarelWorldView({
           />
         )}
       </g>
+      {blockedMove && (
+        <g
+          className="karel-world-blocked-effect"
+          data-testid="karel-blocked-effect"
+          transform={`translate(${robot.x} ${robot.y})`}
+          aria-hidden="true"
+        >
+          <g className="karel-world-blocked-flames">
+            <path
+              className="karel-world-blocked-flame-outer"
+              d="M -23 23 C -34 5 -19 -3 -17 -25 C -6 -18 -3 -9 0 -5 C 10 -13 13 -24 9 -34 C 28 -21 34 4 22 23 Z"
+            />
+            <path
+              className="karel-world-blocked-flame-inner"
+              d="M -10 23 C -17 10 -6 4 -4 -9 C 1 -4 3 2 3 6 C 9 2 13 -4 12 -11 C 22 0 19 15 12 23 Z"
+            />
+          </g>
+          <circle className="karel-world-blocked-smoke karel-world-blocked-smoke-one" cx="-9" cy="-31" r="5" />
+          <circle className="karel-world-blocked-smoke karel-world-blocked-smoke-two" cx="9" cy="-40" r="7" />
+        </g>
+      )}
     </svg>
   )
 }

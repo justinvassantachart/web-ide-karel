@@ -107,8 +107,8 @@ describe('exact packed consumer contract', () => {
     })).toThrow(/integrity is not exact/u)
   })
 
-  it('keeps the historical lock unchanged and validates the committed Web IDE 0.3.1 profile', async () => {
-    const historical = JSON.parse(await readFile(path.join(
+  it('validates the active pair while preserving the historical Web IDE 0.3.1 profile', async () => {
+    const active = JSON.parse(await readFile(path.join(
       repositoryRoot,
       'tests/production/consumer/package-lock.json',
     ), 'utf8'))
@@ -116,18 +116,38 @@ describe('exact packed consumer contract', () => {
       repositoryRoot,
       'release/web-ide-0.3.1-compatibility.package-lock.json',
     ), 'utf8'))
-    expect(validateProductionConsumerLock(historical).webIDE.binding)
+    expect(validateProductionConsumerLock(active).webIDE.binding)
       .toBe('pending')
     expect(validateProductionConsumerLock(successor, {
       webIDEVersion: '0.3.1',
+      karelVersion: '0.3.1',
     }).webIDE.integrity).toBe(
       'sha512-h+mOQ5zM3a4ZWBysIvypMsNKKIemc+h2VAZRt0l+U5jON+H3J6T35W+6T93mx91GSSokkD0IYQ4vwg2lD+6yQw==',
     )
-    expect(() => validateProductionConsumerLock(historical, {
-      webIDEVersion: '0.3.1',
-    })).toThrow(/locked release contract/u)
     expect(() => validateProductionConsumerLock(successor))
       .toThrow(/locked release contract/u)
+  })
+
+  it('keeps the packed browser gate serial, retry-free, and process-isolated', async () => {
+    const [config, spec] = await Promise.all([
+      readFile(path.join(
+        repositoryRoot,
+        'tests/production/consumer/playwright.config.ts.template',
+      ), 'utf8'),
+      readFile(path.join(
+        repositoryRoot,
+        'tests/production/consumer/tests/packed-karel.spec.ts.template',
+      ), 'utf8'),
+    ])
+
+    expect(config).toMatch(/fullyParallel:\s*false/u)
+    expect(config).toMatch(/workers:\s*1/u)
+    expect(config).toMatch(/retries:\s*0/u)
+    expect(spec).toContain('const test = base.extend({')
+    expect(spec).toContain('const browserType = playwright[browserName]')
+    expect(spec).toContain('const browser = await browserType.launch()')
+    expect(spec).toContain('await browser.newContext(browserContextOptions)')
+    expect(spec).toContain('await browser.close()')
   })
 })
 
@@ -201,7 +221,7 @@ describe('captured validation gate evidence', () => {
 
   it('normalizes known local roots after complete capture and rejects residual paths', () => {
     const repository = '/Users/synthetic/Projects/web-ide-karel'
-    const candidate = '/Users/synthetic/Artifacts/web-ide-karel-0.3.1.tgz'
+    const candidate = '/Users/synthetic/Artifacts/web-ide-karel-0.3.2.tgz'
     const footer = '@@WEB_IDE_RELEASE_GATE_RECEIPT@@{"synthetic":true}'
     const captured = Buffer.concat([
       Buffer.from(`repository=${repository.slice(0, 18)}`),

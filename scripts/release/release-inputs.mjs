@@ -27,7 +27,7 @@ export async function loadReleaseConfiguration() {
     'npmVersion',
     'webIDE',
   ], [], 'release input')
-  if (input.schemaVersion !== 1 || input.package !== '@web-ide/karel@0.3.1') {
+  if (input.schemaVersion !== 1 || input.package !== '@web-ide/karel@0.3.2') {
     throw new TypeError('Unsupported Karel release input identity')
   }
   for (const field of Object.keys(input).filter((key) => (
@@ -36,20 +36,20 @@ export async function loadReleaseConfiguration() {
     assertNonEmptyString(input[field], `release input.${field}`)
   }
   if (
-    input.capabilityReleaseId !== 'hamilton.python-karel/3'
+    input.capabilityReleaseId !== 'hamilton.python-karel/5'
     || input.packageRole !== 'karel'
     || input.sourceRepository !== 'https://github.com/justinvassantachart/web-ide-karel.git'
-    || input.sourceTag !== 'web-ide-karel-v0.3.1-source'
+    || input.sourceTag !== 'web-ide-karel-v0.3.2-source'
     || input.releaseRepository !== 'justinvassantachart/ths-ide'
-    || input.releaseTag !== 'web-ide-karel-v0.3.1'
+    || input.releaseTag !== 'web-ide-karel-v0.3.2'
   ) {
     throw new TypeError('Release input does not match the accepted Hamilton Karel identity')
   }
   if (
-    input.releaseAssetFilename !== 'web-ide-karel-0.3.1.tgz'
-    || input.sourceAssetFilename !== 'web-ide-karel-0.3.1-source.tar.gz'
+    input.releaseAssetFilename !== 'web-ide-karel-0.3.2.tgz'
+    || input.sourceAssetFilename !== 'web-ide-karel-0.3.2-source.tar.gz'
   ) {
-    throw new TypeError('Release asset names do not match Karel 0.3.1')
+    throw new TypeError('Release asset names do not match Karel 0.3.2')
   }
   assertExactKeys(input.webIDE, [
     'package',
@@ -66,13 +66,13 @@ export async function loadReleaseConfiguration() {
     assertNonEmptyString(value, `release input.webIDE.${field}`)
   }
   if (
-    input.webIDE.package !== 'web-ide@0.3.0'
+    input.webIDE.package !== 'web-ide@0.3.1'
     || input.webIDE.peerRange !== '>=0.3.0 <0.4.0'
     || input.webIDE.packageRole !== 'web-ide'
-    || input.webIDE.sourceTag !== 'web-ide-v0.3.0-source'
+    || input.webIDE.sourceTag !== 'web-ide-v0.3.1-source'
     || input.webIDE.releaseRepository !== 'justinvassantachart/ths-ide'
-    || input.webIDE.releaseTag !== 'web-ide-v0.3.0'
-    || input.webIDE.releaseAssetFilename !== 'web-ide-0.3.0.tgz'
+    || input.webIDE.releaseTag !== 'web-ide-v0.3.1'
+    || input.webIDE.releaseAssetFilename !== 'web-ide-0.3.1.tgz'
     || input.webIDE.artifactManifestFilename !== 'artifact-manifest.json'
     || input.webIDE.runtimeEvidenceFilename !== 'runtime-assets-verification.json'
   ) {

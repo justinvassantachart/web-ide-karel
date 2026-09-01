@@ -45,7 +45,7 @@ function validatePolicy(policy) {
   ], [], 'license policy')
   if (
     policy.schemaVersion !== 1
-    || policy.package !== '@web-ide/karel@0.3.1'
+    || policy.package !== '@web-ide/karel@0.3.2'
     || policy.packageLicense !== 'MIT'
     || policy.packageLicenseTextPath !== 'LICENSE.md'
   ) throw new TypeError('Unsupported Karel license policy identity')
@@ -151,7 +151,7 @@ export async function generateLicenseEvidence({
   }
   const webLicense = licenseTextRecord(
     webIDEEvidence.licenseEntry.bytes,
-    'web-ide-0.3.0.tgz:LICENSE.md',
+    `${webIDEEvidence.report.artifact.fileName}:LICENSE.md`,
   )
   const webPeer = {
     kind: 'peer-external',
@@ -192,7 +192,7 @@ export async function generateLicenseEvidence({
   })
   const report = {
     schemaVersion: 1,
-    package: '@web-ide/karel@0.3.1',
+    package: '@web-ide/karel@0.3.2',
     bundledDependencies: [],
     packageFileLicense: {
       expression: policy.packageLicense,
@@ -221,7 +221,7 @@ export async function generateLicenseEvidence({
     })),
   ]) textByHash.set(record.hash, record.text)
   const sections = [
-    'WEB IDE KAREL 0.3.1 LICENSE EVIDENCE',
+    'WEB IDE KAREL 0.3.2 LICENSE EVIDENCE',
     '',
     'Generated deterministically from the exact package inventory, package locks,',
     'and the verified external Web IDE candidate state.',

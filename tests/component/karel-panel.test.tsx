@@ -150,6 +150,75 @@ describe('Karel panel', () => {
     expect(events.stdout.listenerCount).toBe(0)
   })
 
+  it('shows the blocked-move easter egg only for KarelBlockedError and clears it on reset', () => {
+    const { runtime, events } = createFakeRuntime()
+    const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)
+    const detach = store.attach(runtime)
+    const { container, unmount } = render(
+      <KarelPanel
+        runtime={runtime}
+        execution={{
+          start: async () => undefined,
+          stop: () => undefined,
+          restart: async () => undefined,
+        }}
+        source={{
+          reveal: () => undefined,
+          replaceDecorations: () => undefined,
+          clearDecorations: () => undefined,
+          dispose: () => undefined,
+        }}
+        store={store}
+        workspace={{ snapshot: () => ({}) }}
+        panels={{ reveal: () => undefined }}
+      />,
+    )
+
+    const world = cloneKarelWorld(DEFAULT_KAREL_WORLD)
+    const renderedWorld = () => container.querySelector('.karel-world')
+    expect(renderedWorld()?.getAttribute('data-karel-blocked')).toBe('false')
+    expect(screen.queryByTestId('karel-blocked-effect')).toBeNull()
+
+    store.expectRun('ordinary-error')
+    act(() => events.stdout.emit(encodeKarelProtocolEvent({
+      protocol: KAREL_PROTOCOL_NAME,
+      version: KAREL_PROTOCOL_VERSION,
+      runId: 'ordinary-error',
+      type: 'terminal',
+      sequence: 0,
+      outcome: 'runtime-error',
+      message: 'Something else failed.',
+      errorType: 'ValueError',
+      world,
+    })))
+    expect(renderedWorld()?.getAttribute('data-karel-blocked')).toBe('false')
+    expect(screen.queryByTestId('karel-blocked-effect')).toBeNull()
+
+    act(() => events.terminalClear.emit())
+    store.expectRun('blocked-move')
+    act(() => events.stdout.emit(encodeKarelProtocolEvent({
+      protocol: KAREL_PROTOCOL_NAME,
+      version: KAREL_PROTOCOL_VERSION,
+      runId: 'blocked-move',
+      type: 'terminal',
+      sequence: 0,
+      outcome: 'runtime-error',
+      message: 'Karel cannot move: the front is blocked',
+      errorType: 'KarelBlockedError',
+      world,
+    })))
+    expect(renderedWorld()?.getAttribute('data-karel-blocked')).toBe('true')
+    expect(screen.getByTestId('karel-blocked-effect')).toBeTruthy()
+    expect(screen.getByText(/Karel's last move was blocked/)).toBeTruthy()
+
+    act(() => events.terminalClear.emit())
+    expect(renderedWorld()?.getAttribute('data-karel-blocked')).toBe('false')
+    expect(screen.queryByTestId('karel-blocked-effect')).toBeNull()
+
+    unmount()
+    detach()
+  })
+
   it('explains when the selected runtime is not Python', () => {
     const { runtime } = createFakeRuntime(['rust'])
     const store = new KarelSessionStore(DEFAULT_KAREL_WORLD)

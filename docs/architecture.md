@@ -188,6 +188,12 @@ outer SVG retains the single accessible image name and bounded description.
 World names are text nodes and colors are restricted by the world parser; the
 renderer does not inject markup or active CSS values.
 
+The panel treats only the public session projection's typed
+`KarelBlockedError` as a blocked-move visual state. The renderer owns its inline
+SVG flame/scorched effect, includes the blocked move in the textual equivalent,
+and removes all effect motion under `prefers-reduced-motion`; reset removes the
+state without adding a timer or lifecycle resource.
+
 ## Formative comparison
 
 `compareKarelFinalState` is pure and deterministic. It snapshots validated
@@ -200,7 +206,7 @@ authorization, or trusted-execution boundary.
 
 ## Package and distribution boundary
 
-The source package is MIT-licensed `@web-ide/karel@0.3.1`, remains
+The source package is MIT-licensed `@web-ide/karel@0.3.2`, remains
 `private: true`, and declares Web IDE `>=0.3.0 <0.4.0` as a peer. React, React
 DOM, and Web IDE are external to the library bundle. The sibling
 `file:../web-ide` development dependency exists only to build and test paired
@@ -215,10 +221,10 @@ absolute paths, while default source validation packs temporary artifacts from
 the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
-The Web peer source remains bound to the annotated `web-ide-v0.3.0-source` tag;
-its immutable Hamilton asset release remains `web-ide-v0.3.0`. Those source and
-artifact identities are verified and referenced, never moved or rebound for
-this Karel-only successor.
+The active Web peer source is bound to the annotated
+`web-ide-v0.3.1-source` tag; its immutable Hamilton asset release is
+`web-ide-v0.3.1`. Those source and artifact identities are verified and
+referenced, never moved or rebound for this Karel-only successor.
 
 An additive post-publication profile attests the already-released Karel
 `0.3.1` bytes with Web IDE `0.3.1`. It first verifies Karel's immutable release
@@ -226,8 +232,9 @@ receipt, artifact manifest, candidate state, and tarball, then installs that
 tarball and Web IDE's exact candidate through the separately committed
 `release/web-ide-0.3.1-compatibility.package-lock.json`. The full packed
 production/browser consumer emits Web IDE's existing schema-2 compatibility
-receipt only after success. This profile does not alter the historical Web IDE
-`0.3.0` lock, Karel release evidence, package, or capability binding.
+receipt only after success. This historical profile does not alter either the
+active `0.3.2` pair or the original Web IDE `0.3.0` lock, Karel `0.3.1`
+release evidence, package, or capability binding.
 
 Release evidence is external output produced by `scripts/release/`; it is not a
 runtime dependency and is never written inside the repository. Candidate and
@@ -243,12 +250,14 @@ capture-runner validation logs with deterministic local-path placeholders and
 actual-exit/source/candidate-pair-bound receipts, intended private Hamilton
 release assets, and an unchanged live
 source identity immediately before atomic final publication. The accepted
-composition identity `hamilton.python-karel/3` appears only in release
+composition identity `hamilton.python-karel/5` appears only in release
 metadata; it does not enter Karel's public runtime or world contracts. The
 schema-2 Karel artifact manifest binds the exact sorted singleton
-`capabilityReleaseIds` list `['hamilton.python-karel/3']`; Web IDE's separately
-owned immutable schema-2 manifest retains its historical
-`hamilton.python-karel/2` and `hamilton.python/1` bindings.
+`capabilityReleaseIds` list `['hamilton.python-karel/5']`; Web IDE `0.3.1`'s
+separately owned immutable schema-2 manifest retains
+`hamilton.python-karel/4` and `hamilton.python/2`. The older Karel `0.3.1` and
+Web IDE `0.3.0` identities remain confined to their frozen historical
+validators and evidence.
 The final artifact manifest uses the slash-free
 `urn:sha256:<canonical-manifest-input>` content identity also used by Web IDE.
 That digest covers every manifest field except `manifestId` itself, binding the

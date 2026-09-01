@@ -301,6 +301,9 @@ export function KarelPanel({
       : playback.message?.includes('failed')
         ? playback.message
         : undefined)
+  const blockedMove = live
+    && session.status === 'error'
+    && session.lastAction === 'KarelBlockedError'
 
   const chooseWorld = (id: string) => {
     if (transitionLocked) return
@@ -479,7 +482,11 @@ export function KarelPanel({
             </span>
           )}
         </div>
-        <KarelWorldView world={world} className="karel-world" />
+        <KarelWorldView
+          world={world}
+          className="karel-world"
+          blockedMove={blockedMove}
+        />
       </div>
     </section>
   )

@@ -91,8 +91,9 @@ Use narrower scripts while iterating:
   icon and directional transforms, visible fallback, unavailable runtime
   messaging, the exact compact control set and Play/Pause toggle, speed slider,
   live/history labels, accessible controls/status, Forward-to-live behavior,
-  multi-world reset, source presentation, startup transition locking, and
-  Strict Mode listener cleanup. `tests/unit/karel-icon.test.ts`
+  multi-world reset, the typed blocked-move fire/scorched state and cleanup,
+  source presentation, startup transition locking, and Strict Mode listener
+  cleanup. `tests/unit/karel-icon.test.ts`
   binds the checked-in icon's exact byte count and SHA-256.
 - `tests/unit/plugin.test.ts` covers ordinary versus execution-only resources,
   fresh run materialization, public Run registration, language capability
@@ -119,7 +120,8 @@ The Playwright suite verifies:
    Back/Forward-to-live, and Reset with accessible status text; and
 5. the exact five-button surface, speed slider, real icon, desktop host
    composition, single-line narrow control strip, light/dark palettes, focus
-   visibility, and reduced-motion behavior remain present.
+   visibility, typed blocked-move effect, and reduced-motion behavior remain
+   present.
 
 Component coverage also resolves execution startup and delivers an initial
 protocol state before the first valid student pause. The panel must remain
@@ -148,8 +150,8 @@ package into an OS temporary directory. An exact release pair can be supplied
 instead:
 
 ```sh
-WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.3.0.tgz \
-KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.1.tgz \
+WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.3.1.tgz \
+KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.2.tgz \
   npm run test:packed-production
 ```
 
@@ -160,7 +162,7 @@ malformed integrity, changed byte, pre-existing artifact, missing file, or
 relative override fails closed. The consumer uses a new disposable npm cache
 and `npm ci --ignore-scripts --strict-peer-deps --engine-strict`; it never
 rewrites the manifest or falls back to `npm install`. It asserts exact Web IDE
-and Karel `0.3.1` package identities, Karel's Web peer range, and one React/
+and Karel `0.3.2` package identities, Karel's Web peer range, and one React/
 React DOM identity before running full and production audits, typechecking, a
 real Vite production build, and one-worker Playwright against a purpose-built
 static SPA server. The fixture imports public package exports only.
@@ -172,8 +174,8 @@ the lock during validation. Release tooling also binds the complete canonical
 transitive lock graph; only the two independently verified private-artifact
 integrities are normalized for that graph check. Added nodes, registry or Git
 URL drift, lifecycle flags, and any other transitive-node change fail closed.
-The Karel entry binds the locally frozen `0.3.1` package bytes. The Web entry
-binds the exact finalized Web IDE `0.3.0` bytes. The verifier rejects any drift
+The Karel entry binds the locally frozen `0.3.2` candidate bytes. The Web entry
+binds the exact finalized Web IDE `0.3.1` bytes. The verifier rejects any drift
 in either artifact before npm is invoked.
 
 The production browser matrix proves:
@@ -258,13 +260,13 @@ For a final candidate:
 ```sh
 KAREL_RELEASE_OUTPUT_DIR=/absolute/external/new-karel-candidate \
 KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE=/absolute/web-evidence/candidate-state.json \
-KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.3.0.tgz \
+KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.3.1.tgz \
   npm run release:candidate
 ```
 
 Final mode fails unless local `main` equals both its tracking ref and the live
 remote, the worktree is clean, the pushed annotated
-`web-ide-karel-v0.3.1-source` tag peels to `HEAD`, and Node `24.11.1`/npm
+`web-ide-karel-v0.3.2-source` tag peels to `HEAD`, and Node `24.11.1`/npm
 `11.6.2` are active. The Web candidate state must be canonical final evidence,
 its exact ten-artifact inventory must bind the runtime report and tar SHA-256,
 and the committed packed-consumer lock must bind the computed Web and Karel
@@ -296,9 +298,9 @@ receipt to a previously absent external directory:
 ```sh
 KAREL_RELEASE_GATE_ID=packed-exact-pair \
 KAREL_RELEASE_GATE_OUTPUT_DIR=/absolute/external/gates/packed-exact-pair \
-KAREL_RELEASE_KAREL_TARBALL=/absolute/karel-candidate/web-ide-karel-0.3.1.tgz \
+KAREL_RELEASE_KAREL_TARBALL=/absolute/karel-candidate/web-ide-karel-0.3.2.tgz \
 KAREL_RELEASE_KAREL_CANDIDATE_STATE=/absolute/karel-candidate/candidate-state.json \
-KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-candidate/web-ide-0.3.0.tgz \
+KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-candidate/web-ide-0.3.1.tgz \
 KAREL_RELEASE_WEB_IDE_CANDIDATE_STATE=/absolute/web-candidate/candidate-state.json \
   npm run release:capture-gate
 ```
@@ -338,7 +340,7 @@ KAREL_RELEASE_CANDIDATE_DIR=/absolute/external/final-karel-candidate \
 KAREL_RELEASE_OUTPUT_DIR=/absolute/external/new-final-karel-evidence \
 KAREL_RELEASE_VALIDATION_INPUT=/absolute/external/validation-summary.json \
 KAREL_RELEASE_WEB_IDE_MANIFEST=/absolute/web-evidence/artifact-manifest.json \
-KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.3.0.tgz \
+KAREL_RELEASE_WEB_IDE_TARBALL=/absolute/web-evidence/web-ide-0.3.1.tgz \
   npm run release:finalize
 ```
 
@@ -365,8 +367,9 @@ settlement periods. On success, the previously absent output directory
 contains `karel-compatibility.log` and its canonical capture sidecar. The log's
 unique final line is the Web IDE schema-2 receipt with emitter
 `karel:release-compatibility-gate@2`, Web IDE `0.3.1` source/candidate identity,
-and exit code zero. The historical Web IDE `0.3.0` capture remains the default
-release workflow and its lock and evidence are unchanged.
+and exit code zero. The historical Web IDE `0.3.0` capture remains a frozen
+compatibility workflow; its lock and evidence are unchanged and are not the
+active `0.3.2` release inputs.
 
 Finalization leaves the candidate directory read-only, copies its exact bytes
 into transactional staging, and independently rechecks clean/pushed/tagged

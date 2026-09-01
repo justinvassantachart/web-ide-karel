@@ -141,6 +141,49 @@ test('renders runtime frames and releases subscriptions on browser unmount', asy
   ).toBe(0)
 })
 
+test('sets Karel on fire after a blocked move', async ({ page }) => {
+  await page.goto('/')
+  const panel = page.getByRole('region', { name: 'Karel world and playback' })
+  const world = panel.getByRole('img')
+
+  await panel.getByRole('button', { name: 'Prepare', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('Paused')
+  const emitMove = page.getByRole('button', { name: 'Emit move' })
+  await emitMove.click()
+  await emitMove.click()
+  await page.getByRole('button', { name: 'Emit blocked move' }).click()
+
+  await expect(panel.getByRole('status')).toHaveText('Error')
+  await expect(panel.getByRole('alert')).toContainText('front is blocked')
+  await expect(world).toHaveAttribute('data-karel-blocked', 'true')
+  await expect(panel.getByTestId('karel-blocked-effect')).toBeVisible()
+  await expect(panel.getByText(/Karel's last move was blocked/)).toBeAttached()
+
+  const animation = await panel.getByTestId('karel-robot-icon').evaluate((icon) => {
+    const style = getComputedStyle(icon)
+    return {
+      fillMode: style.animationFillMode,
+      name: style.animationName,
+    }
+  })
+  expect(animation.name).toBe('karel-world-blocked-crash')
+  expect(animation.fillMode).toBe('both')
+
+  await panel.getByRole('button', { name: 'Back', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('History')
+  await expect(world).toHaveAttribute('data-karel-blocked', 'false')
+  await expect(panel.getByTestId('karel-blocked-effect')).toHaveCount(0)
+
+  await forwardThroughHistoryToLive(panel)
+  await expect(panel.getByRole('status')).toHaveText('Error')
+  await expect(world).toHaveAttribute('data-karel-blocked', 'true')
+  await expect(panel.getByTestId('karel-blocked-effect')).toBeVisible()
+
+  await panel.getByRole('button', { name: 'Reset', exact: true }).click()
+  await expect(world).toHaveAttribute('data-karel-blocked', 'false')
+  await expect(panel.getByTestId('karel-blocked-effect')).toHaveCount(0)
+})
+
 test('announces and navigates bounded history through visible controls', async ({
   page,
 }) => {
@@ -216,6 +259,8 @@ test('honors reduced motion and a high-zoom-equivalent narrow viewport', async (
   await page.setViewportSize({ width: 480, height: 720 })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.goto('/')
+  await page.getByRole('button', { name: 'Emit blocked move' }).click()
+  await expect(page.getByTestId('karel-blocked-effect')).toBeVisible()
 
   const layout = await page.evaluate(() => {
     const controls = document.querySelector<HTMLElement>('.karel-playback-controls')
@@ -240,6 +285,10 @@ test('honors reduced motion and a high-zoom-equivalent narrow viewport', async (
       headerCount: document.querySelectorAll('.karel-panel-header').length,
       footerCount: document.querySelectorAll('.karel-panel-footer').length,
       robotTransitionDuration: getComputedStyle(robot).transitionDuration,
+      robotAnimationName: getComputedStyle(icon).animationName,
+      flameAnimationName: getComputedStyle(
+        document.querySelector<SVGElement>('.karel-world-blocked-flames')!,
+      ).animationName,
       iconRendering: getComputedStyle(icon).imageRendering,
       worldWidth: viewport.getBoundingClientRect().width,
       worldHeight: viewport.getBoundingClientRect().height,
@@ -257,6 +306,8 @@ test('honors reduced motion and a high-zoom-equivalent narrow viewport', async (
   expect(layout.headerCount).toBe(0)
   expect(layout.footerCount).toBe(0)
   expect(layout.robotTransitionDuration).toBe('0s')
+  expect(layout.robotAnimationName).toBe('none')
+  expect(layout.flameAnimationName).toBe('none')
   expect(['pixelated', 'crisp-edges']).toContain(layout.iconRendering)
   expect(layout.worldWidth).toBeGreaterThan(300)
   expect(layout.worldHeight).toBeGreaterThan(150)

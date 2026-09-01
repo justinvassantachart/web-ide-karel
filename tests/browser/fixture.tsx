@@ -41,11 +41,31 @@ export function Fixture() {
     sequence += 1
   }
 
+  const blockedMove = () => {
+    events.stdout.emit(
+      encodeKarelProtocolEvent({
+        protocol: KAREL_PROTOCOL_NAME,
+        version: KAREL_PROTOCOL_VERSION,
+        runId: 'browser-fixture',
+        type: 'terminal',
+        sequence,
+        outcome: 'runtime-error',
+        message: 'Karel cannot move: the front is blocked',
+        errorType: 'KarelBlockedError',
+        world: cloneKarelWorld(DEFAULT_KAREL_WORLD),
+      }),
+    )
+    sequence += 1
+  }
+
   return (
     <main id="fixture">
       <div id="controls">
         <button type="button" onClick={move}>
           Emit move
+        </button>
+        <button type="button" onClick={blockedMove}>
+          Emit blocked move
         </button>
       </div>
       <KarelPanel
