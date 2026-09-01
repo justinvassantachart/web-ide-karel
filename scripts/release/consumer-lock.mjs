@@ -71,16 +71,29 @@ const WEB_IDE_LOCK_IDENTITIES = Object.freeze({
   }),
 })
 
-const EXPECTED_KAREL_LOCK_ENTRY = Object.freeze({
-  version: '0.3.1',
-  resolved: 'file:artifacts/web-ide-karel.tgz',
-  license: 'MIT',
-  engines: { node: '>=20', python: '>=3.10' },
-  peerDependencies: {
-    react: '^18.3.0 || ^19.0.0',
-    'react-dom': '^18.3.0 || ^19.0.0',
-    'web-ide': '>=0.3.0 <0.4.0',
-  },
+const KAREL_LOCK_IDENTITIES = Object.freeze({
+  '0.3.1': Object.freeze({
+    version: '0.3.1',
+    resolved: 'file:artifacts/web-ide-karel.tgz',
+    license: 'MIT',
+    engines: { node: '>=20', python: '>=3.10' },
+    peerDependencies: {
+      react: '^18.3.0 || ^19.0.0',
+      'react-dom': '^18.3.0 || ^19.0.0',
+      'web-ide': '>=0.3.0 <0.4.0',
+    },
+  }),
+  '0.3.2': Object.freeze({
+    version: '0.3.2',
+    resolved: 'file:artifacts/web-ide-karel.tgz',
+    license: 'MIT',
+    engines: { node: '>=20', python: '>=3.10' },
+    peerDependencies: {
+      react: '^18.3.0 || ^19.0.0',
+      'react-dom': '^18.3.0 || ^19.0.0',
+      'web-ide': '>=0.3.0 <0.4.0',
+    },
+  }),
 })
 
 // This digest closes the complete reviewed npm v3 lock graph while permitting
@@ -92,8 +105,9 @@ const EXPECTED_KAREL_LOCK_ENTRY = Object.freeze({
 const ARTIFACT_INTEGRITY_PLACEHOLDER
   = 'ARTIFACT-INTEGRITY-VALIDATED-SEPARATELY'
 const EXPECTED_NORMALIZED_LOCK_SHA256 = Object.freeze({
-  '0.3.0': 'd5a4011f149db75a78cb805cd26b4f65713d7eb022dc57625b6410e11d918522',
-  '0.3.1': 'b48dce1a17929456f6ba845164fe493eba0bc7698f6755548cfa5d04f452cb11',
+  '0.3.0/0.3.1': 'd5a4011f149db75a78cb805cd26b4f65713d7eb022dc57625b6410e11d918522',
+  '0.3.1/0.3.1': 'b48dce1a17929456f6ba845164fe493eba0bc7698f6755548cfa5d04f452cb11',
+  '0.3.1/0.3.2': 'bf2e7e288a41267478b6da44ae761fd9b3e61030443bb2560acc7bb397bb7383',
 })
 
 function assertSha512Integrity(value, location) {
@@ -178,12 +192,17 @@ export function validateProductionConsumerLock(
     karelIntegrity,
     requireWebIDEIntegrity = false,
     requireKarelIntegrity = false,
-    webIDEVersion = '0.3.0',
+    webIDEVersion = '0.3.1',
+    karelVersion = '0.3.2',
   } = {},
 ) {
   const expectedWebIDE = WEB_IDE_LOCK_IDENTITIES[webIDEVersion]
+  const expectedKarel = KAREL_LOCK_IDENTITIES[karelVersion]
   if (!expectedWebIDE) {
     throw new TypeError(`Unsupported packed consumer Web IDE version ${String(webIDEVersion)}`)
+  }
+  if (!expectedKarel) {
+    throw new TypeError(`Unsupported packed consumer Karel version ${String(karelVersion)}`)
   }
   assertExactKeys(lock, [
     'name', 'version', 'lockfileVersion', 'requires', 'packages',
@@ -215,7 +234,7 @@ export function validateProductionConsumerLock(
   )
   const lockedKarelIntegrity = validateArtifactEntry(
     lock.packages['node_modules/@web-ide/karel'],
-    EXPECTED_KAREL_LOCK_ENTRY,
+    expectedKarel,
     'packed consumer Karel lock entry',
   )
   validateReactEntries(lock.packages)
@@ -227,7 +246,10 @@ export function validateProductionConsumerLock(
   const normalizedDigest = sha256Bytes(Buffer.from(
     canonicalJSONString(normalizedLock),
   ))
-  if (normalizedDigest !== EXPECTED_NORMALIZED_LOCK_SHA256[webIDEVersion]) {
+  if (
+    normalizedDigest
+      !== EXPECTED_NORMALIZED_LOCK_SHA256[`${webIDEVersion}/${karelVersion}`]
+  ) {
     throw new TypeError(
       'Packed consumer complete transitive lock graph differs from the reviewed contract',
     )
@@ -240,7 +262,7 @@ export function validateProductionConsumerLock(
   }
   return {
     karel: {
-      reference: EXPECTED_KAREL_LOCK_ENTRY.resolved,
+      reference: expectedKarel.resolved,
       integrity: lockedKarelIntegrity,
       binding: lockedKarelIntegrity === karelIntegrity ? 'exact' : 'pending',
     },

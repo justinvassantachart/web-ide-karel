@@ -27,30 +27,55 @@ const EXPECTED_PEERS = {
   'web-ide': '>=0.3.0 <0.4.0',
 }
 
-const EXPECTED_CAPABILITY_RELEASE_IDS = Object.freeze([
-  'hamilton.python-karel/3',
-])
+const KAREL_ARTIFACT_IDENTITIES = Object.freeze({
+  '0.3.1': Object.freeze({
+    version: '0.3.1',
+    capabilityReleaseIds: Object.freeze(['hamilton.python-karel/3']),
+    sourceTag: 'web-ide-karel-v0.3.1-source',
+    sourceAssetFilename: 'web-ide-karel-0.3.1-source.tar.gz',
+    releaseTag: 'web-ide-karel-v0.3.1',
+    releaseAssetFilename: 'web-ide-karel-0.3.1.tgz',
+    sbomFilename: 'web-ide-karel-0.3.1.cdx.json',
+    webIDEVersion: '0.3.0',
+  }),
+  '0.3.2': Object.freeze({
+    version: '0.3.2',
+    capabilityReleaseIds: Object.freeze(['hamilton.python-karel/5']),
+    sourceTag: 'web-ide-karel-v0.3.2-source',
+    sourceAssetFilename: 'web-ide-karel-0.3.2-source.tar.gz',
+    releaseTag: 'web-ide-karel-v0.3.2',
+    releaseAssetFilename: 'web-ide-karel-0.3.2.tgz',
+    sbomFilename: 'web-ide-karel-0.3.2.cdx.json',
+    webIDEVersion: '0.3.1',
+  }),
+})
 
-const EXPECTED_REPORTS = new Map([
-  ['candidate-state', 'candidate-state.json'],
-  ['cyclonedx-sbom', 'web-ide-karel-0.3.1.cdx.json'],
-  ['deterministic-builds', 'deterministic-builds.json'],
-  ['license-inventory', 'license-inventory.json'],
-  ['package-inspection', 'package-inspection.json'],
-  ['third-party-license-text', 'THIRD_PARTY_LICENSES.txt'],
-  ['validation-summary', 'validation-summary.json'],
-  ['web-ide-candidate-verification', 'web-ide-candidate-verification.json'],
-  ['web-ide-final-verification', 'web-ide-final-verification.json'],
-])
-for (const gateId of EXPECTED_VALIDATION_GATES.keys()) {
-  EXPECTED_REPORTS.set(
-    `validation-log:${gateId}`,
-    `validation-${gateId}.log`,
-  )
-  EXPECTED_REPORTS.set(
-    `validation-receipt:${gateId}`,
-    `validation-${gateId}.receipt.json`,
-  )
+function artifactIdentity(version) {
+  const identity = KAREL_ARTIFACT_IDENTITIES[version]
+  if (!identity) throw new TypeError('Karel artifact manifest version is unsupported')
+  return identity
+}
+
+function expectedReports(identity) {
+  const reports = new Map([
+    ['candidate-state', 'candidate-state.json'],
+    ['cyclonedx-sbom', identity.sbomFilename],
+    ['deterministic-builds', 'deterministic-builds.json'],
+    ['license-inventory', 'license-inventory.json'],
+    ['package-inspection', 'package-inspection.json'],
+    ['third-party-license-text', 'THIRD_PARTY_LICENSES.txt'],
+    ['validation-summary', 'validation-summary.json'],
+    ['web-ide-candidate-verification', 'web-ide-candidate-verification.json'],
+    ['web-ide-final-verification', 'web-ide-final-verification.json'],
+  ])
+  for (const gateId of EXPECTED_VALIDATION_GATES.keys()) {
+    reports.set(`validation-log:${gateId}`, `validation-${gateId}.log`)
+    reports.set(
+      `validation-receipt:${gateId}`,
+      `validation-${gateId}.receipt.json`,
+    )
+  }
+  return reports
 }
 
 function assertPositiveInteger(value, location) {
@@ -118,11 +143,13 @@ export function validateArtifactManifest(manifest) {
     'distribution',
     'reports',
   ], [], 'Karel artifact manifest')
+  const identity = artifactIdentity(manifest.package?.version)
+  const reportsContract = expectedReports(identity)
   if (
     manifest.schemaVersion !== 2
     || manifest.manifestKind !== 'hamilton-capability-package-artifact'
     || canonicalJSONString(manifest.capabilityReleaseIds)
-      !== canonicalJSONString(EXPECTED_CAPABILITY_RELEASE_IDS)
+      !== canonicalJSONString(identity.capabilityReleaseIds)
     || manifest.packageRole !== 'karel'
   ) throw new TypeError('Karel artifact manifest composition identity is wrong')
   assertExactKeys(manifest.package, [
@@ -140,7 +167,7 @@ export function validateArtifactManifest(manifest) {
   ], [], 'Karel artifact manifest package')
   if (
     manifest.package.name !== '@web-ide/karel'
-    || manifest.package.version !== '0.3.1'
+    || manifest.package.version !== identity.version
     || manifest.package.private !== true
     || manifest.package.license !== 'MIT'
     || canonicalJSONString(manifest.package.exports)
@@ -220,14 +247,14 @@ export function validateArtifactManifest(manifest) {
     'Karel artifact manifest source tag object',
   )
   if (
-    manifest.source.tag.name !== 'web-ide-karel-v0.3.1-source'
+    manifest.source.tag.name !== identity.sourceTag
     || manifest.source.tag.objectType !== 'tag'
     || manifest.source.tag.peeledCommit !== manifest.source.commit
   ) throw new TypeError('Karel artifact manifest annotated source tag is wrong')
   assertFileEvidence(
     manifest.source.archive,
     'source-archive',
-    'web-ide-karel-0.3.1-source.tar.gz',
+    identity.sourceAssetFilename,
     'Karel artifact manifest source archive',
   )
   assertExactKeys(manifest.build, [
@@ -270,7 +297,7 @@ export function validateArtifactManifest(manifest) {
   ], [], 'Karel artifact manifest artifact')
   if (
     manifest.artifact.kind !== 'package-tarball'
-    || manifest.artifact.fileName !== 'web-ide-karel-0.3.1.tgz'
+    || manifest.artifact.fileName !== identity.releaseAssetFilename
   ) throw new TypeError('Karel artifact manifest tarball identity is wrong')
   assertPositiveInteger(manifest.artifact.size, 'Karel artifact manifest tarball size')
   assertSha256(manifest.artifact.sha256, 'Karel artifact manifest tar SHA-256')
@@ -287,7 +314,8 @@ export function validateArtifactManifest(manifest) {
   }
   validateWebIDEEvidenceReport(manifest.webIDEPeer)
   if (
-    manifest.webIDEPeer.consumerLock.binding !== 'exact'
+    manifest.webIDEPeer.package.version !== identity.webIDEVersion
+    || manifest.webIDEPeer.consumerLock.binding !== 'exact'
     || manifest.webIDEPeer.nonFinalTestFixture
   ) throw new TypeError('Karel artifact manifest does not bind final Web IDE evidence')
   assertExactKeys(manifest.runtimeEvidence, [
@@ -305,23 +333,23 @@ export function validateArtifactManifest(manifest) {
     'intendedAssets',
   ], [], 'Karel artifact manifest distribution')
   const expectedAssets = sortStrings([
-    'web-ide-karel-0.3.1.tgz',
-    'web-ide-karel-0.3.1-source.tar.gz',
+    identity.releaseAssetFilename,
+    identity.sourceAssetFilename,
     'artifact-manifest.json',
     'artifact-manifest.json.sha256',
-    ...[...EXPECTED_REPORTS.values()],
+    ...[...reportsContract.values()],
   ])
   if (
     manifest.distribution.mechanism !== 'private-github-release-assets'
     || manifest.distribution.npmPublished !== false
     || manifest.distribution.repository !== 'justinvassantachart/ths-ide'
-    || manifest.distribution.intendedTag !== 'web-ide-karel-v0.3.1'
+    || manifest.distribution.intendedTag !== identity.releaseTag
     || JSON.stringify(manifest.distribution.intendedAssets)
       !== JSON.stringify(expectedAssets)
   ) throw new TypeError('Karel artifact manifest distribution identity is wrong')
   if (
     !Array.isArray(manifest.reports)
-    || manifest.reports.length !== EXPECTED_REPORTS.size
+    || manifest.reports.length !== reportsContract.size
   ) {
     throw new TypeError('Karel artifact manifest reports are incomplete')
   }
@@ -331,14 +359,14 @@ export function validateArtifactManifest(manifest) {
   }
   for (const [index, report] of manifest.reports.entries()) {
     assertExactKeys(report, ['kind', 'fileName', 'size', 'sha256'], [], `reports[${index}]`)
-    if (EXPECTED_REPORTS.get(report.kind) !== report.fileName) {
+    if (reportsContract.get(report.kind) !== report.fileName) {
       throw new TypeError(`Karel artifact manifest report ${report.kind} is unexpected`)
     }
     assertPositiveInteger(report.size, `reports[${index}].size`)
     assertSha256(report.sha256, `reports[${index}].sha256`)
   }
   if (
-    JSON.stringify(kinds) !== JSON.stringify(sortStrings(EXPECTED_REPORTS.keys()))
+    JSON.stringify(kinds) !== JSON.stringify(sortStrings(reportsContract.keys()))
   ) throw new TypeError('Karel artifact manifest report set is not exact and sorted')
   if (
     manifest.runtimeEvidence.ownerPackageRole !== 'web-ide'
@@ -363,9 +391,10 @@ export async function createArtifactManifest({
   determinism,
   webIDEEvidence,
 }) {
+  const identity = artifactIdentity(packageManifest.version)
   const evidenceNames = {
     'candidate-state': 'candidate-state.json',
-    'cyclonedx-sbom': 'web-ide-karel-0.3.1.cdx.json',
+    'cyclonedx-sbom': identity.sbomFilename,
     'deterministic-builds': 'deterministic-builds.json',
     'license-inventory': 'license-inventory.json',
     'package-inspection': 'package-inspection.json',
@@ -423,7 +452,7 @@ export async function createArtifactManifest({
     'license-inventory.json',
     'package-inspection.json',
     'validation-summary.json',
-    'web-ide-karel-0.3.1.cdx.json',
+    identity.sbomFilename,
     'web-ide-candidate-verification.json',
     'web-ide-final-verification.json',
     ...[...EXPECTED_VALIDATION_GATES.keys()].flatMap((gateId) => [
@@ -434,7 +463,7 @@ export async function createArtifactManifest({
   const manifestInput = {
     schemaVersion: 2,
     manifestKind: 'hamilton-capability-package-artifact',
-    capabilityReleaseIds: EXPECTED_CAPABILITY_RELEASE_IDS,
+    capabilityReleaseIds: identity.capabilityReleaseIds,
     packageRole: configuration.packageRole,
     package: {
       name: packageManifest.name,

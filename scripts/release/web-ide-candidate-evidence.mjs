@@ -21,6 +21,7 @@ import { validateWebIDERuntimeReport } from './web-ide-evidence.mjs'
 
 export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
   '0.3.0': Object.freeze({
+    version: '0.3.0',
     package: 'web-ide@0.3.0',
     capabilityReleaseId: 'hamilton.python-karel/2',
     sourceTag: 'web-ide-v0.3.0-source',
@@ -29,6 +30,7 @@ export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
     sbomFilename: 'web-ide-0.3.0.cdx.json',
   }),
   '0.3.1': Object.freeze({
+    version: '0.3.1',
     package: 'web-ide@0.3.1',
     capabilityReleaseId: 'hamilton.python/2',
     sourceTag: 'web-ide-v0.3.1-source',
@@ -37,6 +39,25 @@ export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
     sbomFilename: 'web-ide-0.3.1.cdx.json',
   }),
 })
+
+function candidateIdentityForConfiguration(configuration) {
+  const identity = Object.values(WEB_IDE_CANDIDATE_IDENTITIES).find(
+    (candidate) => candidate.package === configuration?.webIDE?.package,
+  )
+  if (!identity) {
+    throw new TypeError('Web IDE candidate configuration package is unsupported')
+  }
+  return identity
+}
+
+function karelVersionForConfiguration(configuration, webIDEIdentity) {
+  const prefix = '@web-ide/karel@'
+  if (typeof configuration?.package === 'string'
+    && configuration.package.startsWith(prefix)) {
+    return configuration.package.slice(prefix.length)
+  }
+  return webIDEIdentity.version === '0.3.1' ? '0.3.2' : '0.3.1'
+}
 
 function candidateArtifacts(identity) {
   return [
@@ -182,7 +203,7 @@ export function validateWebIDECandidateState(
   return state
 }
 
-function inspectWebIDETarball(bytes) {
+function inspectWebIDETarball(bytes, identity) {
   const entries = readPackageTarball(bytes)
   for (const entry of entries) {
     scanPackedTextEntry(entry, { packageKind: 'web-ide' })
@@ -193,7 +214,7 @@ function inspectWebIDETarball(bytes) {
   const manifest = JSON.parse(files.get('package.json')?.bytes.toString('utf8') ?? 'null')
   if (
     manifest?.name !== 'web-ide'
-    || manifest.version !== '0.3.0'
+    || manifest.version !== identity.version
     || manifest.private !== true
     || manifest.license !== 'MIT'
     || !files.has('LICENSE.md')
@@ -201,7 +222,7 @@ function inspectWebIDETarball(bytes) {
   return { entries, licenseEntry: files.get('LICENSE.md') }
 }
 
-function validateWebIDEPackageInspection(report, tarballBytes, entries) {
+function validateWebIDEPackageInspection(report, tarballBytes, entries, identity) {
   assertExactKeys(report, [
     'schemaVersion', 'package', 'result', 'tarball', 'checks', 'files',
   ], [], 'Web IDE package inspection')
@@ -220,10 +241,10 @@ function validateWebIDEPackageInspection(report, tarballBytes, entries) {
   ], [], 'Web IDE package inspection checks')
   if (
     report.schemaVersion !== 1
-    || report.package !== 'web-ide@0.3.0'
+    || report.package !== identity.package
     || report.result !== 'pass'
     || Object.values(report.checks).some((value) => value !== true)
-    || report.tarball.filename !== 'web-ide-0.3.0.tgz'
+    || report.tarball.filename !== identity.releaseAssetFilename
     || report.tarball.size !== tarballBytes.length
     || report.tarball.sha256 !== sha256Bytes(tarballBytes)
     || report.tarball.sha512Integrity !== sha512IntegrityBytes(tarballBytes)
@@ -246,6 +267,7 @@ function validateWebIDEPackageInspection(report, tarballBytes, entries) {
 }
 
 export function validateWebIDECandidateReport(report, configuration) {
+  const identity = candidateIdentityForConfiguration(configuration)
   assertExactKeys(report, [
     'schemaVersion',
     'result',
@@ -261,7 +283,7 @@ export function validateWebIDECandidateReport(report, configuration) {
   if (
     report.schemaVersion !== 1
     || report.result !== 'pass'
-    || report.capabilityReleaseId !== 'hamilton.python-karel/2'
+    || report.capabilityReleaseId !== identity.capabilityReleaseId
     || report.packageRole !== 'web-ide-peer-candidate'
     || typeof report.nonFinalTestFixture !== 'boolean'
   ) throw new TypeError('Web IDE candidate verification report identity is wrong')
@@ -273,7 +295,7 @@ export function validateWebIDECandidateReport(report, configuration) {
   ], [], 'Web IDE candidate verification package')
   if (
     report.package.name !== 'web-ide'
-    || report.package.version !== '0.3.0'
+    || report.package.version !== identity.version
     || report.package.peerRange
       !== (configuration?.webIDE.peerRange ?? '>=0.3.0 <0.4.0')
     || report.package.license !== 'MIT'
@@ -319,7 +341,7 @@ export function validateWebIDECandidateReport(report, configuration) {
   )
   if (
     report.candidateState.source.tag
-      !== (configuration?.webIDE.sourceTag ?? 'web-ide-v0.3.0-source')
+      !== identity.sourceTag
   ) {
     throw new TypeError('Web IDE candidate verification tag is wrong')
   }
@@ -329,7 +351,7 @@ export function validateWebIDECandidateReport(report, configuration) {
     'sha256',
     'sha512Integrity',
   ], [], 'Web IDE candidate verification artifact')
-  if (report.artifact.fileName !== 'web-ide-0.3.0.tgz') {
+  if (report.artifact.fileName !== identity.releaseAssetFilename) {
     throw new TypeError('Web IDE candidate verification artifact filename is wrong')
   }
   assertPositiveSafeInteger(
@@ -388,6 +410,7 @@ export async function verifyWebIDECandidateEvidence({
   consumerLock,
   mode,
 }) {
+  const identity = candidateIdentityForConfiguration(configuration)
   if (path.basename(candidateStatePath) !== 'candidate-state.json') {
     throw new TypeError('Web IDE candidate-state filename is not exact')
   }
@@ -403,7 +426,12 @@ export async function verifyWebIDECandidateEvidence({
   if (!stateBytes.equals(Buffer.from(canonicalJSONString(state)))) {
     throw new TypeError('Web IDE candidate state is not canonical JSON')
   }
-  validateWebIDECandidateState(state, mode, configuration.webIDE.sourceTag)
+  validateWebIDECandidateState(
+    state,
+    mode,
+    configuration.webIDE.sourceTag,
+    identity,
+  )
   const artifactByName = new Map(state.artifacts.map((artifact) => [
     artifact.fileName,
     artifact,
@@ -421,7 +449,7 @@ export async function verifyWebIDECandidateEvidence({
     tarballRecord.size !== tarballBytes.length
     || tarballRecord.sha256 !== tarballSha256
   ) throw new TypeError('Web IDE tarball does not match its canonical candidate state')
-  const tarball = inspectWebIDETarball(tarballBytes)
+  const tarball = inspectWebIDETarball(tarballBytes, identity)
 
   const inspectionRecord = artifactByName.get('package-inspection.json')
   const inspectionPath = await assertExternalInputFile(
@@ -441,7 +469,12 @@ export async function verifyWebIDECandidateEvidence({
   if (!inspectionBytes.equals(Buffer.from(canonicalJSONString(inspection)))) {
     throw new TypeError('Web IDE package inspection is not canonical JSON')
   }
-  validateWebIDEPackageInspection(inspection, tarballBytes, tarball.entries)
+  validateWebIDEPackageInspection(
+    inspection,
+    tarballBytes,
+    tarball.entries,
+    identity,
+  )
 
   const runtimeRecord = artifactByName.get(configuration.webIDE.runtimeEvidenceFilename)
   const runtimePath = path.join(
@@ -466,6 +499,8 @@ export async function verifyWebIDECandidateEvidence({
   const lockValidation = validateProductionConsumerLock(consumerLock, {
     webIDEIntegrity: tarballSRI,
     requireWebIDEIntegrity: mode === 'final',
+    webIDEVersion: identity.version,
+    karelVersion: karelVersionForConfiguration(configuration, identity),
   })
   const lockEntry = lockValidation.webIDE
   const lockMatchesArtifact = lockEntry.binding === 'exact'
@@ -476,11 +511,11 @@ export async function verifyWebIDECandidateEvidence({
   const report = {
     schemaVersion: 1,
     result: 'pass',
-    capabilityReleaseId: 'hamilton.python-karel/2',
+    capabilityReleaseId: identity.capabilityReleaseId,
     packageRole: 'web-ide-peer-candidate',
     package: {
       name: 'web-ide',
-      version: '0.3.0',
+      version: identity.version,
       peerRange: configuration.webIDE.peerRange,
       license: 'MIT',
     },

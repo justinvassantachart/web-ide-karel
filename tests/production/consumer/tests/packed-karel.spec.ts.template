@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test as base, type Locator } from '@playwright/test'
 import {
   captureEvidence,
   contrastRatio,
@@ -14,6 +14,30 @@ import {
   protocolEvents,
   runKarel,
 } from './helpers'
+
+const test = base.extend({
+  context: async ({
+    playwright,
+    browserName,
+    contextOptions: browserContextOptions,
+  }, use) => {
+    const browserType = playwright[browserName]
+    const browser = await browserType.launch()
+    try {
+      const context = await browser.newContext(browserContextOptions)
+      try {
+        await use(context)
+      } finally {
+        await context.close()
+      }
+    } finally {
+      await browser.close()
+    }
+  },
+  page: async ({ context }, use) => {
+    await use(await context.newPage())
+  },
+})
 
 async function forwardThroughHistoryToLive(
   panel: Locator,

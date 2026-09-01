@@ -19,17 +19,20 @@ import {
   withVerifiedPackedCandidates,
 } from './packed-candidates.mjs'
 import {
-  exactPairCompatibilityEvidence,
   exactSuccessorPairCompatibilityEvidence,
   formatWebIDECompatibilityReceipt,
 } from './release/web-compatibility-receipt.mjs'
+import {
+  exactActivePairCompatibilityEvidence,
+} from './release/active-pair-compatibility-receipt.mjs'
 import { validateProductionConsumerLock } from './release/consumer-lock.mjs'
 
 const successorProfileInput = process.env.KAREL_RELEASE_WEB_IDE_SUCCESSOR
 const successorMode = successorProfileInput === '0.3.1'
-const expectedWebIDEVersion = successorMode ? '0.3.1' : '0.3.0'
+const expectedWebIDEVersion = '0.3.1'
+const expectedKarelVersion = successorMode ? '0.3.1' : '0.3.2'
 const EXPECTED_VERSIONS = Object.freeze({
-  '@web-ide/karel': '0.3.1',
+  '@web-ide/karel': expectedKarelVersion,
   'web-ide': expectedWebIDEVersion,
 })
 const EXPECTED_KAREL_PEERS = Object.freeze({
@@ -196,6 +199,7 @@ async function copyFixture() {
       requireWebIDEIntegrity: true,
       requireKarelIntegrity: true,
       webIDEVersion: '0.3.1',
+      karelVersion: '0.3.1',
     })
     if (validation.webIDE.binding !== 'exact' || validation.karel.binding !== 'exact') {
       throw new TypeError('Committed Web IDE 0.3.1 compatibility lock is not exact')
@@ -378,7 +382,7 @@ try {
           karelReleaseReceiptPath: karelReleaseReceipt,
           karelTarballPath: candidates['@web-ide/karel'],
         })
-      : await exactPairCompatibilityEvidence({
+      : await exactActivePairCompatibilityEvidence({
           webIDECandidateStatePath: webCandidateState,
           webIDETarballPath: candidates['web-ide'],
           karelCandidateStatePath: karelCandidateState,
@@ -394,6 +398,7 @@ try {
     consumerRoot,
     candidates,
     webIDEVersion: expectedWebIDEVersion,
+    karelVersion: expectedKarelVersion,
     consume: async (verified) => {
       for (const candidate of verified) {
         process.stdout.write(

@@ -13,6 +13,17 @@ export const CANDIDATE_ARTIFACT_FILES = Object.freeze([
   'license-inventory.json',
   'package-inspection.json',
   'web-ide-candidate-verification.json',
+  'web-ide-karel-0.3.2-source.tar.gz',
+  'web-ide-karel-0.3.2.cdx.json',
+  'web-ide-karel-0.3.2.tgz',
+])
+
+export const HISTORICAL_0_3_1_ARTIFACT_FILES = Object.freeze([
+  'THIRD_PARTY_LICENSES.txt',
+  'deterministic-builds.json',
+  'license-inventory.json',
+  'package-inspection.json',
+  'web-ide-candidate-verification.json',
   'web-ide-karel-0.3.1-source.tar.gz',
   'web-ide-karel-0.3.1.cdx.json',
   'web-ide-karel-0.3.1.tgz',
@@ -27,6 +38,9 @@ const CANDIDATE_ARTIFACT_MAX_BYTES = new Map([
   ['web-ide-karel-0.3.1-source.tar.gz', 128 * 1024 * 1024],
   ['web-ide-karel-0.3.1.cdx.json', 32 * 1024 * 1024],
   ['web-ide-karel-0.3.1.tgz', 64 * 1024 * 1024],
+  ['web-ide-karel-0.3.2-source.tar.gz', 128 * 1024 * 1024],
+  ['web-ide-karel-0.3.2.cdx.json', 32 * 1024 * 1024],
+  ['web-ide-karel-0.3.2.tgz', 64 * 1024 * 1024],
 ])
 
 function assertPositiveSafeInteger(value, location) {
@@ -36,6 +50,14 @@ function assertPositiveSafeInteger(value, location) {
 }
 
 export function validateCandidateState(state, { configuration, source }) {
+  const expectedArtifacts = configuration.package === '@web-ide/karel@0.3.1'
+    ? HISTORICAL_0_3_1_ARTIFACT_FILES
+    : configuration.package === '@web-ide/karel@0.3.2'
+      ? CANDIDATE_ARTIFACT_FILES
+      : null
+  if (expectedArtifacts === null) {
+    throw new TypeError('Candidate state has an unsupported Karel package identity')
+  }
   assertExactKeys(state, [
     'schemaVersion',
     'package',
@@ -91,7 +113,7 @@ export function validateCandidateState(state, { configuration, source }) {
     names.push(artifact.fileName)
   }
   if (
-    JSON.stringify(names) !== JSON.stringify(CANDIDATE_ARTIFACT_FILES)
+    JSON.stringify(names) !== JSON.stringify(expectedArtifacts)
     || JSON.stringify(names) !== JSON.stringify(sortStrings(names))
     || new Set(names).size !== names.length
   ) throw new TypeError('Candidate state artifacts are not the exact sorted set')
@@ -119,13 +141,13 @@ export function validateDeterminismReport(report, { sourceArchive }) {
     'sha256',
   ], [], 'deterministic builds source archive')
   const expectedArchive = {
-    filename: 'web-ide-karel-0.3.1-source.tar.gz',
+    filename: 'web-ide-karel-0.3.2-source.tar.gz',
     size: sourceArchive.size,
     sha256: sourceArchive.sha256,
   }
   if (
     report.schemaVersion !== 1
-    || report.package !== '@web-ide/karel@0.3.1'
+    || report.package !== '@web-ide/karel@0.3.2'
     || report.result !== 'pass'
     || report.isolatedBuildCount !== 2
     || report.exactWebIDEArtifactMaterializedForBothBuilds !== true

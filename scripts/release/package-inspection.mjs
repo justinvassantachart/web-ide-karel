@@ -561,7 +561,7 @@ function inspectKarelTarball(tarballBytes, { expectedManifest } = {}) {
   )
   if (
     manifest.name !== '@web-ide/karel'
-    || manifest.version !== '0.3.1'
+    || !['0.3.1', '0.3.2'].includes(manifest.version)
     || manifest.private !== true
     || manifest.license !== 'MIT'
   ) throw new TypeError('Packed Karel package identity, private flag, or license changed')
@@ -640,10 +640,10 @@ function inspectKarelTarball(tarballBytes, { expectedManifest } = {}) {
     manifest,
     report: {
       schemaVersion: 1,
-      package: '@web-ide/karel@0.3.1',
+      package: `@web-ide/karel@${manifest.version}`,
       result: 'pass',
       tarball: {
-        filename: 'web-ide-karel-0.3.1.tgz',
+        filename: `web-ide-karel-${manifest.version}.tgz`,
         size: tarballBytes.length,
         sha256: sha256Bytes(tarballBytes),
         sha512Integrity: sha512IntegrityBytes(tarballBytes),
@@ -674,7 +674,10 @@ export function inspectPackedPackage(packResult, tarballBytes, options = {}) {
   const pack = validateNpmPackResult(packResult, tarballBytes)
   const inspection = inspectKarelTarball(tarballBytes, options)
   const files = inspection.entries
-  if (pack.name !== '@web-ide/karel' || pack.version !== '0.3.1') {
+  if (
+    pack.name !== '@web-ide/karel'
+    || pack.version !== inspection.manifest.version
+  ) {
     throw new TypeError('npm pack Karel identity changed')
   }
   if (pack.entryCount !== files.length) {
