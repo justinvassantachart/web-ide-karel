@@ -8,12 +8,18 @@ tags, and capability bindings remain unchanged. The packages remain
 `hamilton.python-karel/3`.
 
 The current forward-only release workflow targets package `0.3.2`, annotated
-source tag `web-ide-karel-v0.3.2-source`, Hamilton release tag
+source tag `web-ide-karel-v0.3.2-source-r2`, Hamilton release tag
 `web-ide-karel-v0.3.2`, exact Web IDE `0.3.1`, and capability release
 `hamilton.python-karel/5`. These inputs do not themselves establish a release:
 the final source commit/tag objects, candidate digests, manifest identity, and
 uploaded asset hashes exist only after the complete final workflow succeeds.
 No `0.3.2` tag or release is created by the checked-in scripts.
+The earlier `web-ide-karel-v0.3.2-source` tag is retained as an abandoned
+prepublication checkpoint: its first formal receipt capture failed closed
+before running a gate because the capture entrypoint selected the historical
+Web IDE candidate identity. No Hamilton release or uploaded asset was created
+from that tag. The `-r2` source fixes that validator routing and remains the
+only finalizable `0.3.2` source.
 
 The packed-production consumer commits one npm v3 lock for the stable local
 references `artifacts/web-ide.tgz` and `artifacts/web-ide-karel.tgz`. Validation

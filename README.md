@@ -394,7 +394,7 @@ the historical release records and post-publication compatibility boundary.
 
 The checked-in release tooling targets the forward-only `0.3.2` successor.
 `npm run release:candidate` in its default `final` mode requires a clean,
-pushed `main`, the pushed annotated `web-ide-karel-v0.3.2-source` tag at
+pushed `main`, the pushed annotated `web-ide-karel-v0.3.2-source-r2` tag at
 `HEAD`, the exact Node/npm toolchain, an absent external output path, and the
 exact finalized Web IDE `0.3.1` candidate state and tarball.
 It verifies the canonical Web candidate state, runtime-assets report, tar

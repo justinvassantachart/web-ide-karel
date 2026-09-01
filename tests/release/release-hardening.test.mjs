@@ -29,6 +29,9 @@ import {
 import {
   normalizeValidationLogBytes,
 } from '../../scripts/release/validation-log-normalization.mjs'
+import {
+  candidateIdentityForConfiguration,
+} from '../../scripts/release/web-ide-candidate-evidence.mjs'
 
 const temporaryDirectories = []
 
@@ -49,6 +52,25 @@ function processIsAlive(processId) {
 }
 
 describe('exact packed consumer contract', () => {
+  it('routes release capture through the configured Web IDE candidate identity', async () => {
+    expect(candidateIdentityForConfiguration({
+      webIDE: { package: 'web-ide@0.3.1' },
+    })).toMatchObject({
+      package: 'web-ide@0.3.1',
+      capabilityReleaseId: 'hamilton.python/2',
+      sourceTag: 'web-ide-v0.3.1-source',
+    })
+
+    const captureSource = await readFile(path.join(
+      repositoryRoot,
+      'scripts/release/capture-validation-gate.mjs',
+    ), 'utf8')
+    expect(captureSource).toContain(
+      'candidateIdentityForConfiguration(configuration)',
+    )
+    expect(captureSource).toContain('configuration.webIDE.sourceTag')
+  })
+
   it('rejects manifest/root drift and behavior-affecting artifact lock fields', async () => {
     const manifest = JSON.parse(await readFile(path.join(
       repositoryRoot,

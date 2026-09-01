@@ -18,7 +18,7 @@ const ACTIVE_KAREL_IDENTITY = Object.freeze({
   package: '@web-ide/karel@0.3.2',
   capabilityReleaseId: 'hamilton.python-karel/5',
   packageRole: 'karel',
-  sourceTag: 'web-ide-karel-v0.3.2-source',
+  sourceTag: 'web-ide-karel-v0.3.2-source-r2',
   releaseAssetFilename: 'web-ide-karel-0.3.2.tgz',
 })
 
