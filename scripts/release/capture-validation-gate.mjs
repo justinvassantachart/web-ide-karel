@@ -17,7 +17,10 @@ import {
   sha512IntegrityBytes,
 } from './release-utils.mjs'
 import { verifyReleaseSourceState } from './source-state.mjs'
-import { validateWebIDECandidateState } from './web-ide-candidate-evidence.mjs'
+import {
+  candidateIdentityForConfiguration,
+  validateWebIDECandidateState,
+} from './web-ide-candidate-evidence.mjs'
 import {
   captureValidationGate,
   scrubbedValidationEnvironment,
@@ -101,7 +104,12 @@ const { value: webState } = await readCanonicalJSONBounded(
   4 * 1024 * 1024,
   'Web IDE validation candidate state',
 )
-validateWebIDECandidateState(webState, 'final')
+validateWebIDECandidateState(
+  webState,
+  'final',
+  configuration.webIDE.sourceTag,
+  candidateIdentityForConfiguration(configuration),
+)
 const webArtifact = webState.artifacts.find(
   (artifact) => artifact.fileName === configuration.webIDE.releaseAssetFilename,
 )

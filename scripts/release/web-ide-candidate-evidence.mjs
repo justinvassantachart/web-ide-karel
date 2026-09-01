@@ -40,7 +40,7 @@ export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
   }),
 })
 
-function candidateIdentityForConfiguration(configuration) {
+export function candidateIdentityForConfiguration(configuration) {
   const identity = Object.values(WEB_IDE_CANDIDATE_IDENTITIES).find(
     (candidate) => candidate.package === configuration?.webIDE?.package,
   )
