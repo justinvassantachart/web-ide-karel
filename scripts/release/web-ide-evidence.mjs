@@ -100,7 +100,7 @@ const WEB_IDE_FINAL_IDENTITIES = Object.freeze({
       'hamilton.python/4',
     ]),
     peerRange: '>=0.3.0 <0.4.0 || 0.4.0',
-    sourceTag: 'web-ide-v0.4.0-source-r2',
+    sourceTag: 'web-ide-v0.4.0-source-r3',
     sourceAssetFilename: 'web-ide-0.4.0-source.tar.gz',
     releaseAssetFilename: 'web-ide-0.4.0.tgz',
   }),

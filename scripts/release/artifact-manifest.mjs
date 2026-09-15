@@ -66,7 +66,7 @@ const KAREL_ARTIFACT_IDENTITIES = Object.freeze({
   '0.3.3': Object.freeze({
     version: '0.3.3',
     capabilityReleaseIds: Object.freeze(['hamilton.python-karel/8']),
-    sourceTag: 'web-ide-karel-v0.3.3-source-r2',
+    sourceTag: 'web-ide-karel-v0.3.3-source-r3',
     sourceAssetFilename: 'web-ide-karel-0.3.3-source.tar.gz',
     releaseTag: 'web-ide-karel-v0.3.3',
     releaseAssetFilename: 'web-ide-karel-0.3.3.tgz',

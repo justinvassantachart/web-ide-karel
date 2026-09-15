@@ -226,7 +226,7 @@ the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
 The active Web peer source is bound to the annotated
-`web-ide-v0.4.0-source-r2` tag; its Hamilton asset release is
+`web-ide-v0.4.0-source-r3` tag; its Hamilton asset release is
 `web-ide-v0.4.0`. Those source and artifact identities are verified and
 referenced, never moved or rebound for this Karel-only successor.
 

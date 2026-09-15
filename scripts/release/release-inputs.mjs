@@ -39,7 +39,7 @@ export async function loadReleaseConfiguration() {
     input.capabilityReleaseId !== 'hamilton.python-karel/8'
     || input.packageRole !== 'karel'
     || input.sourceRepository !== 'https://github.com/justinvassantachart/web-ide-karel.git'
-    || input.sourceTag !== 'web-ide-karel-v0.3.3-source-r2'
+    || input.sourceTag !== 'web-ide-karel-v0.3.3-source-r3'
     || input.releaseRepository !== 'justinvassantachart/ths-ide'
     || input.releaseTag !== 'web-ide-karel-v0.3.3'
   ) {
@@ -69,7 +69,7 @@ export async function loadReleaseConfiguration() {
     input.webIDE.package !== 'web-ide@0.4.0'
     || input.webIDE.peerRange !== '>=0.3.0 <0.4.0 || 0.4.0'
     || input.webIDE.packageRole !== 'web-ide'
-    || input.webIDE.sourceTag !== 'web-ide-v0.4.0-source-r2'
+    || input.webIDE.sourceTag !== 'web-ide-v0.4.0-source-r3'
     || input.webIDE.releaseRepository !== 'justinvassantachart/ths-ide'
     || input.webIDE.releaseTag !== 'web-ide-v0.4.0'
     || input.webIDE.releaseAssetFilename !== 'web-ide-0.4.0.tgz'
