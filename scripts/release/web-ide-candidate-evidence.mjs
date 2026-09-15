@@ -24,6 +24,7 @@ export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
     version: '0.3.0',
     package: 'web-ide@0.3.0',
     capabilityReleaseId: 'hamilton.python-karel/2',
+    peerRange: '>=0.3.0 <0.4.0',
     sourceTag: 'web-ide-v0.3.0-source',
     releaseAssetFilename: 'web-ide-0.3.0.tgz',
     sourceAssetFilename: 'web-ide-0.3.0-source.tar.gz',
@@ -33,10 +34,21 @@ export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
     version: '0.3.1',
     package: 'web-ide@0.3.1',
     capabilityReleaseId: 'hamilton.python/2',
+    peerRange: '>=0.3.0 <0.4.0',
     sourceTag: 'web-ide-v0.3.1-source',
     releaseAssetFilename: 'web-ide-0.3.1.tgz',
     sourceAssetFilename: 'web-ide-0.3.1-source.tar.gz',
     sbomFilename: 'web-ide-0.3.1.cdx.json',
+  }),
+  '0.4.0': Object.freeze({
+    version: '0.4.0',
+    package: 'web-ide@0.4.0',
+    capabilityReleaseId: 'hamilton.python/3',
+    peerRange: '>=0.3.0 <0.4.0 || 0.4.0',
+    sourceTag: 'web-ide-v0.4.0-source',
+    releaseAssetFilename: 'web-ide-0.4.0.tgz',
+    sourceAssetFilename: 'web-ide-0.4.0-source.tar.gz',
+    sbomFilename: 'web-ide-0.4.0.cdx.json',
   }),
 })
 
@@ -50,13 +62,19 @@ export function candidateIdentityForConfiguration(configuration) {
   return identity
 }
 
+const PAIRED_KAREL_VERSIONS = Object.freeze({
+  '0.3.0': '0.3.1',
+  '0.3.1': '0.3.2',
+  '0.4.0': '0.3.3',
+})
+
 function karelVersionForConfiguration(configuration, webIDEIdentity) {
   const prefix = '@web-ide/karel@'
   if (typeof configuration?.package === 'string'
     && configuration.package.startsWith(prefix)) {
     return configuration.package.slice(prefix.length)
   }
-  return webIDEIdentity.version === '0.3.1' ? '0.3.2' : '0.3.1'
+  return PAIRED_KAREL_VERSIONS[webIDEIdentity.version]
 }
 
 function candidateArtifacts(identity) {
@@ -297,7 +315,7 @@ export function validateWebIDECandidateReport(report, configuration) {
     report.package.name !== 'web-ide'
     || report.package.version !== identity.version
     || report.package.peerRange
-      !== (configuration?.webIDE.peerRange ?? '>=0.3.0 <0.4.0')
+      !== (configuration?.webIDE.peerRange ?? identity.peerRange)
     || report.package.license !== 'MIT'
   ) throw new TypeError('Web IDE candidate verification package is wrong')
   assertExactKeys(report.candidateState, [

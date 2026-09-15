@@ -29,8 +29,8 @@ import { validateProductionConsumerLock } from './release/consumer-lock.mjs'
 
 const successorProfileInput = process.env.KAREL_RELEASE_WEB_IDE_SUCCESSOR
 const successorMode = successorProfileInput === '0.3.1'
-const expectedWebIDEVersion = '0.3.1'
-const expectedKarelVersion = successorMode ? '0.3.1' : '0.3.2'
+const expectedWebIDEVersion = successorMode ? '0.3.1' : '0.4.0'
+const expectedKarelVersion = successorMode ? '0.3.1' : '0.3.3'
 const EXPECTED_VERSIONS = Object.freeze({
   '@web-ide/karel': expectedKarelVersion,
   'web-ide': expectedWebIDEVersion,
@@ -38,7 +38,7 @@ const EXPECTED_VERSIONS = Object.freeze({
 const EXPECTED_KAREL_PEERS = Object.freeze({
   react: '^18.3.0 || ^19.0.0',
   'react-dom': '^18.3.0 || ^19.0.0',
-  'web-ide': '>=0.3.0 <0.4.0',
+  'web-ide': successorMode ? '>=0.3.0 <0.4.0' : '>=0.3.0 <0.4.0 || 0.4.0',
 })
 const EXPECTED_REACT_VERSION = '19.2.8'
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url))

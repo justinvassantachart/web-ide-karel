@@ -52,6 +52,27 @@ export const EXPECTED_KAREL_PACKAGE_FILES = Object.freeze([
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true })
 
+// Each packed Karel version keeps its own exact peer contract. 0.3.3 is the
+// first version whose Web IDE peer admits the one reviewed 0.4.0 build; the
+// immutable 0.3.1 and 0.3.2 artifacts keep the published 0.3.x-only range.
+const KAREL_WEB_IDE_PEER_CONTRACTS = Object.freeze({
+  '0.3.1': Object.freeze({
+    react: '^18.3.0 || ^19.0.0',
+    'react-dom': '^18.3.0 || ^19.0.0',
+    'web-ide': '>=0.3.0 <0.4.0',
+  }),
+  '0.3.2': Object.freeze({
+    react: '^18.3.0 || ^19.0.0',
+    'react-dom': '^18.3.0 || ^19.0.0',
+    'web-ide': '>=0.3.0 <0.4.0',
+  }),
+  '0.3.3': Object.freeze({
+    react: '^18.3.0 || ^19.0.0',
+    'react-dom': '^18.3.0 || ^19.0.0',
+    'web-ide': '>=0.3.0 <0.4.0 || 0.4.0',
+  }),
+})
+
 const EXPECTED_KAREL_SCRIPTS = {
   build: 'npm run build:library && npm run build:example',
   'build:library': 'vite build',
@@ -561,7 +582,7 @@ function inspectKarelTarball(tarballBytes, { expectedManifest } = {}) {
   )
   if (
     manifest.name !== '@web-ide/karel'
-    || !['0.3.1', '0.3.2'].includes(manifest.version)
+    || !Object.hasOwn(KAREL_WEB_IDE_PEER_CONTRACTS, manifest.version)
     || manifest.private !== true
     || manifest.license !== 'MIT'
   ) throw new TypeError('Packed Karel package identity, private flag, or license changed')
@@ -596,11 +617,7 @@ function inspectKarelTarball(tarballBytes, { expectedManifest } = {}) {
     expectedManifest !== undefined
     && canonicalJSONString(manifest) !== canonicalJSONString(expectedManifest)
   ) throw new TypeError('Packed Karel manifest differs from the exact committed source manifest')
-  const expectedPeers = {
-    react: '^18.3.0 || ^19.0.0',
-    'react-dom': '^18.3.0 || ^19.0.0',
-    'web-ide': '>=0.3.0 <0.4.0',
-  }
+  const expectedPeers = KAREL_WEB_IDE_PEER_CONTRACTS[manifest.version]
   if (JSON.stringify(manifest.peerDependencies) !== JSON.stringify(expectedPeers)) {
     throw new TypeError('Packed Karel peer dependency contract changed')
   }

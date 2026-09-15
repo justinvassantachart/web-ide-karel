@@ -69,6 +69,21 @@ const WEB_IDE_LOCK_IDENTITIES = Object.freeze({
       'react-dom': '^18.3.0 || ^19.0.0',
     },
   }),
+  // Web IDE 0.4.0 consumes the published debugger-sh fork, so the packed
+  // consumer graph resolves a different registry entry than every 0.3.x pair.
+  '0.4.0': Object.freeze({
+    version: '0.4.0',
+    resolved: 'file:artifacts/web-ide.tgz',
+    license: 'MIT',
+    peer: true,
+    workspaces: ['examples/basic', 'examples/plugin-demo'],
+    dependencies: { 'debugger-sh': '0.3.15-webide.0.4.0.1' },
+    engines: { node: '^20.19.0 || >=22.12.0' },
+    peerDependencies: {
+      react: '^18.3.0 || ^19.0.0',
+      'react-dom': '^18.3.0 || ^19.0.0',
+    },
+  }),
 })
 
 const KAREL_LOCK_IDENTITIES = Object.freeze({
@@ -94,6 +109,17 @@ const KAREL_LOCK_IDENTITIES = Object.freeze({
       'web-ide': '>=0.3.0 <0.4.0',
     },
   }),
+  '0.3.3': Object.freeze({
+    version: '0.3.3',
+    resolved: 'file:artifacts/web-ide-karel.tgz',
+    license: 'MIT',
+    engines: { node: '>=20', python: '>=3.10' },
+    peerDependencies: {
+      react: '^18.3.0 || ^19.0.0',
+      'react-dom': '^18.3.0 || ^19.0.0',
+      'web-ide': '>=0.3.0 <0.4.0 || 0.4.0',
+    },
+  }),
 })
 
 // This digest closes the complete reviewed npm v3 lock graph while permitting
@@ -109,6 +135,15 @@ const EXPECTED_NORMALIZED_LOCK_SHA256 = Object.freeze({
   '0.3.1/0.3.1': 'b48dce1a17929456f6ba845164fe493eba0bc7698f6755548cfa5d04f452cb11',
   '0.3.1/0.3.2': 'bf2e7e288a41267478b6da44ae761fd9b3e61030443bb2560acc7bb397bb7383',
 })
+
+// The 0.4.0/0.3.3 pair is a recognized successor composition whose reviewed
+// normalized lock graph cannot exist yet: it depends both on the exact final
+// Web IDE 0.4.0 candidate and on the registry entry for its published
+// debugger-sh 0.3.15-webide.0.4.0.1 dependency. Recognizing the pair keeps the
+// identity, peer, and integrity checks above exact and testable; the digest
+// stays unbound so no final-mode use can pass before the committed consumer
+// lock is regenerated against those exact bytes and reviewed.
+const UNBOUND_NORMALIZED_LOCK_PAIRS = Object.freeze(['0.4.0/0.3.3'])
 
 function assertSha512Integrity(value, location) {
   if (typeof value !== 'string' || !value.startsWith('sha512-')) {
@@ -192,8 +227,8 @@ export function validateProductionConsumerLock(
     karelIntegrity,
     requireWebIDEIntegrity = false,
     requireKarelIntegrity = false,
-    webIDEVersion = '0.3.1',
-    karelVersion = '0.3.2',
+    webIDEVersion = '0.4.0',
+    karelVersion = '0.3.3',
   } = {},
 ) {
   const expectedWebIDE = WEB_IDE_LOCK_IDENTITIES[webIDEVersion]
@@ -246,10 +281,13 @@ export function validateProductionConsumerLock(
   const normalizedDigest = sha256Bytes(Buffer.from(
     canonicalJSONString(normalizedLock),
   ))
-  if (
-    normalizedDigest
-      !== EXPECTED_NORMALIZED_LOCK_SHA256[`${webIDEVersion}/${karelVersion}`]
-  ) {
+  const pair = `${webIDEVersion}/${karelVersion}`
+  if (UNBOUND_NORMALIZED_LOCK_PAIRS.includes(pair)) {
+    throw new TypeError(
+      `Packed consumer reviewed normalized lock digest for the ${pair} pair is not bound yet: regenerate tests/production/consumer/package-lock.json against the exact final candidate pair and its published debugger-sh dependency, then commit the reviewed digest`,
+    )
+  }
+  if (normalizedDigest !== EXPECTED_NORMALIZED_LOCK_SHA256[pair]) {
     throw new TypeError(
       'Packed consumer complete transitive lock graph differs from the reviewed contract',
     )

@@ -21,11 +21,26 @@ const EXPECTED_EXPORTS = {
   './package.json': './package.json',
 }
 
-const EXPECTED_PEERS = {
-  react: '^18.3.0 || ^19.0.0',
-  'react-dom': '^18.3.0 || ^19.0.0',
-  'web-ide': '>=0.3.0 <0.4.0',
-}
+// 0.3.3 widens the Web IDE peer to admit the one reviewed 0.4.0 build in
+// addition to the historical 0.3.x range. The immutable 0.3.1 and 0.3.2
+// manifests keep their own published peer contract.
+const EXPECTED_PEERS_BY_VERSION = Object.freeze({
+  '0.3.1': Object.freeze({
+    react: '^18.3.0 || ^19.0.0',
+    'react-dom': '^18.3.0 || ^19.0.0',
+    'web-ide': '>=0.3.0 <0.4.0',
+  }),
+  '0.3.2': Object.freeze({
+    react: '^18.3.0 || ^19.0.0',
+    'react-dom': '^18.3.0 || ^19.0.0',
+    'web-ide': '>=0.3.0 <0.4.0',
+  }),
+  '0.3.3': Object.freeze({
+    react: '^18.3.0 || ^19.0.0',
+    'react-dom': '^18.3.0 || ^19.0.0',
+    'web-ide': '>=0.3.0 <0.4.0 || 0.4.0',
+  }),
+})
 
 const KAREL_ARTIFACT_IDENTITIES = Object.freeze({
   '0.3.1': Object.freeze({
@@ -47,6 +62,16 @@ const KAREL_ARTIFACT_IDENTITIES = Object.freeze({
     releaseAssetFilename: 'web-ide-karel-0.3.2.tgz',
     sbomFilename: 'web-ide-karel-0.3.2.cdx.json',
     webIDEVersion: '0.3.1',
+  }),
+  '0.3.3': Object.freeze({
+    version: '0.3.3',
+    capabilityReleaseIds: Object.freeze(['hamilton.python-karel/7']),
+    sourceTag: 'web-ide-karel-v0.3.3-source',
+    sourceAssetFilename: 'web-ide-karel-0.3.3-source.tar.gz',
+    releaseTag: 'web-ide-karel-v0.3.3',
+    releaseAssetFilename: 'web-ide-karel-0.3.3.tgz',
+    sbomFilename: 'web-ide-karel-0.3.3.cdx.json',
+    webIDEVersion: '0.4.0',
   }),
 })
 
@@ -173,7 +198,7 @@ export function validateArtifactManifest(manifest) {
     || canonicalJSONString(manifest.package.exports)
       !== canonicalJSONString(EXPECTED_EXPORTS)
     || canonicalJSONString(manifest.package.peerDependencies)
-      !== canonicalJSONString(EXPECTED_PEERS)
+      !== canonicalJSONString(EXPECTED_PEERS_BY_VERSION[identity.version])
   ) throw new TypeError('Karel artifact manifest package contract is wrong')
   assertSourceFile(
     manifest.package.manifest,

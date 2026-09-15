@@ -206,8 +206,12 @@ authorization, or trusted-execution boundary.
 
 ## Package and distribution boundary
 
-The source package is MIT-licensed `@web-ide/karel@0.3.2`, remains
-`private: true`, and declares Web IDE `>=0.3.0 <0.4.0` as a peer. React, React
+The source package is MIT-licensed `@web-ide/karel@0.3.3`, remains
+`private: true`, and declares Web IDE `>=0.3.0 <0.4.0 || 0.4.0` as a peer. The
+trailing `|| 0.4.0` is a metadata-only widening that admits exactly the one
+reviewed Web IDE `0.4.0` build; later `0.4.x` and `0.5` stay excluded until
+they are reviewed. No Karel runtime behavior, world format, or formative
+semantics changed for it. React, React
 DOM, and Web IDE are external to the library bundle. The sibling
 `file:../web-ide` development dependency exists only to build and test paired
 source checkouts; it is not a release or host dependency path.
@@ -222,8 +226,8 @@ the adjacent Web IDE and current Karel checkout. No manifest is rewritten at
 runtime and no cache, sibling package, compatible range, or npm publication can
 substitute different bytes.
 The active Web peer source is bound to the annotated
-`web-ide-v0.3.1-source` tag; its immutable Hamilton asset release is
-`web-ide-v0.3.1`. Those source and artifact identities are verified and
+`web-ide-v0.4.0-source` tag; its Hamilton asset release is
+`web-ide-v0.4.0`. Those source and artifact identities are verified and
 referenced, never moved or rebound for this Karel-only successor.
 
 An additive post-publication profile attests the already-released Karel
@@ -233,7 +237,7 @@ tarball and Web IDE's exact candidate through the separately committed
 `release/web-ide-0.3.1-compatibility.package-lock.json`. The full packed
 production/browser consumer emits Web IDE's existing schema-2 compatibility
 receipt only after success. This historical profile does not alter either the
-active `0.3.2` pair or the original Web IDE `0.3.0` lock, Karel `0.3.1`
+active `0.3.3` pair or the original Web IDE `0.3.0` lock, Karel `0.3.1`
 release evidence, package, or capability binding.
 
 Release evidence is external output produced by `scripts/release/`; it is not a
@@ -250,14 +254,14 @@ capture-runner validation logs with deterministic local-path placeholders and
 actual-exit/source/candidate-pair-bound receipts, intended private Hamilton
 release assets, and an unchanged live
 source identity immediately before atomic final publication. The accepted
-composition identity `hamilton.python-karel/5` appears only in release
+composition identity `hamilton.python-karel/7` appears only in release
 metadata; it does not enter Karel's public runtime or world contracts. The
 schema-2 Karel artifact manifest binds the exact sorted singleton
-`capabilityReleaseIds` list `['hamilton.python-karel/5']`; Web IDE `0.3.1`'s
-separately owned immutable schema-2 manifest retains
-`hamilton.python-karel/4` and `hamilton.python/2`. The older Karel `0.3.1` and
-Web IDE `0.3.0` identities remain confined to their frozen historical
-validators and evidence.
+`capabilityReleaseIds` list `['hamilton.python-karel/7']`; Web IDE `0.4.0`'s
+separately owned schema-2 manifest carries
+`hamilton.python-karel/6` and `hamilton.python/3`. The older Karel `0.3.2`,
+`0.3.1` and Web IDE `0.3.1`, `0.3.0` identities remain confined to their frozen
+historical validators and evidence.
 The final artifact manifest uses the slash-free
 `urn:sha256:<canonical-manifest-input>` content identity also used by Web IDE.
 That digest covers every manifest field except `manifestId` itself, binding the

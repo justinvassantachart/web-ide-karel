@@ -328,10 +328,21 @@ export async function webIDECompatibilityReceipt(inputs) {
   })).receipt
 }
 
+// The frozen post-publication capture keeps Web IDE 0.3.1 against the
+// immutable Karel 0.3.1 release; the active pair is Web IDE 0.4.0 with the
+// 0.3.3 candidate. Both emit the same receipt contract.
 export async function webIDESuccessorCompatibilityReceipt(inputs) {
   return await webIDECompatibilityReceiptForIdentity({
     ...inputs,
     identity: WEB_IDE_CANDIDATE_IDENTITIES['0.3.1'],
+    emitter: WEB_IDE_SUCCESSOR_COMPATIBILITY_EMITTER,
+  })
+}
+
+export async function webIDEActiveCompatibilityReceipt(inputs) {
+  return await webIDECompatibilityReceiptForIdentity({
+    ...inputs,
+    identity: WEB_IDE_CANDIDATE_IDENTITIES['0.4.0'],
     emitter: WEB_IDE_SUCCESSOR_COMPATIBILITY_EMITTER,
   })
 }

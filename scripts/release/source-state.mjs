@@ -209,7 +209,7 @@ export async function sourceArchiveBytes(
       'tar.umask=0002',
       'archive',
       '--format=tar',
-      '--prefix=web-ide-karel-0.3.2/',
+      '--prefix=web-ide-karel-0.3.3/',
       reference,
     ]), {
       cwd: root,

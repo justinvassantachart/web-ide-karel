@@ -320,7 +320,7 @@ export async function captureValidationGate({
       const receipt = {
         schemaVersion: 2,
         receiptKind: 'karel-release-validation-gate-capture',
-        package: '@web-ide/karel@0.3.2',
+        package: '@web-ide/karel@0.3.3',
         sourceCommit,
         candidateSha256,
         webIDECandidateSha256,

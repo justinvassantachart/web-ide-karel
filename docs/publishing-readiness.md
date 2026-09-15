@@ -1,28 +1,30 @@
 # Publishing readiness
 
-`@web-ide/karel@0.2.0` r6, `0.3.0`, and `0.3.1` are MIT-licensed immutable
-private releases. Their exact release evidence, source tags, Hamilton release
-tags, and capability bindings remain unchanged. The packages remain
+`@web-ide/karel@0.2.0` r6, `0.3.0`, `0.3.1`, and `0.3.2` are MIT-licensed
+immutable private releases. Their exact release evidence, source tags, Hamilton
+release tags, and capability bindings remain unchanged. The packages remain
 `private: true` and are not published to npm; `0.3.0` stays bound to
-`hamilton.python-karel/2` and `0.3.1` stays bound to
-`hamilton.python-karel/3`.
+`hamilton.python-karel/2`, `0.3.1` stays bound to `hamilton.python-karel/3`,
+and `0.3.2` stays bound to `hamilton.python-karel/5` with its published
+`>=0.3.0 <0.4.0` peer range, annotated source tag
+`web-ide-karel-v0.3.2-source-r3`, and Hamilton release tag
+`web-ide-karel-v0.3.2`. The abandoned `web-ide-karel-v0.3.2-source` and `-r2`
+prepublication checkpoints remain retained and unreleased.
 
-The current forward-only release workflow targets package `0.3.2`, annotated
-source tag `web-ide-karel-v0.3.2-source-r3`, Hamilton release tag
-`web-ide-karel-v0.3.2`, exact Web IDE `0.3.1`, and capability release
-`hamilton.python-karel/5`. These inputs do not themselves establish a release:
+The current forward-only release workflow targets package `0.3.3`, annotated
+source tag `web-ide-karel-v0.3.3-source`, Hamilton release tag
+`web-ide-karel-v0.3.3`, exact Web IDE `0.4.0`, and capability release
+`hamilton.python-karel/7`. These inputs do not themselves establish a release:
 the final source commit/tag objects, candidate digests, manifest identity, and
 uploaded asset hashes exist only after the complete final workflow succeeds.
-No `0.3.2` tag or release is created by the checked-in scripts.
-The earlier `web-ide-karel-v0.3.2-source` tag is retained as an abandoned
-prepublication checkpoint: its first formal receipt capture failed closed
-before running a gate because the capture entrypoint selected the historical
-Web IDE candidate identity. No Hamilton release or uploaded asset was created
-from that tag. The `-r2` source fixed that validator routing, then failed closed
-during candidate generation because its updated packaged documentation changed
-the tarball while the exact consumer lock still named the prior candidate.
-No release or upload was created from `-r2`. The `-r3` source binds the newly
-computed tarball integrity and remains the only finalizable `0.3.2` source.
+No `0.3.3` tag or release is created by the checked-in scripts.
+
+`0.3.3` is a compatibility-only successor. Its Web IDE peer range widens to
+`>=0.3.0 <0.4.0 || 0.4.0`, admitting exactly the one reviewed Web IDE `0.4.0`
+build and no later `0.4.x` or `0.5`. No packaged runtime, declaration, Python,
+or world file changed from `0.3.2`; the packaged manifest and documentation
+did, so the candidate tarball bytes and the committed consumer lock still have
+to be regenerated and reviewed in final mode.
 
 The packed-production consumer commits one npm v3 lock for the stable local
 references `artifacts/web-ide.tgz` and `artifacts/web-ide-karel.tgz`. Validation
@@ -33,12 +35,12 @@ Web IDE and current Karel checkouts. A release-candidate pair can be checked
 without rebuilding it:
 
 ```sh
-WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.3.1.tgz \
-KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.2.tgz \
+WEB_IDE_CANDIDATE_TARBALL=/absolute/path/web-ide-0.4.0.tgz \
+KAREL_CANDIDATE_TARBALL=/absolute/path/web-ide-karel-0.3.3.tgz \
   npm run test:packed-production
 ```
 
-The `0.3.2` artifact must independently produce all of the following evidence
+The `0.3.3` artifact must independently produce all of the following evidence
 for its exact digest:
 
 - a reviewed per-file license/provenance inventory and production SBOM;
@@ -60,9 +62,11 @@ The completed forward-only evidence run used
 immutable.
 
 The historical capability identifiers remain recorded only in their immutable
-evidence, not in package runtime contracts. The `0.3.2` Karel artifact manifest
+evidence, not in package runtime contracts. The `0.3.3` Karel artifact manifest
 uses schema 2 and the exact sorted singleton `capabilityReleaseIds` list
-`["hamilton.python-karel/5"]`; the exact Web IDE `0.3.1` peer manifest retains
+`["hamilton.python-karel/7"]`; the exact Web IDE `0.4.0` peer manifest is
+expected to carry `["hamilton.python-karel/6", "hamilton.python/3"]`, and the
+immutable Web IDE `0.3.1` manifest retains
 `["hamilton.python-karel/4", "hamilton.python/2"]`. Published URLs,
 credentials, and host cache state remain distribution-owned records and are
 not embedded in the package.
@@ -70,7 +74,7 @@ not embedded in the package.
 ## Deterministic evidence and dependency order
 
 The checked-in `release/` inputs and `scripts/release/` tooling define the
-forward-only `0.3.2` fail-closed workflow. Candidate generation binds
+forward-only `0.3.3` fail-closed workflow. Candidate generation binds
 the canonical Web IDE candidate state, exact Web tarball, Web-owned runtime
 verification report, committed consumer lock, exact pushed/tagged Karel source,
 two isolated byte-identical Karel packs, independent safe tar inventory,
@@ -79,8 +83,10 @@ outputs are external and it performs no tag, release, or upload mutation.
 
 The sequence is intentionally:
 
-1. generate Web IDE's final candidate state, tarball, and runtime report from
-   its exact annotated `web-ide-v0.3.1-source` tag;
+1. publish the forked `debugger-sh@0.3.15-webide.0.4.0.1` runtime dependency
+   that Web IDE `0.4.0` resolves, then generate Web IDE's final candidate
+   state, tarball, and runtime report from its exact annotated
+   `web-ide-v0.4.0-source` tag;
 2. commit the exact Web candidate into Karel's packed-consumer lock and generate
    the exact Karel candidate;
 3. run the unfiltered exact-pair compatibility gate through the isolated capture
@@ -103,10 +109,20 @@ runtime-reference, and intended-distribution record is content-bound without
 placing the slash-bearing capability release ID in Hamilton's artifact-ID
 namespace.
 
-The committed packed-consumer lock binds the locally frozen `0.3.2` Karel
-candidate bytes and the already finalized Web IDE `0.3.1` bytes. Both entries use
-their exact SHA-512 values; the unchanged Web artifact and manifest are
-verified as peer evidence without being moved or rebound.
+The committed packed-consumer lock still binds the published `0.3.2` Karel and
+Web IDE `0.3.1` bytes. The `0.4.0`/`0.3.3` pair is a recognized successor
+composition whose identity, peer, and integrity checks are exact, while its
+reviewed normalized-graph digest is deliberately unbound. That digest changes
+with both the exact final Web IDE `0.4.0` candidate and the registry entry for
+`debugger-sh@0.3.15-webide.0.4.0.1`, so the successor pair fails closed until
+the lock is regenerated against the exact final pair and its digest reviewed
+and committed.
+
+Three `0.4.0` inputs are Web IDE-owned and stay unbound in this source: the
+final Web `0.4.0` artifact manifest and sidecar, the reviewed `debugger-sh`
+fork source tag and commit, and the regenerated packed-consumer lock digest.
+Each fails closed with a message naming the missing binding; none is assumed
+or substituted.
 
 ## Lock regeneration boundary
 
@@ -118,7 +134,7 @@ commit, digest, or integrity printed in prose is release evidence. The actual
 source identities, candidate digests, lock bindings, and receipts belong only
 in the external canonical evidence directory and the downstream release
 ledger. Test-mode generation is disposable and cannot close this boundary.
-Rebinding the consumer lock to exact `0.3.2` candidate bytes proves
+Rebinding the consumer lock to exact `0.3.3` candidate bytes proves
 compatibility only; it is not publication evidence.
 
 ## Post-publication Web IDE 0.3.1 compatibility
@@ -135,7 +151,7 @@ candidate. Its reviewed source is identified by annotated tag
 This attestation does not regenerate Karel, move
 `web-ide-karel-v0.3.1-source`, change the Karel artifact manifest, or rebind
 `hamilton.python-karel/3`. The historical Web IDE `0.3.0` consumer lock remains
-part of the frozen original compatibility path, not the active `0.3.2` release
+part of the frozen original compatibility path, not the active `0.3.3` release
 tools. The successor capture is atomic,
 normalizes local paths, has a 90-second process timeout plus bounded cleanup,
 and emits the existing `karel:release-compatibility-gate@2` receipt contract

@@ -35,6 +35,14 @@ import {
 
 const temporaryDirectories = []
 
+// The committed active consumer lock still binds the published Web IDE 0.3.1
+// and Karel 0.3.2 artifact bytes; the 0.4.0/0.3.3 successor lock is rebound in
+// final mode against root's exact candidate pair.
+const PUBLISHED_PAIR = Object.freeze({
+  webIDEVersion: '0.3.1',
+  karelVersion: '0.3.2',
+})
+
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => (
     rm(directory, { recursive: true, force: true })
@@ -81,7 +89,8 @@ describe('exact packed consumer contract', () => {
       'tests/production/consumer/package-lock.json',
     ), 'utf8'))
     expect(validateProductionConsumerManifest(manifest)).toBe(manifest)
-    expect(validateProductionConsumerLock(lock).webIDE.binding).toBe('pending')
+    expect(validateProductionConsumerLock(lock, PUBLISHED_PAIR).webIDE.binding)
+      .toBe('pending')
 
     const manifestDrift = structuredClone(manifest)
     manifestDrift.dependencies.react = '19.2.7'
@@ -90,40 +99,45 @@ describe('exact packed consumer contract', () => {
 
     const extraRoot = structuredClone(lock)
     extraRoot.packages[''].link = true
-    expect(() => validateProductionConsumerLock(extraRoot))
+    expect(() => validateProductionConsumerLock(extraRoot, PUBLISHED_PAIR))
       .toThrow(/unknown field link/u)
 
     const installHook = structuredClone(lock)
     installHook.packages['node_modules/web-ide'].hasInstallScript = true
-    expect(() => validateProductionConsumerLock(installHook))
+    expect(() => validateProductionConsumerLock(installHook, PUBLISHED_PAIR))
       .toThrow(/unknown field hasInstallScript/u)
 
     const peerDrift = structuredClone(lock)
     peerDrift.packages['node_modules/@web-ide/karel']
       .peerDependencies['web-ide'] = '*'
-    expect(() => validateProductionConsumerLock(peerDrift))
+    expect(() => validateProductionConsumerLock(peerDrift, PUBLISHED_PAIR))
       .toThrow(/identity differs/u)
 
     const transitiveRegistryDrift = structuredClone(lock)
     transitiveRegistryDrift.packages['node_modules/vite'].resolved
       = 'https://unreviewed.example.invalid/vite-7.3.6.tgz'
-    expect(() => validateProductionConsumerLock(transitiveRegistryDrift))
-      .toThrow(/complete transitive lock graph/u)
+    expect(() => validateProductionConsumerLock(
+      transitiveRegistryDrift,
+      PUBLISHED_PAIR,
+    )).toThrow(/complete transitive lock graph/u)
 
     const transitiveLifecycleHook = structuredClone(lock)
     transitiveLifecycleHook.packages['node_modules/vite'].hasInstallScript = true
-    expect(() => validateProductionConsumerLock(transitiveLifecycleHook))
-      .toThrow(/complete transitive lock graph/u)
+    expect(() => validateProductionConsumerLock(
+      transitiveLifecycleHook,
+      PUBLISHED_PAIR,
+    )).toThrow(/complete transitive lock graph/u)
 
     const extraGitNode = structuredClone(lock)
     extraGitNode.packages['node_modules/unreviewed-git-package'] = {
       version: '1.0.0',
       resolved: 'git+https://github.com/example/unreviewed.git#deadbeef',
     }
-    expect(() => validateProductionConsumerLock(extraGitNode))
+    expect(() => validateProductionConsumerLock(extraGitNode, PUBLISHED_PAIR))
       .toThrow(/complete transitive lock graph/u)
 
     expect(() => validateProductionConsumerLock(lock, {
+      ...PUBLISHED_PAIR,
       webIDEIntegrity: `sha512-${Buffer.alloc(64, 9).toString('base64')}`,
       requireWebIDEIntegrity: true,
     })).toThrow(/integrity is not exact/u)
@@ -138,7 +152,7 @@ describe('exact packed consumer contract', () => {
       repositoryRoot,
       'release/web-ide-0.3.1-compatibility.package-lock.json',
     ), 'utf8'))
-    expect(validateProductionConsumerLock(active).webIDE.binding)
+    expect(validateProductionConsumerLock(active, PUBLISHED_PAIR).webIDE.binding)
       .toBe('pending')
     expect(validateProductionConsumerLock(successor, {
       webIDEVersion: '0.3.1',
@@ -148,6 +162,41 @@ describe('exact packed consumer contract', () => {
     )
     expect(() => validateProductionConsumerLock(successor))
       .toThrow(/locked release contract/u)
+  })
+
+  it('accepts the widened 0.4.0/0.3.3 peer contract and fails closed on its unbound lock digest', async () => {
+    const committed = JSON.parse(await readFile(path.join(
+      repositoryRoot,
+      'tests/production/consumer/package-lock.json',
+    ), 'utf8'))
+
+    function successorLock() {
+      const lock = structuredClone(committed)
+      const webIDE = lock.packages['node_modules/web-ide']
+      webIDE.version = '0.4.0'
+      webIDE.dependencies['debugger-sh'] = '0.3.15-webide.0.4.0.1'
+      const karel = lock.packages['node_modules/@web-ide/karel']
+      karel.version = '0.3.3'
+      karel.peerDependencies['web-ide'] = '>=0.3.0 <0.4.0 || 0.4.0'
+      return lock
+    }
+
+    // Identity, peer, and integrity checks all pass for the successor pair;
+    // only the reviewed normalized lock digest is still unbound.
+    expect(() => validateProductionConsumerLock(successorLock()))
+      .toThrow(/normalized lock digest for the 0\.4\.0\/0\.3\.3 pair is not bound yet/u)
+
+    const narrowPeer = successorLock()
+    narrowPeer.packages['node_modules/@web-ide/karel']
+      .peerDependencies['web-ide'] = '>=0.3.0 <0.4.0'
+    expect(() => validateProductionConsumerLock(narrowPeer))
+      .toThrow(/Karel lock entry identity differs/u)
+
+    const staleDebugger = successorLock()
+    staleDebugger.packages['node_modules/web-ide']
+      .dependencies['debugger-sh'] = '0.3.15'
+    expect(() => validateProductionConsumerLock(staleDebugger))
+      .toThrow(/Web IDE lock entry identity differs/u)
   })
 
   it('keeps the packed browser gate serial, retry-free, and process-isolated', async () => {

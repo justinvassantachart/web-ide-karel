@@ -201,7 +201,7 @@ const sbom = generateCycloneDx({
   webIDEEvidence,
 })
 await writeCanonicalJSON(
-  path.join(outputDirectory, 'web-ide-karel-0.3.2.cdx.json'),
+  path.join(outputDirectory, 'web-ide-karel-0.3.3.cdx.json'),
   sbom,
 )
 
@@ -212,7 +212,7 @@ const artifactFiles = [
   'license-inventory.json',
   'package-inspection.json',
   'THIRD_PARTY_LICENSES.txt',
-  'web-ide-karel-0.3.2.cdx.json',
+  'web-ide-karel-0.3.3.cdx.json',
   'web-ide-candidate-verification.json',
 ].sort()
 const artifacts = []

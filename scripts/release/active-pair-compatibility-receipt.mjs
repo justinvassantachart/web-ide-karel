@@ -12,14 +12,15 @@ import {
   readBoundedFile,
   sha256Bytes,
 } from './release-utils.mjs'
-import { webIDESuccessorCompatibilityReceipt } from './web-compatibility-receipt.mjs'
+import { webIDEActiveCompatibilityReceipt } from './web-compatibility-receipt.mjs'
 
 const ACTIVE_KAREL_IDENTITY = Object.freeze({
-  package: '@web-ide/karel@0.3.2',
-  capabilityReleaseId: 'hamilton.python-karel/5',
+  package: '@web-ide/karel@0.3.3',
+  capabilityReleaseId: 'hamilton.python-karel/7',
   packageRole: 'karel',
-  sourceTag: 'web-ide-karel-v0.3.2-source-r3',
-  releaseAssetFilename: 'web-ide-karel-0.3.2.tgz',
+  sourceTag: 'web-ide-karel-v0.3.3-source',
+  releaseAssetFilename: 'web-ide-karel-0.3.3.tgz',
+  version: '0.3.3',
 })
 
 async function verifyActiveKarelCandidate({ candidateStateInput, tarballInput }) {
@@ -99,7 +100,7 @@ async function verifyActiveKarelCandidate({ candidateStateInput, tarballInput })
     || artifacts[0].sha256 !== candidateSha256
   ) throw new TypeError('Karel active compatibility tarball does not match candidate state')
   const inspection = inspectExistingPackedPackage(tarballBytes)
-  if (inspection.manifest.version !== '0.3.2') {
+  if (inspection.manifest.version !== ACTIVE_KAREL_IDENTITY.version) {
     throw new TypeError('Karel active compatibility tarball version is wrong')
   }
   return {
@@ -116,7 +117,7 @@ export async function exactActivePairCompatibilityEvidence({
   karelTarballPath,
 }) {
   const [webIDE, karel] = await Promise.all([
-    webIDESuccessorCompatibilityReceipt({
+    webIDEActiveCompatibilityReceipt({
       candidateStatePath: webIDECandidateStatePath,
       tarballPath: webIDETarballPath,
     }),

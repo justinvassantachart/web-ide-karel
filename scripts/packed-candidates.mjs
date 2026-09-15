@@ -14,11 +14,17 @@ import {
   validateProductionConsumerManifest,
 } from './release/consumer-lock.mjs'
 
+const KAREL_WEB_IDE_PEER_RANGES = Object.freeze({
+  '0.3.1': '>=0.3.0 <0.4.0',
+  '0.3.2': '>=0.3.0 <0.4.0',
+  '0.3.3': '>=0.3.0 <0.4.0 || 0.4.0',
+})
+
 function packedCandidateSpecs(webIDEVersion, karelVersion) {
-  if (!['0.3.0', '0.3.1'].includes(webIDEVersion)) {
+  if (!['0.3.0', '0.3.1', '0.4.0'].includes(webIDEVersion)) {
     throw new TypeError(`Unsupported packed Web IDE version ${String(webIDEVersion)}`)
   }
-  if (!['0.3.1', '0.3.2'].includes(karelVersion)) {
+  if (!['0.3.1', '0.3.2', '0.3.3'].includes(karelVersion)) {
     throw new TypeError(`Unsupported packed Karel version ${String(karelVersion)}`)
   }
   return Object.freeze([
@@ -32,7 +38,7 @@ function packedCandidateSpecs(webIDEVersion, karelVersion) {
     Object.freeze({
       packageName: '@web-ide/karel',
       expectedVersion: karelVersion,
-      expectedWebIDEPeer: '>=0.3.0 <0.4.0',
+      expectedWebIDEPeer: KAREL_WEB_IDE_PEER_RANGES[karelVersion],
       reference: 'file:artifacts/web-ide-karel.tgz',
       destination: 'artifacts/web-ide-karel.tgz',
       lockPackagePath: 'node_modules/@web-ide/karel',
@@ -40,7 +46,7 @@ function packedCandidateSpecs(webIDEVersion, karelVersion) {
   ])
 }
 
-export const PACKED_CANDIDATE_SPECS = packedCandidateSpecs('0.3.1', '0.3.2')
+export const PACKED_CANDIDATE_SPECS = packedCandidateSpecs('0.4.0', '0.3.3')
 
 async function readJSON(file) {
   return JSON.parse(await readFile(file, 'utf8'))
@@ -67,7 +73,7 @@ function assertSha512Integrity(integrity, label) {
 
 export async function readPackedCandidateExpectations(
   consumerRoot,
-  { webIDEVersion = '0.3.1', karelVersion = '0.3.2' } = {},
+  { webIDEVersion = '0.4.0', karelVersion = '0.3.3' } = {},
 ) {
   const specs = packedCandidateSpecs(webIDEVersion, karelVersion)
   const manifest = await readJSON(path.join(consumerRoot, 'package.json'))
@@ -262,8 +268,8 @@ export async function withVerifiedPackedCandidates({
   consumerRoot,
   candidates,
   consume,
-  webIDEVersion = '0.3.1',
-  karelVersion = '0.3.2',
+  webIDEVersion = '0.4.0',
+  karelVersion = '0.3.3',
 }) {
   if (!path.isAbsolute(consumerRoot)) {
     throw new Error('Packed consumer root must be an absolute path')

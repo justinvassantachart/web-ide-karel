@@ -15,9 +15,19 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   isolatedNpmEnvironment,
+  PACKED_CANDIDATE_SPECS,
   reportAndCleanupPackedConsumer,
   withVerifiedPackedCandidates,
 } from '../../scripts/packed-candidates.mjs'
+
+// The committed consumer fixture still binds the published Web IDE 0.3.1 and
+// Karel 0.3.2 artifact bytes. The active 0.4.0/0.3.3 pair is rebound in final
+// mode against the exact final candidate pair, so these cases name the pair
+// the committed fixture actually contains.
+const COMMITTED_CONSUMER_PAIR = Object.freeze({
+  webIDEVersion: '0.3.1',
+  karelVersion: '0.3.2',
+})
 
 const temporaryRoots = []
 const repositoryRoot = path.resolve(
@@ -87,6 +97,7 @@ describe('withVerifiedPackedCandidates', () => {
 
     const verified = await withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
       candidates: fixture.candidates,
       consume,
     })
@@ -136,6 +147,7 @@ describe('withVerifiedPackedCandidates', () => {
 
     await expect(withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
       candidates: fixture.candidates,
       consume,
     })).rejects.toThrow(message)
@@ -162,6 +174,7 @@ describe('withVerifiedPackedCandidates', () => {
     const fixture = await createFixture(mutate)
     await expect(withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
       candidates: fixture.candidates,
       consume: vi.fn(),
     })).rejects.toThrow(message)
@@ -175,6 +188,7 @@ describe('withVerifiedPackedCandidates', () => {
 
     await expect(withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
       candidates: fixture.candidates,
       consume,
     })).rejects.toThrow(/canonical SHA-512 integrity/u)
@@ -195,6 +209,7 @@ describe('withVerifiedPackedCandidates', () => {
 
     await expect(withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
       candidates: {
         ...fixture.candidates,
         'web-ide': candidate(fixture),
@@ -211,6 +226,7 @@ describe('withVerifiedPackedCandidates', () => {
 
     await expect(withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
       candidates: fixture.candidates,
       consume,
     })).rejects.toThrow(/copied candidate integrity mismatch/u)
@@ -236,6 +252,7 @@ describe('withVerifiedPackedCandidates', () => {
 
     await expect(withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
       candidates: fixture.candidates,
       consume,
     })).rejects.toThrow(/copied candidate integrity mismatch/u)
@@ -244,6 +261,41 @@ describe('withVerifiedPackedCandidates', () => {
       fixture.consumerRoot,
       'artifacts/web-ide-karel.tgz',
     ))).rejects.toThrow()
+  })
+})
+
+describe('active packed candidate pair', () => {
+  it('requires the widened Web IDE peer range for the 0.3.3 successor', () => {
+    expect(PACKED_CANDIDATE_SPECS.map((spec) => ({
+      packageName: spec.packageName,
+      expectedVersion: spec.expectedVersion,
+      expectedWebIDEPeer: spec.expectedWebIDEPeer,
+    }))).toEqual([
+      {
+        packageName: 'web-ide',
+        expectedVersion: '0.4.0',
+        expectedWebIDEPeer: undefined,
+      },
+      {
+        packageName: '@web-ide/karel',
+        expectedVersion: '0.3.3',
+        expectedWebIDEPeer: '>=0.3.0 <0.4.0 || 0.4.0',
+      },
+    ])
+  })
+
+  it('rejects the widened peer range for the immutable 0.3.2 artifact', async () => {
+    const fixture = await createFixture(({ lock }) => {
+      lock.packages['node_modules/@web-ide/karel']
+        .peerDependencies['web-ide'] = '>=0.3.0 <0.4.0 || 0.4.0'
+    })
+
+    await expect(withVerifiedPackedCandidates({
+      consumerRoot: fixture.consumerRoot,
+      ...COMMITTED_CONSUMER_PAIR,
+      candidates: fixture.candidates,
+      consume: vi.fn(),
+    })).rejects.toThrow(/package-lock\.json Web IDE peer @web-ide\/karel/u)
   })
 })
 

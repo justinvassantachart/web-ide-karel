@@ -18,9 +18,32 @@ import {
   sortStrings,
 } from './release-utils.mjs'
 
+// Web IDE 0.4.0 replaces its debugger-sh runtime dependency with the
+// published fork. Everything else in the packaged manifest contract is
+// unchanged across 0.3.0, 0.3.1, and 0.4.0.
+const WEB_DEBUGGER_SH_IDENTITIES = Object.freeze({
+  '0.3.0': Object.freeze({
+    version: '0.3.15',
+    sourceTag: 'v0.3.15',
+    sourceCommit: 'cc250508fabb5b091075e073ceb2e14899fd8423',
+  }),
+  '0.3.1': Object.freeze({
+    version: '0.3.15',
+    sourceTag: 'v0.3.15',
+    sourceCommit: 'cc250508fabb5b091075e073ceb2e14899fd8423',
+  }),
+  // The fork's registry version is fixed by Karel's release input. Its
+  // reviewed source tag and commit are Web IDE-owned final inputs and stay
+  // unbound so no 0.4.0 runtime evidence can pass before they are reviewed.
+  '0.4.0': Object.freeze({
+    version: '0.3.15-webide.0.4.0.1',
+    sourceTag: null,
+    sourceCommit: null,
+  }),
+})
+
 const WEB_PACKAGE_CONTRACT = {
   engines: { node: '^20.19.0 || >=22.12.0' },
-  dependencies: { 'debugger-sh': '0.3.15' },
   peerDependencies: {
     react: '^18.3.0 || ^19.0.0',
     'react-dom': '^18.3.0 || ^19.0.0',
@@ -70,6 +93,7 @@ const WEB_IDE_FINAL_IDENTITIES = Object.freeze({
       'hamilton.python-karel/2',
       'hamilton.python/1',
     ]),
+    peerRange: '>=0.3.0 <0.4.0',
     sourceTag: 'web-ide-v0.3.0-source',
     sourceAssetFilename: 'web-ide-0.3.0-source.tar.gz',
     releaseAssetFilename: 'web-ide-0.3.0.tgz',
@@ -82,9 +106,23 @@ const WEB_IDE_FINAL_IDENTITIES = Object.freeze({
       'hamilton.python-karel/4',
       'hamilton.python/2',
     ]),
+    peerRange: '>=0.3.0 <0.4.0',
     sourceTag: 'web-ide-v0.3.1-source',
     sourceAssetFilename: 'web-ide-0.3.1-source.tar.gz',
     releaseAssetFilename: 'web-ide-0.3.1.tgz',
+  }),
+  '0.4.0': Object.freeze({
+    version: '0.4.0',
+    package: 'web-ide@0.4.0',
+    capabilityReleaseId: 'hamilton.python-karel/6',
+    capabilityReleaseIds: Object.freeze([
+      'hamilton.python-karel/6',
+      'hamilton.python/3',
+    ]),
+    peerRange: '>=0.3.0 <0.4.0 || 0.4.0',
+    sourceTag: 'web-ide-v0.4.0-source',
+    sourceAssetFilename: 'web-ide-0.4.0-source.tar.gz',
+    releaseAssetFilename: 'web-ide-0.4.0.tgz',
   }),
 })
 
@@ -101,13 +139,19 @@ function finalIdentity(configuration, observedVersion) {
   return identity
 }
 
+const PAIRED_KAREL_VERSIONS = Object.freeze({
+  '0.3.0': '0.3.1',
+  '0.3.1': '0.3.2',
+  '0.4.0': '0.3.3',
+})
+
 function karelVersionForConfiguration(configuration, webIDEIdentity) {
   const prefix = '@web-ide/karel@'
   if (typeof configuration?.package === 'string'
     && configuration.package.startsWith(prefix)) {
     return configuration.package.slice(prefix.length)
   }
-  return webIDEIdentity.version === '0.3.1' ? '0.3.2' : '0.3.1'
+  return PAIRED_KAREL_VERSIONS[webIDEIdentity.version]
 }
 
 function assertFileRecord(record, location) {
@@ -172,7 +216,7 @@ export function validateWebIDEEvidenceReport(report, configuration) {
     'peerRange',
     'license',
   ], [], 'Web IDE peer evidence package')
-  const expectedRange = configuration?.webIDE.peerRange ?? '>=0.3.0 <0.4.0'
+  const expectedRange = configuration?.webIDE.peerRange ?? identity.peerRange
   if (
     report.package.name !== 'web-ide'
     || report.package.version !== identity.version
@@ -299,7 +343,7 @@ function validateWebSourceFile(record, expectedKind, expectedName, location) {
   }
 }
 
-function validateWebRuntimeManifest(runtime, allowSyntheticFixture) {
+function validateWebRuntimeManifest(runtime, allowSyntheticFixture, debuggerSh) {
   assertExactKeys(runtime, [
     'observedDate',
     'digestRepresentation',
@@ -379,12 +423,16 @@ function validateWebRuntimeManifest(runtime, allowSyntheticFixture) {
     'size',
     'sha256',
   ], [], 'Web IDE artifact manifest debuggerSh distribution')
+  if (debuggerSh.sourceTag === null || debuggerSh.sourceCommit === null) {
+    throw new TypeError(
+      `Web IDE artifact manifest debugger-sh ${debuggerSh.version} reviewed source tag and commit are not bound yet`,
+    )
+  }
   if (
     runtime.debuggerSh.registry.name !== 'debugger-sh'
-    || runtime.debuggerSh.registry.version !== '0.3.15'
-    || runtime.debuggerSh.source.tag !== 'v0.3.15'
-    || runtime.debuggerSh.source.commit
-      !== 'cc250508fabb5b091075e073ceb2e14899fd8423'
+    || runtime.debuggerSh.registry.version !== debuggerSh.version
+    || runtime.debuggerSh.source.tag !== debuggerSh.sourceTag
+    || runtime.debuggerSh.source.commit !== debuggerSh.sourceCommit
     || runtime.debuggerSh.distribution.path !== 'dist/engine_bg.wasm'
   ) throw new TypeError('Web IDE artifact manifest debugger-sh identity is wrong')
   assertNonEmptyString(
@@ -456,10 +504,16 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode, identity)
     || manifest.package.private !== true
     || manifest.package.license !== 'MIT'
   ) throw new TypeError('Web IDE artifact manifest package identity is wrong')
-  for (const field of Object.keys(WEB_PACKAGE_CONTRACT)) {
+  const packageContract = {
+    ...WEB_PACKAGE_CONTRACT,
+    dependencies: {
+      'debugger-sh': WEB_DEBUGGER_SH_IDENTITIES[identity.version].version,
+    },
+  }
+  for (const field of Object.keys(packageContract)) {
     if (
       canonicalJSONString(manifest.package[field])
-      !== canonicalJSONString(WEB_PACKAGE_CONTRACT[field])
+      !== canonicalJSONString(packageContract[field])
     ) throw new TypeError(`Web IDE artifact manifest package ${field} is wrong`)
   }
   assertExactKeys(manifest.source, [
@@ -637,7 +691,11 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode, identity)
     || !Number.isSafeInteger(manifest.validation.logCount)
     || manifest.validation.logCount < 5
   ) throw new TypeError('Web IDE artifact manifest validation identity is wrong')
-  validateWebRuntimeManifest(manifest.runtime, synthetic)
+  validateWebRuntimeManifest(
+    manifest.runtime,
+    synthetic,
+    WEB_DEBUGGER_SH_IDENTITIES[identity.version],
+  )
   if (
     !Array.isArray(manifest.evidence)
     || manifest.evidence.length
