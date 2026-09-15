@@ -20,13 +20,9 @@ import {
   withVerifiedPackedCandidates,
 } from '../../scripts/packed-candidates.mjs'
 
-// The committed consumer fixture still binds the published Web IDE 0.3.1 and
-// Karel 0.3.2 artifact bytes. The active 0.4.0/0.3.3 pair is rebound in final
-// mode against the exact final candidate pair, so these cases name the pair
-// the committed fixture actually contains.
 const COMMITTED_CONSUMER_PAIR = Object.freeze({
-  webIDEVersion: '0.3.1',
-  karelVersion: '0.3.2',
+  webIDEVersion: '0.4.0',
+  karelVersion: '0.3.3',
 })
 
 const temporaryRoots = []
@@ -286,13 +282,14 @@ describe('active packed candidate pair', () => {
 
   it('rejects the widened peer range for the immutable 0.3.2 artifact', async () => {
     const fixture = await createFixture(({ lock }) => {
-      lock.packages['node_modules/@web-ide/karel']
-        .peerDependencies['web-ide'] = '>=0.3.0 <0.4.0 || 0.4.0'
+      lock.packages['node_modules/web-ide'].version = '0.3.1'
+      lock.packages['node_modules/@web-ide/karel'].version = '0.3.2'
     })
 
     await expect(withVerifiedPackedCandidates({
       consumerRoot: fixture.consumerRoot,
-      ...COMMITTED_CONSUMER_PAIR,
+      webIDEVersion: '0.3.1',
+      karelVersion: '0.3.2',
       candidates: fixture.candidates,
       consume: vi.fn(),
     })).rejects.toThrow(/package-lock\.json Web IDE peer @web-ide\/karel/u)

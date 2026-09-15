@@ -646,7 +646,7 @@ async function webEvidenceFixture({
   await writeFile(candidateStatePath, canonicalJSONString(candidateState))
   const consumerLock = JSON.parse(await readFile(path.join(
     repositoryRoot,
-    'tests/production/consumer/package-lock.json',
+    'release/web-ide-0.3.1-compatibility.package-lock.json',
   ), 'utf8'))
   consumerLock.packages['node_modules/@web-ide/karel'].version = '0.3.1'
   consumerLock.packages['node_modules/web-ide'].version = '0.3.0'

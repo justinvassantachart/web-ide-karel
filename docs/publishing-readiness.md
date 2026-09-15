@@ -22,9 +22,8 @@ No `0.3.3` tag or release is created by the checked-in scripts.
 `0.3.3` is a compatibility-only successor. Its Web IDE peer range widens to
 `>=0.3.0 <0.4.0 || 0.4.0`, admitting exactly the one reviewed Web IDE `0.4.0`
 build and no later `0.4.x` or `0.5`. No packaged runtime, declaration, Python,
-or world file changed from `0.3.2`; the packaged manifest and documentation
-did, so the candidate tarball bytes and the committed consumer lock still have
-to be regenerated and reviewed in final mode.
+or world source file changed from `0.3.2`; the packaged manifest and documentation
+did, so final-mode validation binds their exact candidate bytes.
 
 The packed-production consumer commits one npm v3 lock for the stable local
 references `artifacts/web-ide.tgz` and `artifacts/web-ide-karel.tgz`. Validation
@@ -112,25 +111,11 @@ runtime-reference, and intended-distribution record is content-bound without
 placing the slash-bearing capability release ID in Hamilton's artifact-ID
 namespace.
 
-The committed packed-consumer lock still binds the published `0.3.2` Karel and
-Web IDE `0.3.1` bytes. The `0.4.0`/`0.3.3` pair is a recognized successor
-composition whose identity, peer, engine, and integrity checks are exact,
-while its reviewed normalized-graph digest is deliberately unbound. That digest
-changes with both the exact final Web IDE `0.4.0` candidate and the resolved
-`debugger-sh` fork release asset, so the successor pair fails closed until the
-lock is regenerated against the exact final pair and its digest reviewed and
-committed. The engine lock node itself is already exact: its version,
-`resolved` GitHub asset URL, and SHA-512 integrity are bound, so a registry
-substitution or any other asset fails closed now rather than after
-regeneration.
-
-Two `0.4.0` inputs are Web IDE-owned and stay unbound in this source: the final
-Web `0.4.0` artifact manifest and sidecar, and the regenerated packed-consumer
-lock digest. Each fails closed with a message naming the missing binding; none
-is assumed or substituted. Those two are the only remaining unbound inputs:
-every fork field, including its source and accepted base, build
-toolchain, release asset, and embedded WebAssembly identities, is pinned
-exactly and compared by equality.
+The committed packed-consumer lock binds the Web IDE `0.4.0`/Karel `0.3.3`
+pair and its complete normalized graph. The fork source, accepted base,
+toolchain, public release asset, and embedded WebAssembly identities are exact.
+Historical graph digests and the `0.3.1` compatibility lock remain unchanged.
+Karel finalization also requires Web IDE's final artifact manifest and sidecar.
 
 ## Lock regeneration boundary
 

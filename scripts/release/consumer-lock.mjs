@@ -136,10 +136,8 @@ const KAREL_LOCK_IDENTITIES = Object.freeze({
 const ARTIFACT_INTEGRITY_PLACEHOLDER
   = 'ARTIFACT-INTEGRITY-VALIDATED-SEPARATELY'
 
-// Only the 0.4.0 pair gets an explicit engine node check. Its normalized graph
-// digest is still unbound, so this is the check that keeps the fork asset
-// itself exact in the meantime; the 0.3.x registry nodes stay covered solely by
-// their already reviewed and frozen graph digests.
+// The 0.4.0 fork asset is checked independently of the complete graph digest.
+// Historical registry nodes retain their frozen graph checks.
 const ENGINE_LOCK_IDENTITIES = Object.freeze({
   '0.4.0': Object.freeze({
     version: '0.3.15-webide.0.4.0.1',
@@ -170,16 +168,8 @@ const EXPECTED_NORMALIZED_LOCK_SHA256 = Object.freeze({
   '0.3.0/0.3.1': 'd5a4011f149db75a78cb805cd26b4f65713d7eb022dc57625b6410e11d918522',
   '0.3.1/0.3.1': 'b48dce1a17929456f6ba845164fe493eba0bc7698f6755548cfa5d04f452cb11',
   '0.3.1/0.3.2': 'bf2e7e288a41267478b6da44ae761fd9b3e61030443bb2560acc7bb397bb7383',
+  '0.4.0/0.3.3': 'b1f7e58a33081e3be204d9b309f6631826b5d2664df79ad5a7ae26e2dede8c89',
 })
-
-// The 0.4.0/0.3.3 pair is a recognized successor composition whose reviewed
-// normalized lock graph cannot exist yet: it depends both on the exact final
-// Web IDE 0.4.0 candidate and on the published debugger-sh fork release asset
-// that its engine node resolves. Recognizing the pair keeps the identity, peer,
-// engine, and integrity checks above exact and testable; the digest stays
-// unbound so no final-mode use can pass before the committed consumer lock is
-// regenerated against those exact bytes and reviewed.
-const UNBOUND_NORMALIZED_LOCK_PAIRS = Object.freeze(['0.4.0/0.3.3'])
 
 function assertSha512Integrity(value, location) {
   if (typeof value !== 'string' || !value.startsWith('sha512-')) {
@@ -322,11 +312,6 @@ export function validateProductionConsumerLock(
     canonicalJSONString(normalizedLock),
   ))
   const pair = `${webIDEVersion}/${karelVersion}`
-  if (UNBOUND_NORMALIZED_LOCK_PAIRS.includes(pair)) {
-    throw new TypeError(
-      `Packed consumer reviewed normalized lock digest for the ${pair} pair is not bound yet: regenerate tests/production/consumer/package-lock.json against the exact final candidate pair and the published ${ENGINE_PACKAGE_NAME} fork release asset, then commit the reviewed digest`,
-    )
-  }
   if (normalizedDigest !== EXPECTED_NORMALIZED_LOCK_SHA256[pair]) {
     throw new TypeError(
       'Packed consumer complete transitive lock graph differs from the reviewed contract',

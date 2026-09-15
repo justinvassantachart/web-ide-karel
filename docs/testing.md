@@ -175,14 +175,10 @@ the lock during validation. Release tooling also binds the complete canonical
 transitive lock graph; only the two independently verified private-artifact
 integrities are normalized for that graph check. Added nodes, registry or Git
 URL drift, lifecycle flags, and any other transitive-node change fail closed.
-The committed fixture lock still binds the published Web IDE `0.3.1` and Karel
-`0.3.2` pair. The `0.4.0`/`0.3.3` successor pair is recognized by the identity,
-peer, engine, and integrity checks, but its reviewed normalized-graph digest
-is deliberately unbound: it changes with both the exact final Web IDE `0.4.0`
-candidate and the resolved `debugger-sh` fork release asset. Until that lock is
-regenerated against the exact final pair and its digest reviewed and committed,
-the successor pair fails closed with a message naming the unbound pair. The
-engine lock node is checked exactly for the `0.4.0` pair -- version, `resolved`
+The committed fixture lock binds the exact Web IDE `0.4.0`/Karel `0.3.3` pair
+and its reviewed normalized graph. The historical graph digests and `0.3.1`
+compatibility lock remain unchanged. The engine lock node is checked exactly
+for the `0.4.0` pair -- version, `resolved`
 GitHub asset URL, and SHA-512 integrity -- so a registry substitution fails
 closed independently of the graph digest. The verifier rejects any drift in
 either artifact before npm is invoked.
