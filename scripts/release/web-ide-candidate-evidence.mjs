@@ -45,7 +45,7 @@ export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
     package: 'web-ide@0.4.0',
     capabilityReleaseId: 'hamilton.python/4',
     peerRange: '>=0.3.0 <0.4.0 || 0.4.0',
-    sourceTag: 'web-ide-v0.4.0-source-r3',
+    sourceTag: 'web-ide-v0.4.0-source-r4',
     releaseAssetFilename: 'web-ide-0.4.0.tgz',
     sourceAssetFilename: 'web-ide-0.4.0-source.tar.gz',
     sbomFilename: 'web-ide-0.4.0.cdx.json',

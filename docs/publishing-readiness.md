@@ -18,7 +18,8 @@ source tag `web-ide-karel-v0.3.3-source-r3`, Hamilton release tag
 the final source commit/tag objects, candidate digests, manifest identity, and
 uploaded asset hashes exist only after the complete final workflow succeeds.
 No `0.3.3` tag or release is created by the checked-in scripts.
-The initial and `-r2` Web IDE and Karel source tags remain retained, unreleased checkpoints.
+The initial, `-r2`, and `-r3` Web IDE source tags and the initial and `-r2`
+Karel source tags remain retained, unreleased checkpoints.
 
 `0.3.3` is a compatibility-only successor. Its Web IDE peer range widens to
 `>=0.3.0 <0.4.0 || 0.4.0`, admitting exactly the one reviewed Web IDE `0.4.0`
@@ -89,7 +90,7 @@ The sequence is intentionally:
    asset that Web IDE `0.4.0` resolves -- tag
    `debugger-sh-v0.3.15-webide.0.4.0.1` in `justinvassantachart/engine`, never
    npm -- then generate Web IDE's final candidate state, tarball, and runtime
-   report from its exact annotated `web-ide-v0.4.0-source-r3` tag;
+   report from its exact annotated `web-ide-v0.4.0-source-r4` tag;
 2. commit the exact Web candidate into Karel's packed-consumer lock and generate
    the exact Karel candidate;
 3. run the unfiltered exact-pair compatibility gate through the isolated capture

@@ -69,7 +69,7 @@ export async function loadReleaseConfiguration() {
     input.webIDE.package !== 'web-ide@0.4.0'
     || input.webIDE.peerRange !== '>=0.3.0 <0.4.0 || 0.4.0'
     || input.webIDE.packageRole !== 'web-ide'
-    || input.webIDE.sourceTag !== 'web-ide-v0.4.0-source-r3'
+    || input.webIDE.sourceTag !== 'web-ide-v0.4.0-source-r4'
     || input.webIDE.releaseRepository !== 'justinvassantachart/ths-ide'
     || input.webIDE.releaseTag !== 'web-ide-v0.4.0'
     || input.webIDE.releaseAssetFilename !== 'web-ide-0.4.0.tgz'

@@ -1196,7 +1196,7 @@ describe('exact Web IDE evidence', () => {
       commit: '1'.repeat(40),
       tree: '2'.repeat(40),
       tag: {
-        name: 'web-ide-v0.4.0-source-r3',
+        name: 'web-ide-v0.4.0-source-r4',
         objectId: '3'.repeat(40),
         objectType: 'tag',
         peeledCommit: '1'.repeat(40),
@@ -1780,7 +1780,7 @@ describe('artifact and validation manifests', () => {
             repository: 'https://github.com/justinvassantachart/web-ide.git',
             commit: '1'.repeat(40),
             tree: '2'.repeat(40),
-            tag: 'web-ide-v0.4.0-source-r3',
+            tag: 'web-ide-v0.4.0-source-r4',
           },
         },
         artifact: {
