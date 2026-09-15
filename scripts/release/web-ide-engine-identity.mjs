@@ -18,6 +18,7 @@ const WEB_IDE_040_FORK_ENGINE = Object.freeze({
   version: '0.3.15-webide.0.4.0.1',
   sourceRepository: 'https://github.com/justinvassantachart/engine',
   sourceCommit: 'b7236bda9c8fef31cd771fe770c2145f11ac0682',
+  sourceAcceptedBaseCommit: '58cbc9369e3f7738a6dc9b01082723d144bb9c97',
   upstreamRepository: 'https://github.com/debugger-sh/engine',
   upstreamVersion: '0.3.15',
   upstreamCommit: 'cc250508fabb5b091075e073ceb2e14899fd8423',

@@ -403,6 +403,7 @@ function validateWebForkEngine(record, fork) {
   assertExactKeys(record.source, [
     'repository',
     'commit',
+    'acceptedBaseCommit',
     'upstreamRepository',
     'upstreamVersion',
     'upstreamCommit',
@@ -410,6 +411,7 @@ function validateWebForkEngine(record, fork) {
   if (
     record.source.repository !== fork.sourceRepository
     || record.source.commit !== fork.sourceCommit
+    || record.source.acceptedBaseCommit !== fork.sourceAcceptedBaseCommit
     || record.source.upstreamRepository !== fork.upstreamRepository
     || record.source.upstreamVersion !== fork.upstreamVersion
     || record.source.upstreamCommit !== fork.upstreamCommit

@@ -127,10 +127,10 @@ regeneration.
 Two `0.4.0` inputs are Web IDE-owned and stay unbound in this source: the final
 Web `0.4.0` artifact manifest and sidecar, and the regenerated packed-consumer
 lock digest. Each fails closed with a message naming the missing binding; none
-is assumed or substituted. The fork's own source, distribution, and embedded
-WebAssembly identities are bound exactly; the only fork fields not pinned here
-are the Web IDE-owned build toolchain strings and the embedding module size,
-which are shape-checked and bounded instead of assumed.
+is assumed or substituted. Those two are the only remaining unbound inputs:
+every fork field, including its source and accepted base, build
+toolchain, release asset, and embedded WebAssembly identities, is pinned
+exactly and compared by equality.
 
 ## Lock regeneration boundary
 
