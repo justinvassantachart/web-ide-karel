@@ -12,12 +12,13 @@ and `0.3.2` stays bound to `hamilton.python-karel/5` with its published
 prepublication checkpoints remain retained and unreleased.
 
 The current forward-only release workflow targets package `0.3.3`, annotated
-source tag `web-ide-karel-v0.3.3-source`, Hamilton release tag
+source tag `web-ide-karel-v0.3.3-source-r2`, Hamilton release tag
 `web-ide-karel-v0.3.3`, exact Web IDE `0.4.0`, and capability release
 `hamilton.python-karel/8`. These inputs do not themselves establish a release:
 the final source commit/tag objects, candidate digests, manifest identity, and
 uploaded asset hashes exist only after the complete final workflow succeeds.
 No `0.3.3` tag or release is created by the checked-in scripts.
+The initial Web IDE and Karel source tags remain retained, unreleased checkpoints.
 
 `0.3.3` is a compatibility-only successor. Its Web IDE peer range widens to
 `>=0.3.0 <0.4.0 || 0.4.0`, admitting exactly the one reviewed Web IDE `0.4.0`
@@ -88,7 +89,7 @@ The sequence is intentionally:
    asset that Web IDE `0.4.0` resolves -- tag
    `debugger-sh-v0.3.15-webide.0.4.0.1` in `justinvassantachart/engine`, never
    npm -- then generate Web IDE's final candidate state, tarball, and runtime
-   report from its exact annotated `web-ide-v0.4.0-source` tag;
+   report from its exact annotated `web-ide-v0.4.0-source-r2` tag;
 2. commit the exact Web candidate into Karel's packed-consumer lock and generate
    the exact Karel candidate;
 3. run the unfiltered exact-pair compatibility gate through the isolated capture

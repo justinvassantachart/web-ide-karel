@@ -1196,7 +1196,7 @@ describe('exact Web IDE evidence', () => {
       commit: '1'.repeat(40),
       tree: '2'.repeat(40),
       tag: {
-        name: 'web-ide-v0.4.0-source',
+        name: 'web-ide-v0.4.0-source-r2',
         objectId: '3'.repeat(40),
         objectType: 'tag',
         peeledCommit: '1'.repeat(40),
@@ -1247,9 +1247,9 @@ describe('exact Web IDE evidence', () => {
       npmVersion: '11.6.2',
       sourceEpoch: 1,
       finalEligible: true,
-      sourceReference: 'web-ide-karel-v0.3.3-source',
+      sourceReference: 'web-ide-karel-v0.3.3-source-r2',
       tag: {
-        name: 'web-ide-karel-v0.3.3-source',
+        name: 'web-ide-karel-v0.3.3-source-r2',
         objectId: '7'.repeat(40),
         objectType: 'tag',
         peeledCommit: '5'.repeat(40),
@@ -1729,7 +1729,7 @@ describe('artifact and validation manifests', () => {
         commit: 'e'.repeat(40),
         tree: 'f'.repeat(40),
         tag: {
-          name: 'web-ide-karel-v0.3.3-source',
+          name: 'web-ide-karel-v0.3.3-source-r2',
           objectId: '0'.repeat(40),
           objectType: 'tag',
           peeledCommit: 'e'.repeat(40),
@@ -1780,7 +1780,7 @@ describe('artifact and validation manifests', () => {
             repository: 'https://github.com/justinvassantachart/web-ide.git',
             commit: '1'.repeat(40),
             tree: '2'.repeat(40),
-            tag: 'web-ide-v0.4.0-source',
+            tag: 'web-ide-v0.4.0-source-r2',
           },
         },
         artifact: {
@@ -2097,7 +2097,7 @@ describe('release source state', () => {
       'user.email=release-fixture@example.invalid',
       'tag',
       '-a',
-      'web-ide-karel-v0.3.3-source',
+      'web-ide-karel-v0.3.3-source-r2',
       '-m',
       'fixture release',
     ], { cwd: checkout })
@@ -2105,12 +2105,12 @@ describe('release source state', () => {
       'push',
       'origin',
       'main',
-      'refs/tags/web-ide-karel-v0.3.3-source',
+      'refs/tags/web-ide-karel-v0.3.3-source-r2',
     ], { cwd: checkout })
     const npmVersion = (await run('npm', ['--version'])).stdout.trim()
     const configuration = {
       sourceRepository: bare,
-      sourceTag: 'web-ide-karel-v0.3.3-source',
+      sourceTag: 'web-ide-karel-v0.3.3-source-r2',
       nodeVersion: process.versions.node,
       npmVersion,
     }
@@ -2118,7 +2118,7 @@ describe('release source state', () => {
     expect(source).toMatchObject({
       branch: 'main',
       tag: {
-        name: 'web-ide-karel-v0.3.3-source',
+        name: 'web-ide-karel-v0.3.3-source-r2',
         objectType: 'tag',
       },
       finalEligible: true,
@@ -2147,7 +2147,7 @@ describe('release source state', () => {
           'tag',
           '--force',
           '--annotate',
-          'web-ide-karel-v0.3.3-source',
+          'web-ide-karel-v0.3.3-source-r2',
           '--message=late tag rewrite',
           'HEAD',
         ], { cwd: checkout })
@@ -2162,7 +2162,7 @@ describe('release source state', () => {
     await expect(lstat(lateMutationTarget)).rejects.toMatchObject({ code: 'ENOENT' })
     await git([
       'update-ref',
-      'refs/tags/web-ide-karel-v0.3.3-source',
+      'refs/tags/web-ide-karel-v0.3.3-source-r2',
       source.tag.objectId,
     ], { cwd: checkout })
 
@@ -2256,10 +2256,10 @@ describe('release source state', () => {
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/dirty/u)
     await rm(path.join(checkout, 'dirty.txt'))
-    await git(['tag', '--delete', 'web-ide-karel-v0.3.3-source'], { cwd: checkout })
-    await git(['push', '--delete', 'origin', 'web-ide-karel-v0.3.3-source'], { cwd: checkout })
-    await git(['tag', 'web-ide-karel-v0.3.3-source'], { cwd: checkout })
-    await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.3.3-source'], { cwd: checkout })
+    await git(['tag', '--delete', 'web-ide-karel-v0.3.3-source-r2'], { cwd: checkout })
+    await git(['push', '--delete', 'origin', 'web-ide-karel-v0.3.3-source-r2'], { cwd: checkout })
+    await git(['tag', 'web-ide-karel-v0.3.3-source-r2'], { cwd: checkout })
+    await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.3.3-source-r2'], { cwd: checkout })
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/annotated/u)
   })
