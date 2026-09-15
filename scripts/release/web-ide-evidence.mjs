@@ -418,8 +418,6 @@ function validateWebForkEngine(record, fork) {
   if (record.build.kind !== fork.buildKind) {
     throw new TypeError(`${location}.build.kind is not the reviewed fork build kind`)
   }
-  // The build toolchain is Web IDE-owned evidence copied from the engine
-  // author's final record; Karel cannot reproduce it, so it is shape-checked.
   assertExactKeys(record.build.toolchain, [
     'node',
     'npm',
@@ -428,7 +426,9 @@ function validateWebForkEngine(record, fork) {
     'wasmPack',
   ], [], `${location}.build.toolchain`)
   for (const [field, value] of Object.entries(record.build.toolchain)) {
-    assertNonEmptyString(value, `${location}.build.toolchain.${field}`)
+    if (value !== fork.buildToolchain[field]) {
+      throw new TypeError(`${location}.build.toolchain.${field} is not the reviewed fork toolchain`)
+    }
   }
   assertExactKeys(record.distribution, [
     'mechanism',
@@ -462,6 +462,7 @@ function validateWebForkEngine(record, fork) {
   ) throw new TypeError(`${location}.lock does not pin the exact reviewed fork release asset`)
   assertExactKeys(record.embeddedWasm, [
     'wasmPath',
+    'wasmLoadedAtRuntime',
     'modulePath',
     'remotelyFetched',
     'wasmSize',
@@ -469,27 +470,19 @@ function validateWebForkEngine(record, fork) {
     'moduleSize',
     'moduleSha256',
   ], [], `${location}.embeddedWasm`)
-  if (record.embeddedWasm.remotelyFetched !== false) {
-    throw new TypeError(
-      `${location}.embeddedWasm.remotelyFetched must be false: the engine WebAssembly is embedded, not downloaded`,
-    )
+  for (const field of ['remotelyFetched', 'wasmLoadedAtRuntime']) {
+    if (record.embeddedWasm[field] !== false) {
+      throw new TypeError(`${location}.embeddedWasm.${field} must be false`)
+    }
   }
   if (
     record.embeddedWasm.wasmPath !== fork.wasmPath
     || record.embeddedWasm.modulePath !== fork.modulePath
     || record.embeddedWasm.wasmSize !== fork.wasmSize
     || record.embeddedWasm.wasmSha256 !== fork.wasmSha256
+    || record.embeddedWasm.moduleSize !== fork.moduleSize
     || record.embeddedWasm.moduleSha256 !== fork.moduleSha256
   ) throw new TypeError(`${location}.embeddedWasm is not the exact reviewed embedded engine identity`)
-  assertPositiveSafeInteger(
-    record.embeddedWasm.moduleSize,
-    `${location}.embeddedWasm.moduleSize`,
-  )
-  if (record.embeddedWasm.moduleSize <= record.embeddedWasm.wasmSize) {
-    throw new TypeError(
-      `${location}.embeddedWasm.moduleSize must exceed the embedded engine WebAssembly size`,
-    )
-  }
 }
 
 export function validateWebRuntimeManifest(runtime, allowSyntheticFixture, engine) {

@@ -564,14 +564,13 @@ describe('exact Web IDE 0.4.0 fork engine evidence', () => {
         },
         embeddedWasm: {
           wasmPath: 'dist/engine_bg.wasm',
+          wasmLoadedAtRuntime: false,
           modulePath: 'dist/debugger-sh.js',
           remotelyFetched: false,
           wasmSize: 8880594,
           wasmSha256:
             'df46b583db11d22ed49006746cdf630e3632f3a34499798d4dc19b7634928d24',
-          // Synthetic: only the reviewed exceeds-the-WASM bound is asserted,
-          // because the exact embedding module size is Web IDE-owned evidence.
-          moduleSize: 8880594 + 1,
+          moduleSize: 23760324,
           moduleSha256:
             'fc29a20e6318c41583fae83fddef24c7ee068001ad2f43e97acb6154b319f6b4',
         },
@@ -633,14 +632,20 @@ describe('exact Web IDE 0.4.0 fork engine evidence', () => {
       delete runtime.engine.build.toolchain.rustc
     }, /build\.toolchain/u)
     expectRejected((runtime) => {
+      runtime.engine.build.toolchain.rustc = 'rustc unreviewed'
+    }, /reviewed fork toolchain/u)
+    expectRejected((runtime) => {
+      runtime.engine.embeddedWasm.wasmLoadedAtRuntime = true
+    }, /wasmLoadedAtRuntime must be false/u)
+    expectRejected((runtime) => {
       runtime.engine.embeddedWasm.remotelyFetched = true
     }, /remotelyFetched must be false/u)
     expectRejected((runtime) => {
       runtime.engine.embeddedWasm.wasmSha256 = 'b'.repeat(64)
     }, /exact reviewed embedded engine identity/u)
     expectRejected((runtime) => {
-      runtime.engine.embeddedWasm.moduleSize = 8880594
-    }, /moduleSize must exceed/u)
+      runtime.engine.embeddedWasm.moduleSize = 23760323
+    }, /exact reviewed embedded engine identity/u)
     expectRejected((runtime) => {
       runtime.engine.unreviewedField = 'accepted?'
     }, /runtime engine has unknown field unreviewedField/u)

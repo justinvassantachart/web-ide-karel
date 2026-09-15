@@ -13,9 +13,7 @@ export const ENGINE_PACKAGE_NAME = 'debugger-sh'
 export const WEB_IDE_040_ENGINE_ASSET_URL
   = 'https://github.com/justinvassantachart/engine/releases/download/debugger-sh-v0.3.15-webide.0.4.0.1/debugger-sh-0.3.15-webide.0.4.0.1.tgz'
 
-// Every value here is an exact reviewed identity of the one fork artifact.
-// build.toolchain strings and embeddedWasm.moduleSize are the only fields Karel
-// cannot pin independently; they are shape-checked and bounded below.
+// Exact fork artifact and build identities, checked against the packed bytes.
 const WEB_IDE_040_FORK_ENGINE = Object.freeze({
   version: '0.3.15-webide.0.4.0.1',
   sourceRepository: 'https://github.com/justinvassantachart/engine',
@@ -24,6 +22,13 @@ const WEB_IDE_040_FORK_ENGINE = Object.freeze({
   upstreamVersion: '0.3.15',
   upstreamCommit: 'cc250508fabb5b091075e073ceb2e14899fd8423',
   buildKind: 'embedded-wasm-library-build',
+  buildToolchain: Object.freeze({
+    node: 'v24.11.1',
+    npm: '11.6.2',
+    rustc: 'rustc 1.95.0 (59807616e 2026-04-14)',
+    cargo: 'cargo 1.95.0 (f2d3ce0bd 2026-03-21)',
+    wasmPack: 'wasm-pack 0.14.0',
+  }),
   distributionMechanism: 'public-github-release-asset',
   distributionRepository: 'justinvassantachart/engine',
   distributionTag: 'debugger-sh-v0.3.15-webide.0.4.0.1',
@@ -39,6 +44,7 @@ const WEB_IDE_040_FORK_ENGINE = Object.freeze({
   wasmSha256:
     'df46b583db11d22ed49006746cdf630e3632f3a34499798d4dc19b7634928d24',
   modulePath: 'dist/debugger-sh.js',
+  moduleSize: 23760324,
   moduleSha256:
     'fc29a20e6318c41583fae83fddef24c7ee068001ad2f43e97acb6154b319f6b4',
 })
