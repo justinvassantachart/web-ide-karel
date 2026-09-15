@@ -43,7 +43,7 @@ export const WEB_IDE_CANDIDATE_IDENTITIES = Object.freeze({
   '0.4.0': Object.freeze({
     version: '0.4.0',
     package: 'web-ide@0.4.0',
-    capabilityReleaseId: 'hamilton.python/3',
+    capabilityReleaseId: 'hamilton.python/4',
     peerRange: '>=0.3.0 <0.4.0 || 0.4.0',
     sourceTag: 'web-ide-v0.4.0-source',
     releaseAssetFilename: 'web-ide-0.4.0.tgz',

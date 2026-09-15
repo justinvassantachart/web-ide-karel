@@ -17,30 +17,10 @@ import {
   sha512IntegrityBytes,
   sortStrings,
 } from './release-utils.mjs'
-
-// Web IDE 0.4.0 replaces its debugger-sh runtime dependency with the
-// published fork. Everything else in the packaged manifest contract is
-// unchanged across 0.3.0, 0.3.1, and 0.4.0.
-const WEB_DEBUGGER_SH_IDENTITIES = Object.freeze({
-  '0.3.0': Object.freeze({
-    version: '0.3.15',
-    sourceTag: 'v0.3.15',
-    sourceCommit: 'cc250508fabb5b091075e073ceb2e14899fd8423',
-  }),
-  '0.3.1': Object.freeze({
-    version: '0.3.15',
-    sourceTag: 'v0.3.15',
-    sourceCommit: 'cc250508fabb5b091075e073ceb2e14899fd8423',
-  }),
-  // The fork's registry version is fixed by Karel's release input. Its
-  // reviewed source tag and commit are Web IDE-owned final inputs and stay
-  // unbound so no 0.4.0 runtime evidence can pass before they are reviewed.
-  '0.4.0': Object.freeze({
-    version: '0.3.15-webide.0.4.0.1',
-    sourceTag: null,
-    sourceCommit: null,
-  }),
-})
+import {
+  ENGINE_PACKAGE_NAME,
+  engineIdentity,
+} from './web-ide-engine-identity.mjs'
 
 const WEB_PACKAGE_CONTRACT = {
   engines: { node: '^20.19.0 || >=22.12.0' },
@@ -114,10 +94,10 @@ const WEB_IDE_FINAL_IDENTITIES = Object.freeze({
   '0.4.0': Object.freeze({
     version: '0.4.0',
     package: 'web-ide@0.4.0',
-    capabilityReleaseId: 'hamilton.python-karel/6',
+    capabilityReleaseId: 'hamilton.python-karel/8',
     capabilityReleaseIds: Object.freeze([
-      'hamilton.python-karel/6',
-      'hamilton.python/3',
+      'hamilton.python-karel/8',
+      'hamilton.python/4',
     ]),
     peerRange: '>=0.3.0 <0.4.0 || 0.4.0',
     sourceTag: 'web-ide-v0.4.0-source',
@@ -343,7 +323,176 @@ function validateWebSourceFile(record, expectedKind, expectedName, location) {
   }
 }
 
-function validateWebRuntimeManifest(runtime, allowSyntheticFixture, debuggerSh) {
+// Web IDE 0.3.x runtime.debuggerSh: the engine was an npm registry install and
+// its WebAssembly was one of the locked remote runtime assets.
+function validateWebRegistryEngine(record, registry) {
+  assertExactKeys(record, [
+    'registry',
+    'source',
+    'distribution',
+  ], [], 'Web IDE artifact manifest debuggerSh')
+  assertExactKeys(record.registry, [
+    'name',
+    'version',
+    'resolved',
+    'integrity',
+  ], [], 'Web IDE artifact manifest debuggerSh registry')
+  assertExactKeys(record.source, [
+    'repository',
+    'tag',
+    'commit',
+  ], [], 'Web IDE artifact manifest debuggerSh source')
+  assertExactKeys(record.distribution, [
+    'path',
+    'size',
+    'sha256',
+  ], [], 'Web IDE artifact manifest debuggerSh distribution')
+  if (
+    record.registry.name !== ENGINE_PACKAGE_NAME
+    || record.registry.version !== registry.version
+    || record.source.tag !== registry.sourceTag
+    || record.source.commit !== registry.sourceCommit
+    || record.distribution.path !== 'dist/engine_bg.wasm'
+  ) throw new TypeError('Web IDE artifact manifest debugger-sh identity is wrong')
+  assertNonEmptyString(
+    record.registry.resolved,
+    'Web IDE artifact manifest debugger-sh resolution',
+  )
+  assertNonEmptyString(
+    record.source.repository,
+    'Web IDE artifact manifest debugger-sh source repository',
+  )
+  assertSha512Integrity(
+    record.registry.integrity,
+    'Web IDE artifact manifest debugger-sh integrity',
+  )
+  assertPositiveSafeInteger(
+    record.distribution.size,
+    'Web IDE artifact manifest debugger-sh distribution size',
+  )
+  assertSha256(
+    record.distribution.sha256,
+    'Web IDE artifact manifest debugger-sh distribution SHA-256',
+  )
+}
+
+// Web IDE 0.4.0 runtime.engine: one exact public GitHub release asset of the
+// fork, deliberately unpublished on npm, whose build embeds the engine
+// WebAssembly rather than downloading it.
+function validateWebForkEngine(record, fork) {
+  const location = 'Web IDE artifact manifest runtime engine'
+  assertExactKeys(record, [
+    'name',
+    'version',
+    'registryPublished',
+    'source',
+    'build',
+    'distribution',
+    'lock',
+    'embeddedWasm',
+  ], [], location)
+  if (
+    record.name !== ENGINE_PACKAGE_NAME
+    || record.version !== fork.version
+  ) throw new TypeError(`${location} identity is not the exact reviewed fork package`)
+  if (record.registryPublished !== false) {
+    throw new TypeError(
+      `${location}.registryPublished must be false: the fork is distributed only as a GitHub release asset`,
+    )
+  }
+  assertExactKeys(record.source, [
+    'repository',
+    'commit',
+    'upstreamRepository',
+    'upstreamVersion',
+    'upstreamCommit',
+  ], [], `${location}.source`)
+  if (
+    record.source.repository !== fork.sourceRepository
+    || record.source.commit !== fork.sourceCommit
+    || record.source.upstreamRepository !== fork.upstreamRepository
+    || record.source.upstreamVersion !== fork.upstreamVersion
+    || record.source.upstreamCommit !== fork.upstreamCommit
+  ) throw new TypeError(`${location}.source is not the exact reviewed fork source identity`)
+  assertExactKeys(record.build, ['kind', 'toolchain'], [], `${location}.build`)
+  if (record.build.kind !== fork.buildKind) {
+    throw new TypeError(`${location}.build.kind is not the reviewed fork build kind`)
+  }
+  // The build toolchain is Web IDE-owned evidence copied from the engine
+  // author's final record; Karel cannot reproduce it, so it is shape-checked.
+  assertExactKeys(record.build.toolchain, [
+    'node',
+    'npm',
+    'rustc',
+    'cargo',
+    'wasmPack',
+  ], [], `${location}.build.toolchain`)
+  for (const [field, value] of Object.entries(record.build.toolchain)) {
+    assertNonEmptyString(value, `${location}.build.toolchain.${field}`)
+  }
+  assertExactKeys(record.distribution, [
+    'mechanism',
+    'repository',
+    'tag',
+    'assetFilename',
+    'url',
+    'size',
+    'sha256',
+    'sha512Integrity',
+  ], [], `${location}.distribution`)
+  if (
+    record.distribution.mechanism !== fork.distributionMechanism
+    || record.distribution.repository !== fork.distributionRepository
+    || record.distribution.tag !== fork.distributionTag
+    || record.distribution.assetFilename !== fork.distributionAssetFilename
+    || record.distribution.url !== fork.distributionUrl
+    || record.distribution.size !== fork.distributionSize
+    || record.distribution.sha256 !== fork.distributionSha256
+    || record.distribution.sha512Integrity !== fork.distributionSha512Integrity
+  ) throw new TypeError(`${location}.distribution is not the exact reviewed fork release asset`)
+  assertExactKeys(record.lock, [
+    'version',
+    'resolved',
+    'integrity',
+  ], [], `${location}.lock`)
+  if (
+    record.lock.version !== fork.version
+    || record.lock.resolved !== fork.distributionUrl
+    || record.lock.integrity !== fork.distributionSha512Integrity
+  ) throw new TypeError(`${location}.lock does not pin the exact reviewed fork release asset`)
+  assertExactKeys(record.embeddedWasm, [
+    'wasmPath',
+    'modulePath',
+    'remotelyFetched',
+    'wasmSize',
+    'wasmSha256',
+    'moduleSize',
+    'moduleSha256',
+  ], [], `${location}.embeddedWasm`)
+  if (record.embeddedWasm.remotelyFetched !== false) {
+    throw new TypeError(
+      `${location}.embeddedWasm.remotelyFetched must be false: the engine WebAssembly is embedded, not downloaded`,
+    )
+  }
+  if (
+    record.embeddedWasm.wasmPath !== fork.wasmPath
+    || record.embeddedWasm.modulePath !== fork.modulePath
+    || record.embeddedWasm.wasmSize !== fork.wasmSize
+    || record.embeddedWasm.wasmSha256 !== fork.wasmSha256
+    || record.embeddedWasm.moduleSha256 !== fork.moduleSha256
+  ) throw new TypeError(`${location}.embeddedWasm is not the exact reviewed embedded engine identity`)
+  assertPositiveSafeInteger(
+    record.embeddedWasm.moduleSize,
+    `${location}.embeddedWasm.moduleSize`,
+  )
+  if (record.embeddedWasm.moduleSize <= record.embeddedWasm.wasmSize) {
+    throw new TypeError(
+      `${location}.embeddedWasm.moduleSize must exceed the embedded engine WebAssembly size`,
+    )
+  }
+}
+
+export function validateWebRuntimeManifest(runtime, allowSyntheticFixture, engine) {
   assertExactKeys(runtime, [
     'observedDate',
     'digestRepresentation',
@@ -352,7 +501,7 @@ function validateWebRuntimeManifest(runtime, allowSyntheticFixture, debuggerSh) 
     'scope',
     'limitations',
     'assets',
-    'debuggerSh',
+    engine.evidenceKey,
   ], [], 'Web IDE artifact manifest runtime')
   if (
     !/^\d{4}-\d{2}-\d{2}$/u.test(runtime.observedDate)
@@ -366,7 +515,8 @@ function validateWebRuntimeManifest(runtime, allowSyntheticFixture, debuggerSh) 
     || runtime.limitations.length === 0
     || runtime.limitations.some((item) => typeof item !== 'string' || !item)
     || !Array.isArray(runtime.assets)
-    || runtime.assets.length !== (allowSyntheticFixture ? 1 : 27)
+    || runtime.assets.length
+      !== (allowSyntheticFixture ? 1 : engine.runtimeAssetCount)
   ) throw new TypeError('Web IDE artifact manifest runtime identity is incomplete')
   const ids = []
   for (const [index, asset] of runtime.assets.entries()) {
@@ -402,59 +552,30 @@ function validateWebRuntimeManifest(runtime, allowSyntheticFixture, debuggerSh) 
     JSON.stringify(ids) !== JSON.stringify(sortStrings(ids))
     || new Set(ids).size !== ids.length
   ) throw new TypeError('Web IDE artifact manifest runtime assets are not unique and sorted')
-  assertExactKeys(runtime.debuggerSh, [
-    'registry',
-    'source',
-    'distribution',
-  ], [], 'Web IDE artifact manifest debuggerSh')
-  assertExactKeys(runtime.debuggerSh.registry, [
-    'name',
-    'version',
-    'resolved',
-    'integrity',
-  ], [], 'Web IDE artifact manifest debuggerSh registry')
-  assertExactKeys(runtime.debuggerSh.source, [
-    'repository',
-    'tag',
-    'commit',
-  ], [], 'Web IDE artifact manifest debuggerSh source')
-  assertExactKeys(runtime.debuggerSh.distribution, [
-    'path',
-    'size',
-    'sha256',
-  ], [], 'Web IDE artifact manifest debuggerSh distribution')
-  if (debuggerSh.sourceTag === null || debuggerSh.sourceCommit === null) {
-    throw new TypeError(
-      `Web IDE artifact manifest debugger-sh ${debuggerSh.version} reviewed source tag and commit are not bound yet`,
-    )
+  if (engine.evidenceKey === 'debuggerSh') {
+    validateWebRegistryEngine(runtime.debuggerSh, engine.registry)
+    return
   }
-  if (
-    runtime.debuggerSh.registry.name !== 'debugger-sh'
-    || runtime.debuggerSh.registry.version !== debuggerSh.version
-    || runtime.debuggerSh.source.tag !== debuggerSh.sourceTag
-    || runtime.debuggerSh.source.commit !== debuggerSh.sourceCommit
-    || runtime.debuggerSh.distribution.path !== 'dist/engine_bg.wasm'
-  ) throw new TypeError('Web IDE artifact manifest debugger-sh identity is wrong')
-  assertNonEmptyString(
-    runtime.debuggerSh.registry.resolved,
-    'Web IDE artifact manifest debugger-sh resolution',
-  )
-  assertNonEmptyString(
-    runtime.debuggerSh.source.repository,
-    'Web IDE artifact manifest debugger-sh source repository',
-  )
-  assertSha512Integrity(
-    runtime.debuggerSh.registry.integrity,
-    'Web IDE artifact manifest debugger-sh integrity',
-  )
-  assertPositiveSafeInteger(
-    runtime.debuggerSh.distribution.size,
-    'Web IDE artifact manifest debugger-sh distribution size',
-  )
-  assertSha256(
-    runtime.debuggerSh.distribution.sha256,
-    'Web IDE artifact manifest debugger-sh distribution SHA-256',
-  )
+  // The fork embeds its engine WebAssembly and is installed from a release
+  // asset, so neither the engine WASM nor any fork asset may appear among the
+  // locked remote runtime requests. This is an exclusion, not an allowlist:
+  // every permitted runtime asset still has to match the exact locked set.
+  for (const [index, asset] of runtime.assets.entries()) {
+    const location = `Web IDE artifact manifest runtime assets[${index}]`
+    if (asset.id.startsWith(`${ENGINE_PACKAGE_NAME}.engine`)) {
+      throw new TypeError(
+        `${location} locks the embedded fork engine WebAssembly as a remote runtime asset`,
+      )
+    }
+    for (const field of ['requestedUrl', 'finalUrl']) {
+      if (new URL(asset[field]).hostname === 'github.com') {
+        throw new TypeError(
+          `${location}.${field} fetches a fork release asset at run time`,
+        )
+      }
+    }
+  }
+  validateWebForkEngine(runtime.engine, engine.fork)
 }
 
 function validateWebIDEArtifactManifest(manifest, configuration, mode, identity) {
@@ -507,7 +628,7 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode, identity)
   const packageContract = {
     ...WEB_PACKAGE_CONTRACT,
     dependencies: {
-      'debugger-sh': WEB_DEBUGGER_SH_IDENTITIES[identity.version].version,
+      [ENGINE_PACKAGE_NAME]: engineIdentity(identity.version).dependencySpecifier,
     },
   }
   for (const field of Object.keys(packageContract)) {
@@ -694,7 +815,7 @@ function validateWebIDEArtifactManifest(manifest, configuration, mode, identity)
   validateWebRuntimeManifest(
     manifest.runtime,
     synthetic,
-    WEB_DEBUGGER_SH_IDENTITIES[identity.version],
+    engineIdentity(identity.version),
   )
   if (
     !Array.isArray(manifest.evidence)

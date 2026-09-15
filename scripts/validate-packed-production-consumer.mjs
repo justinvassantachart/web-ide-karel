@@ -26,6 +26,10 @@ import {
   exactActivePairCompatibilityEvidence,
 } from './release/active-pair-compatibility-receipt.mjs'
 import { validateProductionConsumerLock } from './release/consumer-lock.mjs'
+import {
+  ENGINE_PACKAGE_NAME,
+  engineIdentity,
+} from './release/web-ide-engine-identity.mjs'
 
 const successorProfileInput = process.env.KAREL_RELEASE_WEB_IDE_SUCCESSOR
 const successorMode = successorProfileInput === '0.3.1'
@@ -41,6 +45,7 @@ const EXPECTED_KAREL_PEERS = Object.freeze({
   'web-ide': successorMode ? '>=0.3.0 <0.4.0' : '>=0.3.0 <0.4.0 || 0.4.0',
 })
 const EXPECTED_REACT_VERSION = '19.2.8'
+const expectedEngine = engineIdentity(expectedWebIDEVersion)
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = path.resolve(scriptRoot, '..')
 const projectsRoot = path.dirname(repositoryRoot)
@@ -265,8 +270,17 @@ async function assertInstalledPackagePair() {
       )
     }
   }
+  const installedEngine = webIDE.dependencies?.[ENGINE_PACKAGE_NAME]
+  if (installedEngine !== expectedEngine.dependencySpecifier) {
+    throw new Error(
+      `Installed web-ide ${ENGINE_PACKAGE_NAME} dependency must be ${expectedEngine.dependencySpecifier}, found ${String(installedEngine)}`,
+    )
+  }
   process.stdout.write(
     `Installed exact pair: web-ide@${webIDE.version} + @web-ide/karel@${karel.version}\n`,
+  )
+  process.stdout.write(
+    `Installed ${ENGINE_PACKAGE_NAME}: ${expectedEngine.dependencySpecifier}\n`,
   )
 }
 
@@ -352,6 +366,7 @@ try {
   strictInstallEnvironment = {
     ...isolatedNpmEnvironment(process.env, npmCacheRoot),
     KAREL_PRODUCTION_ARTIFACT_DIR: artifactRoot,
+    KAREL_CONSUMER_WEB_IDE_VERSION: expectedWebIDEVersion,
   }
 
   await assertFixtureUsesPublicExportsOnly()

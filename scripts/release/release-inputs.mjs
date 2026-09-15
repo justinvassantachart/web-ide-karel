@@ -36,7 +36,7 @@ export async function loadReleaseConfiguration() {
     assertNonEmptyString(input[field], `release input.${field}`)
   }
   if (
-    input.capabilityReleaseId !== 'hamilton.python-karel/7'
+    input.capabilityReleaseId !== 'hamilton.python-karel/8'
     || input.packageRole !== 'karel'
     || input.sourceRepository !== 'https://github.com/justinvassantachart/web-ide-karel.git'
     || input.sourceTag !== 'web-ide-karel-v0.3.3-source'

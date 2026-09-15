@@ -1,5 +1,9 @@
 import { canonicalJSONString } from './canonical-json.mjs'
 import { assertExactKeys, sha256Bytes } from './release-utils.mjs'
+import {
+  ENGINE_PACKAGE_NAME,
+  WEB_IDE_040_ENGINE_ASSET_URL,
+} from './web-ide-engine-identity.mjs'
 
 export const EXPECTED_PRODUCTION_CONSUMER_MANIFEST = Object.freeze({
   name: 'web-ide-karel-packed-production-consumer',
@@ -69,15 +73,16 @@ const WEB_IDE_LOCK_IDENTITIES = Object.freeze({
       'react-dom': '^18.3.0 || ^19.0.0',
     },
   }),
-  // Web IDE 0.4.0 consumes the published debugger-sh fork, so the packed
-  // consumer graph resolves a different registry entry than every 0.3.x pair.
+  // Web IDE 0.4.0 declares the debugger-sh fork as one exact public GitHub
+  // release asset URL, never a registry range, so the packed consumer graph
+  // resolves a fundamentally different engine node than every 0.3.x pair.
   '0.4.0': Object.freeze({
     version: '0.4.0',
     resolved: 'file:artifacts/web-ide.tgz',
     license: 'MIT',
     peer: true,
     workspaces: ['examples/basic', 'examples/plugin-demo'],
-    dependencies: { 'debugger-sh': '0.3.15-webide.0.4.0.1' },
+    dependencies: { [ENGINE_PACKAGE_NAME]: WEB_IDE_040_ENGINE_ASSET_URL },
     engines: { node: '^20.19.0 || >=22.12.0' },
     peerDependencies: {
       react: '^18.3.0 || ^19.0.0',
@@ -130,6 +135,37 @@ const KAREL_LOCK_IDENTITIES = Object.freeze({
 // node-field change necessarily changes this digest.
 const ARTIFACT_INTEGRITY_PLACEHOLDER
   = 'ARTIFACT-INTEGRITY-VALIDATED-SEPARATELY'
+
+// Only the 0.4.0 pair gets an explicit engine node check. Its normalized graph
+// digest is still unbound, so this is the check that keeps the fork asset
+// itself exact in the meantime; the 0.3.x registry nodes stay covered solely by
+// their already reviewed and frozen graph digests.
+const ENGINE_LOCK_IDENTITIES = Object.freeze({
+  '0.4.0': Object.freeze({
+    version: '0.3.15-webide.0.4.0.1',
+    resolved: WEB_IDE_040_ENGINE_ASSET_URL,
+    integrity:
+      'sha512-EMYupTFpj9buXYwQ9yt8vZNr7yEaKG7K4/9KHmPMhPN+RRk+/Zm0oyTsJlt5Xjcb7Z3XtWGRkz5dnAt2S4X7iA==',
+  }),
+})
+
+function validateEngineEntry(entry, expected) {
+  if (expected === undefined) return
+  const location = `packed consumer ${ENGINE_PACKAGE_NAME} lock entry`
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    throw new TypeError(`${location} is absent from the packed consumer lock`)
+  }
+  if (
+    entry.version !== expected.version
+    || entry.resolved !== expected.resolved
+    || entry.integrity !== expected.integrity
+  ) {
+    throw new TypeError(
+      `${location} is not the exact reviewed fork release asset ${expected.resolved}`,
+    )
+  }
+}
+
 const EXPECTED_NORMALIZED_LOCK_SHA256 = Object.freeze({
   '0.3.0/0.3.1': 'd5a4011f149db75a78cb805cd26b4f65713d7eb022dc57625b6410e11d918522',
   '0.3.1/0.3.1': 'b48dce1a17929456f6ba845164fe493eba0bc7698f6755548cfa5d04f452cb11',
@@ -138,11 +174,11 @@ const EXPECTED_NORMALIZED_LOCK_SHA256 = Object.freeze({
 
 // The 0.4.0/0.3.3 pair is a recognized successor composition whose reviewed
 // normalized lock graph cannot exist yet: it depends both on the exact final
-// Web IDE 0.4.0 candidate and on the registry entry for its published
-// debugger-sh 0.3.15-webide.0.4.0.1 dependency. Recognizing the pair keeps the
-// identity, peer, and integrity checks above exact and testable; the digest
-// stays unbound so no final-mode use can pass before the committed consumer
-// lock is regenerated against those exact bytes and reviewed.
+// Web IDE 0.4.0 candidate and on the published debugger-sh fork release asset
+// that its engine node resolves. Recognizing the pair keeps the identity, peer,
+// engine, and integrity checks above exact and testable; the digest stays
+// unbound so no final-mode use can pass before the committed consumer lock is
+// regenerated against those exact bytes and reviewed.
 const UNBOUND_NORMALIZED_LOCK_PAIRS = Object.freeze(['0.4.0/0.3.3'])
 
 function assertSha512Integrity(value, location) {
@@ -272,6 +308,10 @@ export function validateProductionConsumerLock(
     expectedKarel,
     'packed consumer Karel lock entry',
   )
+  validateEngineEntry(
+    lock.packages[`node_modules/${ENGINE_PACKAGE_NAME}`],
+    ENGINE_LOCK_IDENTITIES[webIDEVersion],
+  )
   validateReactEntries(lock.packages)
   const normalizedLock = structuredClone(lock)
   normalizedLock.packages['node_modules/web-ide'].integrity
@@ -284,7 +324,7 @@ export function validateProductionConsumerLock(
   const pair = `${webIDEVersion}/${karelVersion}`
   if (UNBOUND_NORMALIZED_LOCK_PAIRS.includes(pair)) {
     throw new TypeError(
-      `Packed consumer reviewed normalized lock digest for the ${pair} pair is not bound yet: regenerate tests/production/consumer/package-lock.json against the exact final candidate pair and its published debugger-sh dependency, then commit the reviewed digest`,
+      `Packed consumer reviewed normalized lock digest for the ${pair} pair is not bound yet: regenerate tests/production/consumer/package-lock.json against the exact final candidate pair and the published ${ENGINE_PACKAGE_NAME} fork release asset, then commit the reviewed digest`,
     )
   }
   if (normalizedDigest !== EXPECTED_NORMALIZED_LOCK_SHA256[pair]) {

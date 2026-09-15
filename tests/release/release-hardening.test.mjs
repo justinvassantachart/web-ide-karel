@@ -32,6 +32,13 @@ import {
 import {
   candidateIdentityForConfiguration,
 } from '../../scripts/release/web-ide-candidate-evidence.mjs'
+import {
+  engineIdentity,
+  WEB_IDE_040_ENGINE_ASSET_URL,
+} from '../../scripts/release/web-ide-engine-identity.mjs'
+import {
+  validateWebRuntimeManifest,
+} from '../../scripts/release/web-ide-evidence.mjs'
 
 const temporaryDirectories = []
 
@@ -174,15 +181,22 @@ describe('exact packed consumer contract', () => {
       const lock = structuredClone(committed)
       const webIDE = lock.packages['node_modules/web-ide']
       webIDE.version = '0.4.0'
-      webIDE.dependencies['debugger-sh'] = '0.3.15-webide.0.4.0.1'
+      webIDE.dependencies['debugger-sh'] = WEB_IDE_040_ENGINE_ASSET_URL
       const karel = lock.packages['node_modules/@web-ide/karel']
       karel.version = '0.3.3'
       karel.peerDependencies['web-ide'] = '>=0.3.0 <0.4.0 || 0.4.0'
+      lock.packages['node_modules/debugger-sh'] = {
+        version: '0.3.15-webide.0.4.0.1',
+        resolved: WEB_IDE_040_ENGINE_ASSET_URL,
+        integrity:
+          'sha512-EMYupTFpj9buXYwQ9yt8vZNr7yEaKG7K4/9KHmPMhPN+RRk+/Zm0oyTsJlt5Xjcb7Z3XtWGRkz5dnAt2S4X7iA==',
+        license: 'MIT',
+      }
       return lock
     }
 
-    // Identity, peer, and integrity checks all pass for the successor pair;
-    // only the reviewed normalized lock digest is still unbound.
+    // Identity, peer, engine, and integrity checks all pass for the successor
+    // pair; only the reviewed normalized lock digest is still unbound.
     expect(() => validateProductionConsumerLock(successorLock()))
       .toThrow(/normalized lock digest for the 0\.4\.0\/0\.3\.3 pair is not bound yet/u)
 
@@ -192,11 +206,41 @@ describe('exact packed consumer contract', () => {
     expect(() => validateProductionConsumerLock(narrowPeer))
       .toThrow(/Karel lock entry identity differs/u)
 
+    // The fork is distributed only as a public GitHub release asset, so a
+    // registry specifier or registry resolution for the engine fails closed.
+    const registryDebugger = successorLock()
+    registryDebugger.packages['node_modules/web-ide']
+      .dependencies['debugger-sh'] = '0.3.15-webide.0.4.0.1'
+    expect(() => validateProductionConsumerLock(registryDebugger))
+      .toThrow(/Web IDE lock entry identity differs/u)
+
     const staleDebugger = successorLock()
     staleDebugger.packages['node_modules/web-ide']
       .dependencies['debugger-sh'] = '0.3.15'
     expect(() => validateProductionConsumerLock(staleDebugger))
       .toThrow(/Web IDE lock entry identity differs/u)
+
+    const registryResolvedEngine = successorLock()
+    registryResolvedEngine.packages['node_modules/debugger-sh'].resolved
+      = 'https://registry.npmjs.org/debugger-sh/-/debugger-sh-0.3.15-webide.0.4.0.1.tgz'
+    expect(() => validateProductionConsumerLock(registryResolvedEngine))
+      .toThrow(/debugger-sh lock entry is not the exact reviewed fork release asset/u)
+
+    const substitutedEngine = successorLock()
+    substitutedEngine.packages['node_modules/debugger-sh'].integrity
+      = `sha512-${Buffer.alloc(64, 7).toString('base64')}`
+    expect(() => validateProductionConsumerLock(substitutedEngine))
+      .toThrow(/debugger-sh lock entry is not the exact reviewed fork release asset/u)
+
+    const absentEngine = successorLock()
+    delete absentEngine.packages['node_modules/debugger-sh']
+    expect(() => validateProductionConsumerLock(absentEngine))
+      .toThrow(/debugger-sh lock entry is absent/u)
+
+    // Every historical pair keeps its frozen graph digest and gains no new
+    // engine-node requirement.
+    expect(validateProductionConsumerLock(committed, PUBLISHED_PAIR).webIDE.binding)
+      .toBe('pending')
   })
 
   it('keeps the packed browser gate serial, retry-free, and process-isolated', async () => {
@@ -447,5 +491,183 @@ describe('exclusive evidence publication', () => {
       .toBe('retained stage\n')
     await expect(readFile(path.join(outside, 'evidence.txt'), 'utf8'))
       .rejects.toThrow()
+  })
+})
+
+// Web IDE 0.4.0 installs the debugger-sh fork from one public GitHub release
+// asset and embeds its engine WebAssembly, so Karel's Web-runtime validator has
+// to bind that exact asset and reject every runtime engine download.
+describe('exact Web IDE 0.4.0 fork engine evidence', () => {
+  function forkRuntime() {
+    return {
+      observedDate: '2026-08-24',
+      digestRepresentation: 'identity-encoded-response-body',
+      expectedRedirectCount: 0,
+      requestTimeoutMs: 1000,
+      scope: 'Synthetic fork-engine fixture.',
+      limitations: ['Synthetic bytes only.'],
+      assets: Array.from({ length: 26 }, (_, index) => {
+        const suffix = String(index).padStart(2, '0')
+        return {
+          id: `fixture.${suffix}`,
+          version: 'fixture',
+          requestedUrl: `https://assets.example.test/runtime-${suffix}.wasm`,
+          finalUrl: `https://assets.example.test/runtime-${suffix}.wasm`,
+          size: 1,
+          sha256: index.toString(16).padStart(64, '0'),
+          contentType: 'application/wasm',
+          headers: {
+            'access-control-allow-origin': '*',
+            'cross-origin-resource-policy': null,
+          },
+          license: 'MIT',
+        }
+      }),
+      engine: {
+        name: 'debugger-sh',
+        version: '0.3.15-webide.0.4.0.1',
+        registryPublished: false,
+        source: {
+          repository: 'https://github.com/justinvassantachart/engine',
+          commit: 'b7236bda9c8fef31cd771fe770c2145f11ac0682',
+          upstreamRepository: 'https://github.com/debugger-sh/engine',
+          upstreamVersion: '0.3.15',
+          upstreamCommit: 'cc250508fabb5b091075e073ceb2e14899fd8423',
+        },
+        build: {
+          kind: 'embedded-wasm-library-build',
+          toolchain: {
+            node: 'v24.11.1',
+            npm: '11.6.2',
+            rustc: 'rustc 1.95.0 (59807616e 2026-04-14)',
+            cargo: 'cargo 1.95.0 (f2d3ce0bd 2026-03-21)',
+            wasmPack: 'wasm-pack 0.14.0',
+          },
+        },
+        distribution: {
+          mechanism: 'public-github-release-asset',
+          repository: 'justinvassantachart/engine',
+          tag: 'debugger-sh-v0.3.15-webide.0.4.0.1',
+          assetFilename: 'debugger-sh-0.3.15-webide.0.4.0.1.tgz',
+          url: WEB_IDE_040_ENGINE_ASSET_URL,
+          size: 27818347,
+          sha256:
+            'feaaf9da592ee6be8ee68705bd2c2ad79db69528df4fcdf2d1c20b01b51f1bf7',
+          sha512Integrity:
+            'sha512-EMYupTFpj9buXYwQ9yt8vZNr7yEaKG7K4/9KHmPMhPN+RRk+/Zm0oyTsJlt5Xjcb7Z3XtWGRkz5dnAt2S4X7iA==',
+        },
+        lock: {
+          version: '0.3.15-webide.0.4.0.1',
+          resolved: WEB_IDE_040_ENGINE_ASSET_URL,
+          integrity:
+            'sha512-EMYupTFpj9buXYwQ9yt8vZNr7yEaKG7K4/9KHmPMhPN+RRk+/Zm0oyTsJlt5Xjcb7Z3XtWGRkz5dnAt2S4X7iA==',
+        },
+        embeddedWasm: {
+          wasmPath: 'dist/engine_bg.wasm',
+          modulePath: 'dist/debugger-sh.js',
+          remotelyFetched: false,
+          wasmSize: 8880594,
+          wasmSha256:
+            'df46b583db11d22ed49006746cdf630e3632f3a34499798d4dc19b7634928d24',
+          // Synthetic: only the reviewed exceeds-the-WASM bound is asserted,
+          // because the exact embedding module size is Web IDE-owned evidence.
+          moduleSize: 8880594 + 1,
+          moduleSha256:
+            'fc29a20e6318c41583fae83fddef24c7ee068001ad2f43e97acb6154b319f6b4',
+        },
+      },
+    }
+  }
+
+  const fork = engineIdentity('0.4.0')
+
+  function expectRejected(mutate, pattern) {
+    const runtime = forkRuntime()
+    mutate(runtime)
+    expect(() => validateWebRuntimeManifest(runtime, false, fork)).toThrow(pattern)
+  }
+
+  it('binds the exact fork release asset and embedded engine WebAssembly', () => {
+    expect(fork.dependencySpecifier).toBe(WEB_IDE_040_ENGINE_ASSET_URL)
+    expect(fork.runtimeAssetCount).toBe(26)
+    expect(validateWebRuntimeManifest(forkRuntime(), false, fork)).toBeUndefined()
+
+    // The 0.3.x registry record shape is no longer accepted for 0.4.0.
+    expectRejected((runtime) => {
+      runtime.debuggerSh = runtime.engine
+      delete runtime.engine
+    }, /runtime has unknown field debuggerSh/u)
+  })
+
+  it('rejects wrong fork asset identities, npm publication, and remote engine fetches', () => {
+    expectRejected((runtime) => {
+      runtime.engine.distribution.url
+        = 'https://github.com/justinvassantachart/engine/releases/download/debugger-sh-v0.3.15-webide.0.4.0.1/other.tgz'
+    }, /exact reviewed fork release asset/u)
+    expectRejected((runtime) => {
+      runtime.engine.distribution.sha256 = 'a'.repeat(64)
+    }, /exact reviewed fork release asset/u)
+    expectRejected((runtime) => {
+      runtime.engine.distribution.size = 27818346
+    }, /exact reviewed fork release asset/u)
+    expectRejected((runtime) => {
+      runtime.engine.distribution.mechanism = 'npm-registry'
+    }, /exact reviewed fork release asset/u)
+    expectRejected((runtime) => {
+      runtime.engine.registryPublished = true
+    }, /registryPublished must be false/u)
+    expectRejected((runtime) => {
+      runtime.engine.lock.resolved
+        = 'https://registry.npmjs.org/debugger-sh/-/debugger-sh-0.3.15-webide.0.4.0.1.tgz'
+    }, /lock does not pin the exact reviewed fork release asset/u)
+    expectRejected((runtime) => {
+      runtime.engine.source.commit = '0'.repeat(40)
+    }, /exact reviewed fork source identity/u)
+    expectRejected((runtime) => {
+      runtime.engine.source.upstreamCommit = '0'.repeat(40)
+    }, /exact reviewed fork source identity/u)
+    expectRejected((runtime) => {
+      runtime.engine.build.kind = 'wasm-release-build'
+    }, /reviewed fork build kind/u)
+    expectRejected((runtime) => {
+      delete runtime.engine.build.toolchain.rustc
+    }, /build\.toolchain/u)
+    expectRejected((runtime) => {
+      runtime.engine.embeddedWasm.remotelyFetched = true
+    }, /remotelyFetched must be false/u)
+    expectRejected((runtime) => {
+      runtime.engine.embeddedWasm.wasmSha256 = 'b'.repeat(64)
+    }, /exact reviewed embedded engine identity/u)
+    expectRejected((runtime) => {
+      runtime.engine.embeddedWasm.moduleSize = 8880594
+    }, /moduleSize must exceed/u)
+    expectRejected((runtime) => {
+      runtime.engine.unreviewedField = 'accepted?'
+    }, /runtime engine has unknown field unreviewedField/u)
+  })
+
+  it('rejects any locked remote engine WebAssembly or fork asset request', () => {
+    expectRejected((runtime) => {
+      for (const [index, asset] of runtime.assets.entries()) {
+        asset.id = index === 0
+          ? 'debugger-sh.engine-bg.wasm'
+          : `fixture.${String(index).padStart(2, '0')}`
+      }
+    }, /locks the embedded fork engine WebAssembly as a remote runtime asset/u)
+    expectRejected((runtime) => {
+      runtime.assets[25].id = 'zdebugger-sh.engine-bg.wasm'
+      runtime.assets[25].requestedUrl = WEB_IDE_040_ENGINE_ASSET_URL
+      runtime.assets[25].finalUrl = WEB_IDE_040_ENGINE_ASSET_URL
+    }, /fetches a fork release asset at run time/u)
+    expectRejected((runtime) => {
+      runtime.assets[25].finalUrl
+        = 'https://github.com/justinvassantachart/engine/releases/download/debugger-sh-v0.3.15-webide.0.4.0.1/debugger-sh-0.3.15-webide.0.4.0.1.tgz'
+    }, /fetches a fork release asset at run time/u)
+    expectRejected((runtime) => {
+      runtime.assets.push(structuredClone(runtime.assets[25]))
+    }, /runtime identity is incomplete/u)
+    expectRejected((runtime) => {
+      runtime.assets.pop()
+    }, /runtime identity is incomplete/u)
   })
 })

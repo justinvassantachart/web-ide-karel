@@ -15,6 +15,12 @@ import {
   runKarel,
 } from './helpers'
 
+// The packed gate runs against one exact reviewed pair. Web IDE 0.4.0 embeds
+// the engine WebAssembly in its debugger-sh fork build; every 0.3.x pair
+// downloads it from the public registry CDN instead.
+const EMBEDDED_ENGINE_WASM
+  = (process.env.KAREL_CONSUMER_WEB_IDE_VERSION ?? '0.4.0') === '0.4.0'
+
 const test = base.extend({
   context: async ({
     playwright,
@@ -158,9 +164,21 @@ test('proves security headers, nested execution, and exact source/action/world c
   await expect.poll(() => diagnostics.externalResponses.some(
     (response) => /monaco-editor@0\.56\.0\/min\/vs\/loader\.js/u.test(response.url()),
   )).toBe(true)
-  await expect.poll(() => diagnostics.externalResponses.some(
-    (response) => /debugger-sh@0\.3\.15\/dist\/engine_bg\.wasm/u.test(response.url()),
-  )).toBe(true)
+  if (EMBEDDED_ENGINE_WASM) {
+    // Web IDE 0.4.0 installs the debugger-sh fork, whose build embeds the
+    // engine WebAssembly. Nothing may download it, and the installed fork
+    // release asset must never be fetched from GitHub at run time either.
+    await expect.poll(() => diagnostics.externalResponses.length).toBeGreaterThan(0)
+    expect(diagnostics.externalResponses.filter(
+      (response) => /engine_bg\.wasm/u.test(response.url())
+        || /^https:\/\/github\.com\//u.test(response.url())
+        || /^https:\/\/objects\.githubusercontent\.com\//u.test(response.url()),
+    ).map((response) => response.url())).toEqual([])
+  } else {
+    await expect.poll(() => diagnostics.externalResponses.some(
+      (response) => /debugger-sh@0\.3\.15\/dist\/engine_bg\.wasm/u.test(response.url()),
+    )).toBe(true)
+  }
   await expect.poll(() => diagnostics.externalResponses.some(
     (response) => /^https:\/\/runno\.dev\//u.test(response.url()),
   )).toBe(true)

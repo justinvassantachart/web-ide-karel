@@ -254,14 +254,15 @@ capture-runner validation logs with deterministic local-path placeholders and
 actual-exit/source/candidate-pair-bound receipts, intended private Hamilton
 release assets, and an unchanged live
 source identity immediately before atomic final publication. The accepted
-composition identity `hamilton.python-karel/7` appears only in release
+composition identity `hamilton.python-karel/8` appears only in release
 metadata; it does not enter Karel's public runtime or world contracts. The
 schema-2 Karel artifact manifest binds the exact sorted singleton
-`capabilityReleaseIds` list `['hamilton.python-karel/7']`; Web IDE `0.4.0`'s
+`capabilityReleaseIds` list `['hamilton.python-karel/8']`; Web IDE `0.4.0`'s
 separately owned schema-2 manifest carries
-`hamilton.python-karel/6` and `hamilton.python/3`. The older Karel `0.3.2`,
-`0.3.1` and Web IDE `0.3.1`, `0.3.0` identities remain confined to their frozen
-historical validators and evidence.
+`hamilton.python-karel/8` and `hamilton.python/4`. The older Karel `0.3.2`,
+`0.3.1` and Web IDE `0.3.1`, `0.3.0` identities, and Hamilton's retained
+`hamilton.python/3` and `hamilton.python-karel/6` compositions, remain confined
+to their frozen historical validators and evidence.
 The final artifact manifest uses the slash-free
 `urn:sha256:<canonical-manifest-input>` content identity also used by Web IDE.
 That digest covers every manifest field except `manifestId` itself, binding the

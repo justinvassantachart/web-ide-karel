@@ -4,7 +4,7 @@
   "sourceRepository": "https://github.com/justinvassantachart/web-ide-karel.git",
   "sourceTag": "web-ide-karel-v0.3.3-source",
   "sourceAssetFilename": "web-ide-karel-0.3.3-source.tar.gz",
-  "capabilityReleaseId": "hamilton.python-karel/7",
+  "capabilityReleaseId": "hamilton.python-karel/8",
   "packageRole": "karel",
   "releaseRepository": "justinvassantachart/ths-ide",
   "releaseTag": "web-ide-karel-v0.3.3",

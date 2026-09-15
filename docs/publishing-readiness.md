@@ -14,7 +14,7 @@ prepublication checkpoints remain retained and unreleased.
 The current forward-only release workflow targets package `0.3.3`, annotated
 source tag `web-ide-karel-v0.3.3-source`, Hamilton release tag
 `web-ide-karel-v0.3.3`, exact Web IDE `0.4.0`, and capability release
-`hamilton.python-karel/7`. These inputs do not themselves establish a release:
+`hamilton.python-karel/8`. These inputs do not themselves establish a release:
 the final source commit/tag objects, candidate digests, manifest identity, and
 uploaded asset hashes exist only after the complete final workflow succeeds.
 No `0.3.3` tag or release is created by the checked-in scripts.
@@ -64,10 +64,12 @@ immutable.
 The historical capability identifiers remain recorded only in their immutable
 evidence, not in package runtime contracts. The `0.3.3` Karel artifact manifest
 uses schema 2 and the exact sorted singleton `capabilityReleaseIds` list
-`["hamilton.python-karel/7"]`; the exact Web IDE `0.4.0` peer manifest is
-expected to carry `["hamilton.python-karel/6", "hamilton.python/3"]`, and the
+`["hamilton.python-karel/8"]`; the exact Web IDE `0.4.0` peer manifest is
+expected to carry `["hamilton.python-karel/8", "hamilton.python/4"]`, and the
 immutable Web IDE `0.3.1` manifest retains
-`["hamilton.python-karel/4", "hamilton.python/2"]`. Published URLs,
+`["hamilton.python-karel/4", "hamilton.python/2"]`. Hamilton's retained
+`hamilton.python/3` and `hamilton.python-karel/6` compositions are historical
+and are not rebound here. Published URLs,
 credentials, and host cache state remain distribution-owned records and are
 not embedded in the package.
 
@@ -83,10 +85,11 @@ outputs are external and it performs no tag, release, or upload mutation.
 
 The sequence is intentionally:
 
-1. publish the forked `debugger-sh@0.3.15-webide.0.4.0.1` runtime dependency
-   that Web IDE `0.4.0` resolves, then generate Web IDE's final candidate
-   state, tarball, and runtime report from its exact annotated
-   `web-ide-v0.4.0-source` tag;
+1. publish the reviewed `debugger-sh` fork build as the public GitHub release
+   asset that Web IDE `0.4.0` resolves -- tag
+   `debugger-sh-v0.3.15-webide.0.4.0.1` in `justinvassantachart/engine`, never
+   npm -- then generate Web IDE's final candidate state, tarball, and runtime
+   report from its exact annotated `web-ide-v0.4.0-source` tag;
 2. commit the exact Web candidate into Karel's packed-consumer lock and generate
    the exact Karel candidate;
 3. run the unfiltered exact-pair compatibility gate through the isolated capture
@@ -111,18 +114,23 @@ namespace.
 
 The committed packed-consumer lock still binds the published `0.3.2` Karel and
 Web IDE `0.3.1` bytes. The `0.4.0`/`0.3.3` pair is a recognized successor
-composition whose identity, peer, and integrity checks are exact, while its
-reviewed normalized-graph digest is deliberately unbound. That digest changes
-with both the exact final Web IDE `0.4.0` candidate and the registry entry for
-`debugger-sh@0.3.15-webide.0.4.0.1`, so the successor pair fails closed until
-the lock is regenerated against the exact final pair and its digest reviewed
-and committed.
+composition whose identity, peer, engine, and integrity checks are exact,
+while its reviewed normalized-graph digest is deliberately unbound. That digest
+changes with both the exact final Web IDE `0.4.0` candidate and the resolved
+`debugger-sh` fork release asset, so the successor pair fails closed until the
+lock is regenerated against the exact final pair and its digest reviewed and
+committed. The engine lock node itself is already exact: its version,
+`resolved` GitHub asset URL, and SHA-512 integrity are bound, so a registry
+substitution or any other asset fails closed now rather than after
+regeneration.
 
-Three `0.4.0` inputs are Web IDE-owned and stay unbound in this source: the
-final Web `0.4.0` artifact manifest and sidecar, the reviewed `debugger-sh`
-fork source tag and commit, and the regenerated packed-consumer lock digest.
-Each fails closed with a message naming the missing binding; none is assumed
-or substituted.
+Two `0.4.0` inputs are Web IDE-owned and stay unbound in this source: the final
+Web `0.4.0` artifact manifest and sidecar, and the regenerated packed-consumer
+lock digest. Each fails closed with a message naming the missing binding; none
+is assumed or substituted. The fork's own source, distribution, and embedded
+WebAssembly identities are bound exactly; the only fork fields not pinned here
+are the Web IDE-owned build toolchain strings and the embedding module size,
+which are shape-checked and bounded instead of assumed.
 
 ## Lock regeneration boundary
 

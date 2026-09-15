@@ -177,19 +177,24 @@ integrities are normalized for that graph check. Added nodes, registry or Git
 URL drift, lifecycle flags, and any other transitive-node change fail closed.
 The committed fixture lock still binds the published Web IDE `0.3.1` and Karel
 `0.3.2` pair. The `0.4.0`/`0.3.3` successor pair is recognized by the identity,
-peer, and integrity checks, but its reviewed normalized-graph digest is
-deliberately unbound: it changes with both the exact final Web IDE `0.4.0`
-candidate and the registry entry for its published
-`debugger-sh@0.3.15-webide.0.4.0.1` dependency. Until that lock is regenerated
-against the exact final pair and its digest reviewed and committed, the
-successor pair fails closed with a message naming the unbound pair. The
-verifier rejects any drift in either artifact before npm is invoked.
+peer, engine, and integrity checks, but its reviewed normalized-graph digest
+is deliberately unbound: it changes with both the exact final Web IDE `0.4.0`
+candidate and the resolved `debugger-sh` fork release asset. Until that lock is
+regenerated against the exact final pair and its digest reviewed and committed,
+the successor pair fails closed with a message naming the unbound pair. The
+engine lock node is checked exactly for the `0.4.0` pair -- version, `resolved`
+GitHub asset URL, and SHA-512 integrity -- so a registry substitution fails
+closed independently of the graph digest. The verifier rejects any drift in
+either artifact before npm is invoked.
 
 The production browser matrix proves:
 
 1. nested-module execution with exact line/action/world/run correlation,
    execution-only resource exclusion, history navigation, and live external
-   Monaco, debugger-sh, and Python-runtime assets;
+   Monaco and Python-runtime assets. Against Web IDE `0.4.0` the gate also
+   proves the inverse for the engine: the `debugger-sh` fork embeds its
+   WebAssembly, so no `engine_bg.wasm` and no GitHub asset request may occur.
+   Every `0.3.x` pair still requires the registry-CDN engine download;
 2. deterministic termination of a line-only loop at its configured pause
    limit;
 3. output-flood termination while already accepted, correlated protocol events

@@ -13,7 +13,7 @@ Python, or world file changed, and its peer range widens to
 `>=0.3.0 <0.4.0 || 0.4.0`. The trailing `|| 0.4.0` admits only the one reviewed
 Web IDE `0.4.0` build; no untested later `0.4.x` or `0.5` is admitted. Its
 forward-only release inputs bind exact Web IDE `0.4.0` evidence and Hamilton
-capability release `hamilton.python-karel/7`; it is not an immutable release
+capability release `hamilton.python-karel/8`; it is not an immutable release
 until the documented candidate, validation, finalization, upload, and
 re-download checks complete. The historical `0.3.2` artifact remains bound to
 `hamilton.python-karel/5` and to its published `>=0.3.0 <0.4.0` peer range, and
@@ -427,12 +427,24 @@ Karel references Web IDE's runtime evidence by digest and never claims or
 duplicates Web-owned runtime assets.
 
 The final Karel artifact manifest is schema 2 and binds exactly
-`capabilityReleaseIds: ["hamilton.python-karel/7"]`. The final Web `0.4.0`
+`capabilityReleaseIds: ["hamilton.python-karel/8"]`. The final Web `0.4.0`
 manifest is schema 2 with its sorted shared-byte list
-`["hamilton.python-karel/6", "hamilton.python/3"]`; Karel finalization verifies
+`["hamilton.python-karel/8", "hamilton.python/4"]`; Karel finalization verifies
 and references that exact peer evidence without rebinding it. The historical
 `0.3.2`, `0.3.1` Karel and Web IDE `0.3.1`, `0.3.0` evidence paths remain
-accepted only by their frozen compatibility validators.
+accepted only by their frozen compatibility validators, and Hamilton's retained
+`hamilton.python/3` and `hamilton.python-karel/6` bindings are untouched by this
+successor.
+
+Web IDE `0.4.0` replaces its `debugger-sh` runtime dependency with a public
+GitHub release asset of the `justinvassantachart/engine` fork. That fork is
+deliberately never published to npm, so Karel's Web-peer validation binds the
+exact release asset URL, size, SHA-256, and SHA-512 integrity instead of a
+registry version, and requires the engine WebAssembly to be embedded in the
+package rather than downloaded. No credential, npm publication, or permissive
+GitHub allowlist is involved: exactly one asset URL is accepted, and any
+run-time request for the engine WebAssembly or for a GitHub asset fails
+closed.
 
 The scripts require absolute external input/output paths; see
 [docs/testing.md](docs/testing.md) for exact variables and the explicitly

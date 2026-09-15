@@ -16,7 +16,7 @@ import { webIDEActiveCompatibilityReceipt } from './web-compatibility-receipt.mj
 
 const ACTIVE_KAREL_IDENTITY = Object.freeze({
   package: '@web-ide/karel@0.3.3',
-  capabilityReleaseId: 'hamilton.python-karel/7',
+  capabilityReleaseId: 'hamilton.python-karel/8',
   packageRole: 'karel',
   sourceTag: 'web-ide-karel-v0.3.3-source',
   releaseAssetFilename: 'web-ide-karel-0.3.3.tgz',

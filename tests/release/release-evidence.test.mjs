@@ -1225,7 +1225,7 @@ describe('exact Web IDE evidence', () => {
       package: 'web-ide@0.4.0',
       result: 'candidate-generated',
       source: webSource,
-      capabilityReleaseId: 'hamilton.python/3',
+      capabilityReleaseId: 'hamilton.python/4',
       packageRole: 'web-ide',
       artifacts: webArtifacts.map((fileName) => ({
         fileName,
@@ -1263,7 +1263,7 @@ describe('exact Web IDE evidence', () => {
       result: 'candidate-generated',
       mode: 'final',
       source: karelSource,
-      capabilityReleaseId: 'hamilton.python-karel/7',
+      capabilityReleaseId: 'hamilton.python-karel/8',
       packageRole: 'karel',
       sourceFiles: {
         packageManifest: {},
@@ -1589,7 +1589,7 @@ describe('candidate evidence schemas', () => {
     const source = { commit: 'a'.repeat(40) }
     const configuration = {
       package: '@web-ide/karel@0.3.3',
-      capabilityReleaseId: 'hamilton.python-karel/7',
+      capabilityReleaseId: 'hamilton.python-karel/8',
       packageRole: 'karel',
     }
     const state = {
@@ -1697,7 +1697,7 @@ describe('artifact and validation manifests', () => {
     const manifestInput = {
       schemaVersion: 2,
       manifestKind: 'hamilton-capability-package-artifact',
-      capabilityReleaseIds: ['hamilton.python-karel/7'],
+      capabilityReleaseIds: ['hamilton.python-karel/8'],
       packageRole: 'karel',
       package: {
         name: '@web-ide/karel',
@@ -1763,7 +1763,7 @@ describe('artifact and validation manifests', () => {
       webIDEPeer: {
         schemaVersion: 1,
         result: 'pass',
-        capabilityReleaseId: 'hamilton.python-karel/6',
+        capabilityReleaseId: 'hamilton.python-karel/8',
         packageRole: 'web-ide-peer',
         package: {
           name: 'web-ide',
@@ -1838,10 +1838,10 @@ describe('artifact and validation manifests', () => {
     expect(() => validateArtifactManifest(legacySchema))
       .toThrow(/composition identity/u)
     const extraCapability = structuredClone(manifest)
-    extraCapability.capabilityReleaseIds.push('hamilton.python/3')
+    extraCapability.capabilityReleaseIds.push('hamilton.python/4')
     expect(() => validateArtifactManifest(extraCapability))
       .toThrow(/composition identity/u)
-    manifest.manifestId = `hamilton.python-karel/7:karel:sha256:${tarSha}`
+    manifest.manifestId = `hamilton.python-karel/8:karel:sha256:${tarSha}`
     expect(() => validateArtifactManifest(manifest)).toThrow(/canonical content/u)
     manifest.manifestId = `urn:sha256:${sha256Bytes(Buffer.from(
       canonicalJSONString(manifestInput),
