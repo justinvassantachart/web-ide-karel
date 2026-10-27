@@ -5,22 +5,17 @@ owns Karel's world contract, Python teaching library, protocol, playback,
 renderer, and panel. It does not provide a Python interpreter, persist host
 data, or add Karel behavior to Web IDE core.
 
-The MIT-licensed `0.2.0` r6, `0.3.0`, `0.3.1`, and `0.3.2` artifacts are
-immutable historical private releases. The current source package is `0.3.3`,
-remains `private: true`, and is not published to npm. It is a
-compatibility-only successor to `0.3.2`: no packaged runtime, declaration,
-Python, or world file changed, and its peer range widens to
-`>=0.3.0 <0.4.0 || 0.4.0`. The trailing `|| 0.4.0` admits only the one reviewed
-Web IDE `0.4.0` build; no untested later `0.4.x` or `0.5` is admitted. Its
-forward-only release inputs bind exact Web IDE `0.4.0` evidence and Hamilton
-capability release `hamilton.python-karel/8`; it is not an immutable release
-until the documented candidate, validation, finalization, upload, and
-re-download checks complete. The historical `0.3.2` artifact remains bound to
-`hamilton.python-karel/5` and to its published `>=0.3.0 <0.4.0` peer range, and
-`0.3.1` remains bound to `hamilton.python-karel/3` including its separately
-retained Web IDE `0.3.1` compatibility profile. Release consumers install one
-exact reviewed Web IDE/Karel artifact pair rather than selecting arbitrary
-versions from the declared peer range.
+The current source package is `0.3.4`, remains `private: true`, and is not
+published to npm. This compatibility release widens its Web IDE peer range to
+`>=0.3.0` and develops against the exact public Web IDE `0.7.3` release
+artifact. It changes no Karel runtime, Python, or world source. Hosts should
+still pin exact Web IDE and Karel versions and test their chosen composition.
+
+Historical releases through `0.3.3`, their evidence, and their source tags
+remain unchanged. The retained `release/` inputs and evidence tooling describe
+the historical `0.3.3` / Web IDE `0.4.0` pair; they are not the release process
+for `0.3.4`. See [release ownership](https://github.com/justinvassantachart/web-ide-karel/blob/main/RELEASE_OWNERSHIP.md) and
+[publishing readiness](docs/publishing-readiness.md) for distribution details.
 
 The package composes only through public Web IDE contributions and panel
 services. A host selects a generic runtime that advertises Python and, for line
@@ -346,23 +341,26 @@ The package declares Node 20 or later and Python 3.10 or later. From a clean
 checkout:
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm run check:python
 npx playwright install chromium
-npm run validate:production
+npm run validate
+npm run test:browser
 ```
 
 `npm run validate` executes, in order, lint, all non-browser TypeScript and
 Python tests, typechecking, the library and basic-example builds, and
 `npm pack --dry-run`. `test:python` runs the version checker first and fails
-closed below Python 3.10. `validate:production` adds the development browser
+closed below Python 3.10. The historical `validate:production` command adds the development browser
 suite, full and production dependency audits, and a locked fresh consumer that
 installs exact packed Web IDE and Karel artifacts with lifecycle scripts
 disabled and a disposable npm cache, builds them for production, serves the
 nested SPA with production headers, and runs the release browser matrix.
 
-The packed matrix builds temporary candidates from the adjacent Web IDE and
-current Karel source by default. To validate already-built release candidates,
+The following packed matrix and release-evidence commands retain the historical
+`0.3.3` / Web IDE `0.4.0` contract. They cannot validate `0.3.4`. The historical
+matrix builds temporary candidates from adjacent source by default. To validate
+already-built historical release candidates,
 provide both absolute paths. Their bytes must match the committed consumer
 lock before npm is invoked:
 

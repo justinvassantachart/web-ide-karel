@@ -1,6 +1,6 @@
 {
   "name": "@web-ide/karel",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "A host-registered Karel companion plugin for Web IDE and generic Python runtime sessions.",
   "type": "module",
@@ -69,7 +69,7 @@
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
-    "web-ide": ">=0.3.0 <0.4.0 || 0.4.0"
+    "web-ide": ">=0.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -91,7 +91,7 @@
     "vite": "^7.3.1",
     "vite-plugin-dts": "^4.5.4",
     "vitest": "^4.1.6",
-    "web-ide": "file:../web-ide"
+    "web-ide": "https://github.com/justinvassantachart/web-ide/releases/download/web-ide-v0.7.3/web-ide-0.7.3.tgz"
   },
   "packageManager": "npm@11.6.2"
 }
