@@ -1,5 +1,29 @@
 # Publishing readiness
 
+## 0.3.4 compatibility release
+
+The current package widens the Web IDE peer range to `>=0.3.0`; development
+uses the exact public `web-ide@0.7.3` tarball. No Karel runtime, declaration
+source, Python, or world source changes are intended. Before publication:
+
+1. Run `npm ci --ignore-scripts`, `npm run validate`, and the consuming host's
+   real-runtime compatibility tests against the exact packed candidate.
+2. Inspect `npm pack --json` contents and compare the packaged runtime,
+   declarations, Python, and worlds with the canonical `0.3.3` artifact.
+   Record any build-only byte differences and both artifact hashes.
+3. Publish only a new `web-ide-karel-v0.3.4` release in this package's own
+   repository, after owner review. Keep every historical release unchanged.
+4. Verify the downloaded asset digest and a clean consumer installation.
+   Canonical GitHub release URLs are publicly fetchable and support plain
+   `npm ci` without repository credentials. Check unauthenticated access to
+   the new asset before downstream adoption.
+
+The following sections document historical releases and their frozen evidence
+workflow. `release/release-input.json`, its schema constants, and the packed
+consumer lock remain bound to `0.3.3`; do not run that finalizer for `0.3.4`.
+
+## Historical release evidence
+
 `@web-ide/karel@0.2.0` r6, `0.3.0`, `0.3.1`, and `0.3.2` are MIT-licensed
 immutable private releases. Their exact release evidence, source tags, Hamilton
 release tags, and capability bindings remain unchanged. The packages remain
