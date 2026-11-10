@@ -92,6 +92,24 @@ function frame(event: KarelProtocolEvent): string {
 }
 
 describe('KarelPlaybackController', () => {
+  it('presents a host toolbar stop as aborted when the public runtime settles stopped', async () => {
+    const fixture = setup()
+    Object.assign(fixture.runtime, { waitForSettlement: async () => ({ type: 'stopped' as const }) })
+    await fixture.controller.prepare()
+    fixture.events.debugPaused.emit(pause('/main.py', 2))
+    fixture.events.exit.emit(0)
+    await vi.waitFor(() => expect(fixture.controller.getSnapshot().timeline.terminal?.detail.outcome).toBe('aborted'))
+    expect(fixture.controller.getSnapshot().message).toBe('Karel run stopped.')
+  })
+
+  it('retains missing-protocol failures for a successful runtime completion', async () => {
+    const fixture = setup()
+    Object.assign(fixture.runtime, { waitForSettlement: async () => ({ type: 'completed' as const, exitCode: 0 }) })
+    await fixture.controller.prepare()
+    fixture.events.exit.emit(0)
+    await vi.waitFor(() => expect(fixture.controller.getSnapshot().timeline.terminal?.detail).toMatchObject({ outcome: 'runtime-error', message: 'Python exited without a Karel terminal event.' }))
+  })
+
   it('filters support pauses and records only eligible workspace lines', async () => {
     const fixture = setup()
     const continueExecution = vi.spyOn(fixture.runtime, 'continueExecution')

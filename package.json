@@ -1,6 +1,6 @@
 {
   "name": "@web-ide/karel",
-  "version": "0.3.4",
+  "version": "0.3.5-ui.0",
   "private": true,
   "description": "A host-registered Karel companion plugin for Web IDE and generic Python runtime sessions.",
   "type": "module",
