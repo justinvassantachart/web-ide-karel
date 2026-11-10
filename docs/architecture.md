@@ -206,15 +206,16 @@ authorization, or trusted-execution boundary.
 
 ## Package and distribution boundary
 
-The source package is MIT-licensed `@web-ide/karel@0.3.3`, remains
-`private: true`, and declares Web IDE `>=0.3.0 <0.4.0 || 0.4.0` as a peer. The
-trailing `|| 0.4.0` is a metadata-only widening that admits exactly the one
-reviewed Web IDE `0.4.0` build; later `0.4.x` and `0.5` stay excluded until
-they are reviewed. No Karel runtime behavior, world format, or formative
-semantics changed for it. React, React
-DOM, and Web IDE are external to the library bundle. The sibling
-`file:../web-ide` development dependency exists only to build and test paired
-source checkouts; it is not a release or host dependency path.
+The source package is MIT-licensed `@web-ide/karel@0.3.4`, remains
+`private: true`, and declares Web IDE `>=0.3.0` as a peer. This metadata-only
+compatibility release changes no Karel runtime behavior, world format, or
+formative semantics. React, React DOM, and Web IDE remain external to the
+library bundle. Development installs the exact public Web IDE `0.7.3` release
+tarball through the lockfile rather than a sibling source checkout.
+
+The release evidence tooling described below is retained for the historical
+`0.3.3` / Web IDE `0.4.0` pair. It does not validate or publish `0.3.4`.
+The compatibility-release procedure is in `publishing-readiness.md`.
 
 Release compatibility is narrower than the peer range. The packed-production
 consumer commits one lock for stable `web-ide.tgz` and `web-ide-karel.tgz`

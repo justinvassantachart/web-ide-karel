@@ -7,7 +7,9 @@ application and does not own this package. They were rehomed here on
 2026-09-16. Every release's `artifact-manifest.json` already recorded
 `source.repository: https://github.com/justinvassantachart/web-ide-karel.git`.
 
-This repository and its releases are **private**.
+This repository and its release downloads are public. The package keeps
+`private: true` to prevent accidental npm publication; that manifest flag does
+not prevent installing its public GitHub release tarball.
 
 ## Canonical releases
 
@@ -42,7 +44,7 @@ design decision. Breaking those URLs would break production.
 The mirrors here are additive. Nothing in the Hamilton application was changed
 by this migration.
 
-## Release configuration is still pinned to the old channel — on purpose
+## Historical release configuration stays pinned to the old channel
 
 `release/release-input.json` still sets `releaseRepository:
 justinvassantachart/ths-ide` (and the same value inside its nested `webIDE`
@@ -55,10 +57,11 @@ was actually published**. Changing it without cutting a new version would make
 this repository's tooling reject the `artifact-manifest.json` it already
 published.
 
-Update `releaseRepository` to `justinvassantachart/web-ide-karel` as part of
-the next version bump, together with the pinned manifest-schema consts and any
-`mechanism` literal, then run the normal release gates. Nothing in this
-migration bypassed or re-ran any release gate.
+The `0.3.4` compatibility release uses the procedure in
+[docs/publishing-readiness.md](docs/publishing-readiness.md) and the canonical
+`justinvassantachart/web-ide-karel` release channel. Its normal package build
+and consumer checks do not retarget the historical `0.3.3` evidence machinery.
+Nothing in the earlier mirror migration bypassed or re-ran a release gate.
 
 The nested `webIDE` block also points at `ths-ide` for `web-ide` 0.4.0. Note
 that `web-ide` 0.4.0 deliberately **stays** in `ths-ide` — its asset set binds

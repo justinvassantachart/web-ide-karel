@@ -1,14 +1,22 @@
 # Testing
 
+The source package now develops against the exact public Web IDE `0.7.3`
+release tarball. For the `0.3.4` compatibility release, run the local validation
+below and the consuming host's real-runtime packed-candidate checks. The
+`test:packed-production` and `release:*` workflows described later retain their
+historical `0.3.3` / Web IDE `0.4.0` fixture locks and cannot validate `0.3.4`.
+See [publishing readiness](publishing-readiness.md).
+
 ## Supported local workflow
 
 Use the checked-in npm lockfile and a supported Python interpreter:
 
 ```sh
-npm ci
+npm ci --ignore-scripts
 npm run check:python
 npx playwright install chromium
-npm run validate:production
+npm run validate
+npm run test:browser
 ```
 
 `npm run validate` is exactly:

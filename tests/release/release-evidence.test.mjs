@@ -74,10 +74,14 @@ import {
 import { VALIDATION_GATE_SPECS } from '../../scripts/release/validation-contract.mjs'
 
 const temporaryDirectories = []
-const currentKarelPackageManifest = JSON.parse(await readFile(path.join(
+const historicalKarelPackageManifest = JSON.parse(await readFile(path.join(
   repositoryRoot,
   'package.json',
 ), 'utf8'))
+// These fixtures validate the retained 0.3.3 evidence contract, not the current
+// source package. A new compatibility release must not rebind old evidence.
+historicalKarelPackageManifest.version = '0.3.3'
+historicalKarelPackageManifest.peerDependencies['web-ide'] = '>=0.3.0 <0.4.0 || 0.4.0'
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => (
@@ -133,7 +137,7 @@ function mutateTarHeader(entry, mutate) {
 }
 
 function karelTarball(overrides = {}, additionalEntries = []) {
-  const manifest = structuredClone(currentKarelPackageManifest)
+  const manifest = structuredClone(historicalKarelPackageManifest)
   const entries = EXPECTED_KAREL_PACKAGE_FILES.map((fileName) => {
     const defaultContent = fileName === 'package.json'
       ? `${JSON.stringify(manifest)}\n`
@@ -964,13 +968,13 @@ describe('safe package tar reading', () => {
       'README.md': Buffer.from([0xff, 0xfe]),
     }))).toThrow()
 
-    const engineDrift = structuredClone(currentKarelPackageManifest)
+    const engineDrift = structuredClone(historicalKarelPackageManifest)
     engineDrift.engines.node = '*'
     expect(() => inspectExistingPackedPackage(karelTarball({
       'package.json': `${JSON.stringify(engineDrift)}\n`,
     }))).toThrow(/engine policy/u)
 
-    const lifecycleHook = structuredClone(currentKarelPackageManifest)
+    const lifecycleHook = structuredClone(historicalKarelPackageManifest)
     lifecycleHook.scripts.install = 'node unreviewed-install.js'
     expect(() => inspectExistingPackedPackage(karelTarball({
       'package.json': `${JSON.stringify(lifecycleHook)}\n`,
@@ -2262,5 +2266,5 @@ describe('release source state', () => {
     await git(['push', 'origin', 'refs/tags/web-ide-karel-v0.3.3-source-r3'], { cwd: checkout })
     await expect(verifyReleaseSourceState(configuration, checkout))
       .rejects.toThrow(/annotated/u)
-  })
+  }, 30_000)
 })

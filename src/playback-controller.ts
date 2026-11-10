@@ -557,6 +557,27 @@ export class KarelPlaybackController {
     // Web IDE's settled stop may publish exit before its promise resolves.
     // The stop owner supplies the authoritative aborted/error settlement.
     if (this.pendingStop) return
+    const runId = this.runId
+    // A toolbar/host Stop bypasses this controller's stop owner. The runtime's
+    // public settled outcome distinguishes that intentional abort from a
+    // successful Python exit missing its required Karel protocol terminal.
+    if (this.runtime.waitForSettlement) {
+      void this.runtime.waitForSettlement().then((outcome) => {
+        if (this.disposed || this.runId !== runId || this.timeline.getSnapshot().phase === 'terminal') return
+        if (outcome.type === 'stopped') {
+          this.settle({ runId, sequence: this.takeSequence(), detail: {
+            outcome: 'aborted', world: this.store.getSnapshot().world,
+          } })
+        } else {
+          this.fail(new Error(outcome.type === 'error' ? outcome.error.message
+            : code === 0 ? 'Python exited without a Karel terminal event.'
+              : `Python exited with code ${code} before Karel settled.`))
+        }
+      }, (error: unknown) => {
+        if (!this.disposed && this.runId === runId && this.timeline.getSnapshot().phase !== 'terminal') this.fail(error)
+      })
+      return
+    }
     this.fail(new Error(
       code === 0
         ? 'Python exited without a Karel terminal event.'
